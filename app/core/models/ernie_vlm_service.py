@@ -95,7 +95,7 @@ class MockVLMClient(VLMClientBase):
 
 
 class ErnieVLMClient(VLMClientBase):
-    """Real ERNIE 4.5 VLM client using vLLM server."""
+    """Real ERNIE VLM client using vLLM server. Supports ERNIE 4.5 and ERNIE 5 models."""
     
     PROMPT_TEMPLATE = """You are a financial document analysis expert. Analyze this invoice and the following 
 preliminary OCR data. Perform these tasks:
@@ -127,10 +127,60 @@ Return a JSON object with this exact structure:
     "confidence_scores": {{"overall": 0.0}}
 }}"""
     
-    def __init__(self, server_url: str, timeout: int = 60, max_retries: int = 3):
+    # Supported ERNIE models with their configurations
+    SUPPORTED_MODELS = {
+        "ernie-5": {
+            "model_name": "baidu/ERNIE-5",
+            "default_max_tokens": 4096,
+            "default_temperature": 0.1,
+            "supports_thinking": True
+        },
+        "ernie-4.5-vl": {
+            "model_name": "baidu/ERNIE-4.5-VL-28B-A3B-Thinking",
+            "default_max_tokens": 2048,
+            "default_temperature": 0.1,
+            "supports_thinking": True
+        },
+        "ernie-4.5": {
+            "model_name": "baidu/ERNIE-4.5-8B",
+            "default_max_tokens": 2048,
+            "default_temperature": 0.1,
+            "supports_thinking": False
+        }
+    }
+    
+    def __init__(self, server_url: str, model_name: str = None, timeout: int = 60, max_retries: int = 3, enable_thinking: bool = True):
         self.server_url = server_url
         self.timeout = timeout
         self.max_retries = max_retries
+        self.enable_thinking = enable_thinking
+        
+        # Determine model version
+        if model_name:
+            self.model_name = model_name
+            # Detect model version from name
+            if "ernie-5" in model_name.lower() or "ERNIE-5" in model_name:
+                self.model_version = "ernie-5"
+            elif "ernie-4.5" in model_name.lower() or "ERNIE-4.5" in model_name:
+                if "vl" in model_name.lower():
+                    self.model_version = "ernie-4.5-vl"
+                else:
+                    self.model_version = "ernie-4.5"
+            else:
+                # Default to ERNIE 4.5 VL for backward compatibility
+                self.model_version = "ernie-4.5-vl"
+                logger.warning(f"Unknown ERNIE model '{model_name}', defaulting to ERNIE 4.5 VL")
+        else:
+            # Default to ERNIE 5 if available, fallback to ERNIE 4.5 VL
+            self.model_version = "ernie-5"
+            self.model_name = self.SUPPORTED_MODELS["ernie-5"]["model_name"]
+        
+        # Get model config
+        model_config = self.SUPPORTED_MODELS.get(self.model_version, self.SUPPORTED_MODELS["ernie-4.5-vl"])
+        self.default_max_tokens = model_config["default_max_tokens"]
+        self.default_temperature = model_config["default_temperature"]
+        
+        logger.info(f"Initialized ERNIE VLM client with model: {self.model_name} (version: {self.model_version})")
     
     async def parse(self, ocr_payload: Dict[str, Any], image_bytes: bytes) -> Dict[str, Any]:
         """Send OCR data + image to ERNIE 4.5 for semantic enrichment."""
@@ -164,12 +214,17 @@ Return a JSON object with this exact structure:
             }
         ]
         
+        # Build payload with model-specific parameters
         payload = {
-            "model": "baidu/ERNIE-4.5-VL-28B-A3B-Thinking",
+            "model": self.model_name,
             "messages": messages,
-            "temperature": 0.1,
-            "max_tokens": 2048
+            "temperature": self.default_temperature,
+            "max_tokens": self.default_max_tokens
         }
+        
+        # Add thinking mode for supported models if enabled
+        if self.enable_thinking and self.SUPPORTED_MODELS.get(self.model_version, {}).get("supports_thinking", False):
+            payload["enable_thinking"] = True
         
         # Retry logic
         last_exception = None
