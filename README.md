@@ -206,7 +206,7 @@ flowchart TB
 
 ---
 
-### 2) Model & training pipeline
+### 2. Model & Training Pipeline
 
 ```mermaid
 flowchart LR
@@ -227,7 +227,7 @@ flowchart LR
 
 ---
 
-### 3) Inference & validation sequence (request lifecycle)
+### 3. Inference & Validation Sequence (Request Lifecycle)
 
 ```mermaid
 sequenceDiagram
@@ -256,7 +256,7 @@ sequenceDiagram
 
 ---
 
-### 4) Deployment & scaling architecture (inference/GPU)
+### 4. Deployment & Scaling Architecture
 
 ```mermaid
 flowchart LR
@@ -288,7 +288,9 @@ flowchart LR
 
 ---
 
-## Technical implementation (detailed)
+## 🔧 Technical Implementation
+
+This section provides detailed implementation guidance for each component of the system.
 
 ### 1. Ingestion & ETL adapters
 

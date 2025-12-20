@@ -268,7 +268,6 @@ Return a JSON object with this exact structure:
                                     except json.JSONDecodeError as e:
                                         logger.warning(f"Failed to parse ERNIE response as JSON: {str(e)}")
                                         # Try to extract JSON from markdown code blocks if present
-                                        import re
                                         json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', content, re.DOTALL)
                                         if json_match:
                                             try:

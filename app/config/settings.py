@@ -15,9 +15,13 @@ def load_config() -> Dict[str, Any]:
         },
         "ernie_vl": {
             "vllm_server_url": os.getenv("ERNIE_VLLM_URL", "http://localhost:8002/v1"),
-            "model_name": "baidu/ERNIE-4.5-VL-28B-A3B-Thinking",
+            "model_name": os.getenv("ERNIE_MODEL_NAME", "baidu/ERNIE-5"),  # Default to ERNIE 5
+            "model_version": os.getenv("ERNIE_MODEL_VERSION", "auto"),  # auto, ernie-5, ernie-4.5-vl, ernie-4.5
             "timeout": int(os.getenv("ERNIE_TIMEOUT", "60")),
-            "enable_thinking": True
+            "max_retries": int(os.getenv("ERNIE_MAX_RETRIES", "3")),
+            "enable_thinking": os.getenv("ERNIE_ENABLE_THINKING", "true").lower() == "true",
+            "huggingface_token": os.getenv("HUGGINGFACE_TOKEN", None),  # Optional HF token for private models
+            "use_huggingface": os.getenv("USE_HUGGINGFACE", "false").lower() == "true"
         },
         "validation": {
             "check_arithmetic": True,
