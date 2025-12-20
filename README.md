@@ -12,7 +12,16 @@
 
 **Convert invoices, receipts, and financial statements into validated, structured JSON with 94%+ field extraction accuracy**
 
-[Features](#key-capabilities) • [Quick Start](#-quick-start) • [Documentation](#-documentation) • [API Reference](#-api--contract) • [Contributing](#-contributing)
+[Features](#-key-capabilities) • [Quick Start](#-quick-start) • [API Reference](#-api--contract) • [Contributing](#-contributing)
+
+---
+
+### Additional Documentation
+
+- **[API Documentation](http://localhost:8000/docs)** — Interactive OpenAPI/Swagger docs (when backend is running)
+- **[Backend Runbook](FinScribe%20AI%20Backend%20Runbook.md)** — Detailed deployment and operation guide
+- **[Monetization Setup](MONETIZATION_SETUP.md)** — Stripe integration and billing configuration
+- **[Implementation Summary](IMPLEMENTATION_SUMMARY.md)** — Technical implementation details
 
 </div>
 
@@ -58,7 +67,14 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
 # Set up environment variables
-cp .env.example .env  # Edit .env with your configuration
+# Create .env file with required configuration:
+# DATABASE_URL=postgresql://user:password@localhost:5432/finscribe
+# REDIS_URL=redis://localhost:6379/0
+# MINIO_ENDPOINT=localhost:9000
+# MINIO_ACCESS_KEY=minioadmin
+# MINIO_SECRET_KEY=minioadmin
+# STORAGE_BUCKET=finscribe
+# MODEL_MODE=mock  # Use 'production' for real models
 
 # Run database migrations
 alembic upgrade head
@@ -93,7 +109,7 @@ curl http://localhost:8000/api/v1/health
 
 ## 📋 Table of Contents
 
-1. [Executive Summary](#-executive-summary)
+1. [About FinScribe AI](#-about-finscribe-ai)
 2. [Key Capabilities](#-key-capabilities)
 3. [Tech Stack](#-tech-stack)
 4. [System Overview & Architecture](#-system-overview--architecture)
@@ -111,17 +127,24 @@ curl http://localhost:8000/api/v1/health
 
 ---
 
-## 📖 Executive Summary
+## 📖 About FinScribe AI
 
-**FinScribe AI** is an end-to-end production system that converts raw financial documents (invoices, receipts, statements) into **validated, structured JSON** ready for ERP and accounting workflows. 
+**FinScribe AI** is a production-ready intelligent document processing system that automatically extracts structured data from financial documents (invoices, receipts, bank statements) and converts them into validated JSON format ready for ERP systems, accounting software, and data analytics pipelines.
 
-**Core Innovation:**
-- Fine-tuned **PaddleOCR-VL** Vision-Language Model for layout-aware semantic extraction
-- Supervised Fine-Tuning (SFT) with LoRA adapters for efficient model adaptation
-- Deterministic business validation with arithmetic and logic checks
-- Active learning loop for continuous accuracy improvement
+### What Makes It Different?
 
-**Performance:** Achieves **94.2% field extraction accuracy** and **91.7% table structure accuracy (TEDS)** on financial documents.
+- 🎯 **High Accuracy** — 94.2% field extraction accuracy vs. 76.8% baseline
+- 📊 **Advanced Table Recovery** — 91.7% table structure accuracy (TEDS metric)
+- ✅ **Business Validation** — Built-in arithmetic checks, date validation, and duplicate detection
+- 🧠 **Continuous Learning** — Active learning pipeline improves accuracy over time
+- 🚀 **Production Ready** — Complete backend, frontend, and infrastructure setup
+- 💳 **SaaS Ready** — Built-in monetization with Stripe, subscriptions, and usage tracking
+
+### Core Technology
+
+- **AI Models:** Fine-tuned PaddleOCR-VL Vision-Language Model with LoRA adapters
+- **Architecture:** Microservices with FastAPI backend, React frontend, Celery workers
+- **Infrastructure:** Docker, PostgreSQL, Redis, S3-compatible storage
 
 ---
 
@@ -423,15 +446,35 @@ CREATE TABLE active_learning (
 
 ---
 
-## API & contract (OpenAPI / Pydantic examples)
+## 🔌 API & Contract
 
-**Endpoints (core):**
+The API is built with FastAPI and includes automatic OpenAPI documentation. Access the interactive docs at `/docs` when the server is running.
 
-* `POST /api/v1/analyze` — multipart/form-data `file` (single/multi) + optional `mode=sync|async`.
-* `GET /api/v1/jobs/{job_id}` — status, progress, logs.
-* `GET /api/v1/results/{result_id}` — full structured JSON.
-* `POST /api/v1/compare` — accept two files or two `result_id`s and return diffs.
-* `POST /api/v1/results/{id}/corrections` — submit corrections for active-learning.
+### Core Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/health` | GET | Health check endpoint |
+| `/api/v1/analyze` | POST | Upload document(s) for analysis (multipart/form-data) |
+| `/api/v1/jobs/{job_id}` | GET | Get job status, progress, and logs |
+| `/api/v1/results/{result_id}` | GET | Retrieve full structured JSON result |
+| `/api/v1/compare` | POST | Compare two documents or results and return diffs |
+| `/api/v1/results/{id}/corrections` | POST | Submit corrections for active learning |
+
+### Example Request
+
+```bash
+# Upload and analyze a document
+curl -X POST "http://localhost:8000/api/v1/analyze" \
+  -F "file=@invoice.pdf" \
+  -F "mode=async"
+
+# Check job status
+curl "http://localhost:8000/api/v1/jobs/{job_id}"
+
+# Get results
+curl "http://localhost:8000/api/v1/results/{result_id}"
+```
 
 **Pydantic result model (abridged):**
 
@@ -490,7 +533,7 @@ class ResultDoc(BaseModel):
 
 ---
 
-## Training, SFT & LoRA details
+## 🎓 Training, SFT & LoRA Details
 
 **Data:**
 
@@ -520,55 +563,58 @@ train:
 
 ---
 
-## Operationalization & deployment
+## 🚢 Operationalization & Deployment
 
-### Local dev (docker-compose) example (abridged)
+### Local Development with Docker Compose
 
-```yaml
-version: "3.8"
-services:
-  postgres:
-    image: postgres:15
-    environment: POSTGRES_DB=finscribe...
-  minio:
-    image: minio/minio
-    command: server /data
-  redis:
-    image: redis:7
-  backend:
-    build: .
-    env_file: .env
-    ports: ["8000:8000"]
-    depends_on: [postgres, minio, redis]
-  worker:
-    build: .
-    command: celery -A finscribe.worker worker --loglevel=info
-    depends_on: [redis, postgres]
-  mock-ocr:
-    image: mockocr:latest
-```
+The included `docker-compose.yml` sets up a complete development environment:
 
-**Production tips:**
+- **Backend API** (FastAPI) — Port 8000
+- **Celery Worker** — Background job processing
+- **PostgreSQL** — Database (Port 5432)
+- **Redis** — Task queue broker (Port 6379)
+- **MinIO** — S3-compatible object storage (Ports 9000, 9001)
+- **Prometheus** — Metrics collection (Port 9090, optional)
+- **Grafana** — Monitoring dashboards (Port 3000, optional)
 
-* Serve models with Triton or TorchServe behind autoscaling GPU pools.
-* Use managed Postgres (RDS) and S3 (or MinIO for on-prem).
-* Put Redis/Queue and worker autoscaler to handle spikes.
-* Use API Gateway + Auth (OIDC) and rate-limiting for public APIs.
+See `docker-compose.yml` for full configuration details.
 
-### Monitoring & alerts
+### Production Deployment Tips
 
-* Expose Prometheus metrics (`/metrics`): `jobs_total`, `job_failures_total`, `ocr_latency_seconds`, `vlm_latency_seconds`.
-* Alert rules: queue backlog > X for >5m; job failure rate spike; model latency p95 > threshold.
+#### Infrastructure
+- **Model Serving:** Use Triton Inference Server or TorchServe behind autoscaling GPU pools
+- **Database:** Managed PostgreSQL (AWS RDS, Google Cloud SQL, or Azure Database)
+- **Storage:** AWS S3, Google Cloud Storage, or Azure Blob Storage (MinIO for on-premise)
+- **Queue:** Managed Redis (AWS ElastiCache, Google Cloud Memorystore) with worker autoscaling
+- **API Gateway:** CloudFront/CloudFlare with OIDC authentication and rate limiting
 
-### Security & privacy
+#### Monitoring & Alerts
 
-* TLS on all endpoints, signed URLs for buckets, RBAC for admin.
-* PII redaction pipeline option before storing raw text in long-term buckets.
-* Data retention & right-to-delete flows via admin endpoints.
+Prometheus metrics are exposed at `/metrics`:
+- `jobs_total` — Total number of jobs processed
+- `job_failures_total` — Number of failed jobs
+- `ocr_latency_seconds` — OCR processing latency histogram
+- `vlm_latency_seconds` — VLM inference latency histogram
+
+Recommended alert rules:
+- Queue backlog > threshold for >5 minutes
+- Job failure rate spike (>5% over 10 minutes)
+- Model latency p95 > threshold (e.g., >10s)
+
+#### Security & Privacy
+
+- **TLS/HTTPS:** Enable TLS on all endpoints (use Let's Encrypt or managed certificates)
+- **Authentication:** Implement OIDC/OAuth2 for API access (Supabase Auth included)
+- **Storage Security:** Use signed URLs for S3 buckets, implement bucket policies
+- **RBAC:** Role-based access control for admin endpoints
+- **PII Handling:** Optional PII redaction pipeline before long-term storage
+- **Data Compliance:** Implement data retention policies and right-to-delete workflows
 
 ---
 
-## Performance & evaluation metrics
+## 📊 Performance & Evaluation Metrics
+
+Benchmark results on a representative test set of financial documents:
 
 **Representative metrics (sample testset):**
 
@@ -579,53 +625,79 @@ services:
 |          Numeric accuracy |              82.1% |      **97.3%** | +15.2% |
 |      Validation pass rate |              54.7% |      **96.8%** | +42.1% |
 
-**Tradeoffs:** improved accuracy and relational integrity cause modest throughput reduction due to richer parsing/validation.
+**Tradeoffs:** Improved accuracy and relational integrity result in modest throughput reduction due to richer parsing and validation pipelines. This is acceptable for financial document processing where accuracy is critical.
 
 ---
 
-## Project layout & useful scripts
+## 📁 Project Structure
 
 ```
-finscribe-ai/
-├─ app/                      # Streamlit demo
-├─ finscribe/
-│   ├─ api/                  # FastAPI endpoints
-│   ├─ core/                 # pipeline orchestration
-│   ├─ models/               # model clients & adapters
-│   ├─ validation/           # business validator
-│   └─ workers/              # celery tasks
-├─ configs/
-├─ data/
-├─ scripts/
-│   ├─ download_models.py
-│   ├─ generate_synthetic_data.py
-│   └─ batch_process.py
-├─ tests/
-├─ Dockerfile
-├─ docker-compose.yml
-└─ README.md
+finscribe-smart-scan/
+├── app/                          # Backend application
+│   ├── api/                      # FastAPI endpoints
+│   │   └── v1/                   # API version 1
+│   ├── billing/                  # Stripe integration & billing logic
+│   ├── config/                   # Configuration management
+│   ├── core/                     # Core business logic
+│   │   ├── models/               # AI model clients (OCR, VLM, LLM)
+│   │   ├── validation/           # Business validators
+│   │   └── etl/                  # Data ingestion adapters
+│   ├── db/                       # Database models (SQLAlchemy)
+│   ├── integrations/             # External service integrations
+│   ├── metrics/                  # Metrics and logging
+│   ├── middleware/               # Custom middleware
+│   ├── pricing/                  # Pricing plans and features
+│   ├── security/                 # Security utilities (RBAC, PII, audit)
+│   ├── storage/                  # Object storage service
+│   └── main.py                   # FastAPI application entry point
+├── src/                          # Frontend React application
+│   ├── components/               # React components
+│   │   ├── finscribe/            # FinScribe-specific components
+│   │   └── ui/                   # shadcn/ui components
+│   ├── pages/                    # Page components
+│   ├── services/                 # API client services
+│   └── integrations/             # Supabase integration
+├── finscribe/                    # Training and data utilities
+│   ├── data/                     # Dataset building scripts
+│   └── training/                 # Training configuration
+├── phase2_finetuning/            # Fine-tuning scripts and configs
+├── synthetic_invoice_generator/  # Synthetic data generation
+├── tests/                        # Test suite
+│   ├── unit/                     # Unit tests
+│   └── integration/              # Integration tests
+├── alembic/                      # Database migrations
+├── supabase/                     # Supabase configuration and migrations
+├── docker-compose.yml            # Docker Compose configuration
+├── Dockerfile                    # Docker image definition
+├── requirements.txt              # Python dependencies
+├── package.json                  # Node.js dependencies
+└── README.md                     # This file
 ```
 
-**Quick commands**
+### Useful Scripts
 
 ```bash
-# setup
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+# Backend
+uvicorn app.main:app --reload          # Start development server
+celery -A app.core.celery_app worker   # Start Celery worker
+alembic upgrade head                    # Run database migrations
+pytest                                  # Run tests
 
-# download models
-python scripts/download_models.py --model paddleocr-vl
+# Frontend
+npm run dev                             # Start development server
+npm run build                           # Build for production
+npm run lint                            # Run ESLint
 
-# start dev stack
-docker-compose up --build
-
-# run api
-uvicorn finscribe.api.main:app --reload --host 0.0.0.0 --port 8000
+# Docker
+docker-compose up --build               # Build and start all services
+docker-compose up -d                    # Start services in background
+docker-compose logs -f backend          # View backend logs
+docker-compose down                     # Stop all services
 ```
 
 ---
 
-## Appendix — configs / snippets / schemas
+## 📝 Appendix: Configuration & Schemas
 
 ### Numeric tolerance config (`configs/inference.yaml`)
 
@@ -663,25 +735,74 @@ validation:
 
 ---
 
-## Next steps & contribution pointers
+## 🤝 Contributing
 
-* Add more real anonymized invoices (diverse locales & formats).
-* Integrate with accounting APIs (QuickBooks / Xero) via connectors.
-* Improve table recovery heuristics and add TEDS evaluation to CI.
-* Add GPU-backed model serving (triton) and autoscaling policies.
+We welcome contributions! Here are areas where you can help:
+
+### Areas for Contribution
+
+- **📄 Dataset Expansion** — Add more real anonymized invoices with diverse locales and formats
+- **🔗 Integration Connectors** — Build integrations with accounting APIs (QuickBooks, Xero, Sage, etc.)
+- **📊 Table Recovery** — Improve table recovery heuristics and add TEDS evaluation to CI/CD pipeline
+- **⚡ Performance** — Add GPU-backed model serving (Triton/TensorRT) and autoscaling policies
+- **🧪 Testing** — Expand test coverage for edge cases and integration scenarios
+- **📚 Documentation** — Improve documentation, add tutorials, and create video guides
+- **🐛 Bug Fixes** — Report and fix bugs in the issue tracker
+
+### Contribution Process
+
+1. **Fork the repository** and create a new branch for your feature (`git checkout -b feature/amazing-feature`)
+2. **Make your changes** and ensure tests pass (`pytest`)
+3. **Follow code style** guidelines (Black for Python, ESLint for TypeScript)
+4. **Commit your changes** with clear commit messages
+5. **Push to your fork** and create a Pull Request
+6. **Wait for review** and address any feedback
+
+### Development Guidelines
+
+- Write clear, descriptive commit messages
+- Add tests for new features
+- Update documentation as needed
+- Follow existing code style and patterns
+- Ensure all CI checks pass
 
 ---
 
-### Citation
+## 📄 Citation
 
-If you use FinScribe AI:
+If you use FinScribe AI in your research or projects:
 
-```
+```bibtex
 @software{finscribe2024,
   title = {FinScribe AI: Intelligent Financial Document Parser},
-  author = {Your Name},
+  author = {FinScribe Contributors},
   year = {2024},
-  url = {https://github.com/yourusername/finscribe-ai},
+  url = {https://github.com/yourusername/finscribe-smart-scan},
   note = {Fine-tuned PaddleOCR-VL for semantic financial document parsing}
 }
 ```
+
+---
+
+## 📜 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+## 🙏 Acknowledgments
+
+- **PaddleOCR** team for the excellent OCR foundation
+- **FastAPI** for the modern Python web framework
+- **React & shadcn/ui** communities for the amazing UI components
+- All contributors who have helped improve FinScribe AI
+
+---
+
+<div align="center">
+
+**Made with ❤️ by the FinScribe AI Team**
+
+[Report Bug](https://github.com/yourusername/finscribe-smart-scan/issues) • [Request Feature](https://github.com/yourusername/finscribe-smart-scan/issues) • [Documentation](https://github.com/yourusername/finscribe-smart-scan/wiki)
+
+</div>

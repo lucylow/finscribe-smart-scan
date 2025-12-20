@@ -78,11 +78,15 @@ const FinScribe = () => {
     setProcessing(true);
     setError(null);
     
+    let progressInterval: NodeJS.Timeout | null = null;
+    
     try {
-      const progressInterval = setInterval(() => {
+      progressInterval = setInterval(() => {
         setUploadProgress(prev => {
           if (prev >= 90) {
-            clearInterval(progressInterval);
+            if (progressInterval) {
+              clearInterval(progressInterval);
+            }
             return 90;
           }
           return prev + 10;
@@ -94,13 +98,17 @@ const FinScribe = () => {
 
       const response = await analyzeDocument(formData);
       
-      clearInterval(progressInterval);
+      if (progressInterval) {
+        clearInterval(progressInterval);
+      }
       setUploadProgress(100);
       
       setResults(response);
       navigate('/app/results');
     } catch (err) {
-      clearInterval(progressInterval);
+      if (progressInterval) {
+        clearInterval(progressInterval);
+      }
       let errorMessage = 'An error occurred while processing your document.';
       
       if (err instanceof APIError) {
@@ -581,7 +589,7 @@ const FinScribe = () => {
           <div className="flex flex-wrap justify-between items-center gap-4 text-sm text-muted-foreground">
             <div className="flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-primary" />
-              <span>FinScribe AI - PaddleOCR-VL + ERNIE 4.5</span>
+              <span>FinScribe AI - PaddleOCR-VL + ERNIE 5</span>
             </div>
             <div className="flex items-center gap-4">
               <span>ERNIE AI Developer Challenge</span>

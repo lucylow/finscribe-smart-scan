@@ -218,13 +218,12 @@ export async function generateQRCode(data: string | object): Promise<string> {
     const dataUrl = await QRCode.toDataURL(dataString, {
       errorCorrectionLevel: 'L',
       type: 'image/png',
-      quality: 0.92,
       margin: 1,
       color: {
         dark: '#000000',
         light: '#FFFFFF',
       },
-    });
+    }) as string;
 
     return dataUrl;
   } catch (error) {

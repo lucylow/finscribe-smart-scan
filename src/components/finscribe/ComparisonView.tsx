@@ -222,7 +222,7 @@ function ComparisonView({ data }: ComparisonViewProps) {
                       </li>
                       <li className="flex items-start gap-2">
                         <CheckCircle className="w-4 h-4 text-success mt-0.5 flex-shrink-0" />
-                        Integration with ERNIE 4.5 for semantic validation
+                        Integration with ERNIE 5 for semantic validation
                       </li>
                     </ul>
                   </div>

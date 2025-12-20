@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 class FinancialDocumentProcessor:
     """
     Main orchestrator for processing financial documents.
-    Combines PaddleOCR-VL for layout parsing with ERNIE 4.5 for semantic reasoning.
+    Combines PaddleOCR-VL for layout parsing with ERNIE (4.5/5) for semantic reasoning.
     """
     
     def __init__(self, config: Dict[str, Any] = None):
@@ -89,8 +89,8 @@ class FinancialDocumentProcessor:
                 logger.error(f"OCR processing failed: {str(ocr_error)}", exc_info=True)
                 raise Exception(f"OCR processing failed: {str(ocr_error)}")
             
-            # Step 2: Enrich with ERNIE 4.5 VLM for semantic understanding
-            logger.info("Step 2: Enriching with ERNIE 4.5 for semantic reasoning...")
+            # Step 2: Enrich with ERNIE VLM for semantic understanding
+            logger.info("Step 2: Enriching with ERNIE VLM for semantic reasoning...")
             try:
                 enriched_data = await self.vlm_service.enrich_financial_data(ocr_results, file_content)
                 
@@ -165,7 +165,8 @@ class FinancialDocumentProcessor:
                     "processing_time_ms": processing_time_ms,
                     "model_versions": {
                         "paddleocr_vl": ocr_results.get("model_version", "PaddleOCR-VL-0.9B") if ocr_results else "unknown",
-                        "ernie_vl": enriched_data.get("model_version", "ERNIE-4.5-VL-28B-A3B-Thinking") if enriched_data else "unknown"
+                        "ernie_vl": enriched_data.get("model_version", "ERNIE-5") if enriched_data else "unknown",
+                        "ernie_family": enriched_data.get("model_family", "unknown") if enriched_data else "unknown"
                     },
                     "model_type": model_type,
                     "partial_results": ocr_results.get("status") == "partial" or enriched_data.get("status") == "partial" if enriched_data else False
@@ -193,6 +194,11 @@ class FinancialDocumentProcessor:
         structured = enriched_data.get("structured_data", {})
         confidences = enriched_data.get("confidence_scores", {})
         
+        # Get model name from enriched data, default to ERNIE-VLM
+        model_name = enriched_data.get("model_version", "ERNIE-VLM")
+        model_family = enriched_data.get("model_family", "ernie-5")
+        source_model_label = f"{model_name} ({model_type})"
+        
         # Vendor info
         vendor = structured.get("vendor_block", {})
         if vendor.get("name"):
@@ -200,7 +206,7 @@ class FinancialDocumentProcessor:
                 "field_name": "vendor_name",
                 "value": vendor.get("name"),
                 "confidence": vendor.get("confidence", 0.95),
-                "source_model": f"ERNIE-4.5-VL ({model_type})",
+                "source_model": source_model_label,
                 "lineage_id": str(uuid.uuid4())
             })
         
@@ -211,7 +217,7 @@ class FinancialDocumentProcessor:
                 "field_name": "invoice_number",
                 "value": client.get("invoice_number"),
                 "confidence": client.get("confidence", 0.94),
-                "source_model": f"ERNIE-4.5-VL ({model_type})",
+                "source_model": source_model_label,
                 "lineage_id": str(uuid.uuid4())
             })
         if client.get("invoice_date"):
@@ -219,7 +225,7 @@ class FinancialDocumentProcessor:
                 "field_name": "invoice_date",
                 "value": client.get("invoice_date"),
                 "confidence": client.get("confidence", 0.94),
-                "source_model": f"ERNIE-4.5-VL ({model_type})",
+                "source_model": source_model_label,
                 "lineage_id": str(uuid.uuid4())
             })
         
@@ -230,7 +236,7 @@ class FinancialDocumentProcessor:
                 "field_name": "subtotal",
                 "value": f"${summary.get('subtotal'):,.2f}",
                 "confidence": 0.97,
-                "source_model": f"ERNIE-4.5-VL ({model_type})",
+                "source_model": source_model_label,
                 "lineage_id": str(uuid.uuid4())
             })
         if summary.get("grand_total"):
@@ -238,7 +244,7 @@ class FinancialDocumentProcessor:
                 "field_name": "total",
                 "value": f"${summary.get('grand_total'):,.2f}",
                 "confidence": 0.98,
-                "source_model": f"ERNIE-4.5-VL ({model_type})",
+                "source_model": source_model_label,
                 "lineage_id": str(uuid.uuid4())
             })
         

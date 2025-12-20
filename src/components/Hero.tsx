@@ -58,7 +58,7 @@ const Hero = () => {
               whileHover={{ scale: 1.05, backgroundColor: "hsl(var(--primary) / 0.15)" }}
             >
               <Sparkles className="w-4 h-4" />
-              Powered by PaddleOCR-VL & ERNIE 4.5
+              Powered by PaddleOCR-VL & ERNIE 5
             </motion.div>
             
             <motion.h1

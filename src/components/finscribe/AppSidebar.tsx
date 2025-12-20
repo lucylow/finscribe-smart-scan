@@ -155,8 +155,8 @@ function AppSidebar({ activeMode }: AppSidebarProps) {
       <div className="p-4 border-t">
         <p className="text-xs font-medium text-muted-foreground mb-2">Technical Specs</p>
         <div className="bg-muted/50 rounded-lg p-3 font-mono text-xs space-y-1">
-          <p><span className="text-muted-foreground">Model:</span> PaddleOCR-VL-0.9B</p>
-          <p><span className="text-muted-foreground">VLM:</span> ERNIE 4.5</p>
+          <p><span className="text-muted-foreground">OCR:</span> PaddleOCR-VL-0.9B</p>
+          <p><span className="text-muted-foreground">VLM:</span> ERNIE 5 / ERNIE 4.5</p>
           <p><span className="text-muted-foreground">Languages:</span> 109 supported</p>
           <p><span className="text-muted-foreground">API:</span> REST + Polling</p>
         </div>

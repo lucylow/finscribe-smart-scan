@@ -42,7 +42,7 @@ function ModelInfo() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Cpu className="w-5 h-5 text-secondary" />
-              ERNIE 4.5 Integration
+              ERNIE 5 Integration
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -50,18 +50,27 @@ function ModelInfo() {
               <div>
                 <Badge variant="secondary" className="mb-2">Semantic Enrichment</Badge>
                 <p className="text-sm text-muted-foreground">
-                  Baidu's ERNIE 4.5 provides semantic understanding and 
-                  validation of extracted financial data.
+                  Baidu's ERNIE 5 (with ERNIE 4.5 fallback) provides advanced semantic understanding and 
+                  validation of extracted financial data with improved accuracy and reasoning capabilities.
                 </p>
               </div>
               <div className="border-t pt-3">
                 <h4 className="font-medium mb-2">Key Capabilities</h4>
                 <ul className="text-sm text-muted-foreground space-y-1">
-                  <li>• Entity relationship extraction</li>
-                  <li>• Financial rule validation</li>
+                  <li>• Enhanced entity relationship extraction</li>
+                  <li>• Advanced financial rule validation</li>
                   <li>• Currency and date normalization</li>
-                  <li>• Anomaly detection</li>
+                  <li>• Intelligent anomaly detection</li>
+                  <li>• Multi-modal reasoning (text + vision)</li>
                 </ul>
+              </div>
+              <div className="border-t pt-3">
+                <h4 className="font-medium mb-2 text-xs">Model Support</h4>
+                <div className="flex flex-wrap gap-1">
+                  <Badge variant="outline" className="text-xs">ERNIE 5</Badge>
+                  <Badge variant="outline" className="text-xs">ERNIE 4.5 VL</Badge>
+                  <Badge variant="outline" className="text-xs">HuggingFace</Badge>
+                </div>
               </div>
             </div>
           </CardContent>

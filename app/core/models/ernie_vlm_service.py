@@ -6,6 +6,12 @@ from typing import Dict, Any, Optional
 from abc import ABC, abstractmethod
 import logging
 
+try:
+    from .huggingface_helper import HuggingFaceHelper
+except ImportError:
+    # Fallback if helper not available
+    HuggingFaceHelper = None
+
 logger = logging.getLogger(__name__)
 
 
@@ -180,6 +186,15 @@ Return a JSON object with this exact structure:
         model_config = self.SUPPORTED_MODELS.get(self.model_version, self.SUPPORTED_MODELS["ernie-4.5-vl"])
         self.default_max_tokens = model_config["default_max_tokens"]
         self.default_temperature = model_config["default_temperature"]
+        
+        # Get HuggingFace info if available
+        self.hf_info = None
+        if HuggingFaceHelper:
+            try:
+                self.hf_info = HuggingFaceHelper.get_model_info(self.model_name)
+                logger.info(f"Model HuggingFace info: {self.hf_info.get('huggingface_url', 'N/A')}")
+            except Exception as e:
+                logger.debug(f"Could not get HuggingFace info: {str(e)}")
         
         logger.info(f"Initialized ERNIE VLM client with model: {self.model_name} (version: {self.model_version})")
     

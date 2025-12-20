@@ -26,22 +26,9 @@ const queryClient = new QueryClient({
       retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
       staleTime: 5 * 60 * 1000, // 5 minutes
       refetchOnWindowFocus: false,
-      onError: (error: any) => {
-        console.error('Query error:', error);
-        const errorMessage = error?.message || 'An error occurred while fetching data';
-        toast.error(errorMessage, {
-          description: 'Please try again or contact support if the problem persists.',
-        });
-      },
     },
     mutations: {
-      onError: (error: any) => {
-        console.error('Mutation error:', error);
-        const errorMessage = error?.message || 'An error occurred while processing your request';
-        toast.error(errorMessage, {
-          description: 'Please try again or contact support if the problem persists.',
-        });
-      },
+      retry: false,
     },
   },
 });

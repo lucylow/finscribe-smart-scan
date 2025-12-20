@@ -15,7 +15,7 @@ function ProcessingStatus({ progress, processing }: ProcessingStatusProps) {
   const steps = [
     { label: 'Uploading document', progress: 30, icon: '📄' },
     { label: 'Analyzing layout with PaddleOCR-VL', progress: 60, icon: '🔍' },
-    { label: 'Semantic enrichment with ERNIE 4.5', progress: 85, icon: '🧠' },
+    { label: 'Semantic enrichment with ERNIE 5', progress: 85, icon: '🧠' },
     { label: 'Validating financial rules', progress: 100, icon: '✓' },
   ];
 

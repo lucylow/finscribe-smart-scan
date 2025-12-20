@@ -34,3 +34,15 @@ mypy==1.7.1
 sse-starlette==1.8.2
 # Monetization
 stripe==7.8.0
+# Fine-tuning dependencies
+transformers>=4.35.0
+torch>=2.1.0
+datasets>=2.14.0
+peft>=0.6.0
+accelerate>=0.24.0
+faker>=19.0.0
+tqdm>=4.66.0
+# Optional: for quantization
+# optimum[onnxruntime]>=1.14.0
+# Optional: for TEDS evaluation
+# teds>=1.0.0
