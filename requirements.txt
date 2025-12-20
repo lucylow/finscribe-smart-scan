@@ -5,3 +5,6 @@ python-multipart
 python-dotenv
 requests
 Pillow
+aiofiles
+python-magic
+pdf2image

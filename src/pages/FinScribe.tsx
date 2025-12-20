@@ -105,12 +105,8 @@ const FinScribe = () => {
       clearInterval(progressInterval);
       setUploadProgress(100);
       
-      if (response.success) {
-        setResults(response);
-        setActiveTab('results');
-      } else {
-        setError(response.error || 'Analysis failed');
-      }
+      setResults(response);
+      setActiveTab('results');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Network error');
     } finally {
@@ -134,12 +130,8 @@ const FinScribe = () => {
 
       const response = await compareWithBaseline(formData);
       
-      if (response.success) {
-        setComparisonResults(response);
-        setActiveTab('comparison');
-      } else {
-        setError(response.error || 'Comparison failed');
-      }
+      setComparisonResults(response);
+      setActiveTab('comparison');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Network error');
     } finally {
