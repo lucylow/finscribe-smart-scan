@@ -1,138 +1,247 @@
 import os
 import uuid
+import json
+import asyncio
+import aiofiles
 from typing import Dict, Any, List
+from datetime import datetime
 from PIL import Image
 from io import BytesIO
-from .models.ocr_service import OCRService
-import aiofiles
-from .models.llm_service import LLMService
-from ..api.v1.endpoints import ExtractedField, AnalysisResult # Import Pydantic models
+import logging
 
-# Initialize services (using mock URLs as per project context)
-ocr_service = OCRService(model_url="http://localhost:8002/v1/ocr")
-llm_service = LLMService(model_url="http://localhost:8001/v1/infer")
+from .models.paddleocr_vl_service import PaddleOCRVLService
+from .models.ernie_vlm_service import ErnieVLMService
+from .validation.financial_validator import FinancialValidator
+from ..config.settings import load_config
 
-class DocumentProcessor:
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+class FinancialDocumentProcessor:
     """
-    Orchestrates the AI pipeline: ETL -> OCR -> Semantic Parsing -> Validation.
+    Main orchestrator for processing financial documents.
+    Combines PaddleOCR-VL for layout parsing with ERNIE 4.5 for semantic reasoning.
     """
     
-    def __init__(self, upload_dir: str = "/tmp/finscribe_uploads", active_learning_file: str = "../active_learning.jsonl"):
-        self.upload_dir = upload_dir
-        self.active_learning_file = os.path.join(os.path.dirname(__file__), active_learning_file)
-        os.makedirs(self.upload_dir, exist_ok=True)
-        self.upload_dir = upload_dir
-        os.makedirs(self.upload_dir, exist_ok=True)
-
-    async def process_document(self, file_content: bytes, filename: str, model_type: str = "fine_tuned") -> AnalysisResult:
-        """
-        Processes a document from raw bytes through the AI pipeline.
+    def __init__(self, config: Dict[str, Any] = None):
+        self.config = config or load_config()
         
-        Args:
-            file_content: The raw bytes of the uploaded file.
-            filename: The original filename.
-            model_type: 'fine_tuned' or 'baseline' to determine which model to use (mocked for now).
-            
-        Returns:
-            An AnalysisResult Pydantic model.
+        # Initialize services
+        self.ocr_service = PaddleOCRVLService(self.config)
+        self.vlm_service = ErnieVLMService(self.config)
+        self.validator = FinancialValidator(
+            tolerance=self.config.get("validation", {}).get("arithmetic_tolerance", 0.01)
+        )
+        
+        # Storage paths
+        storage_config = self.config.get("storage", {})
+        self.upload_dir = storage_config.get("upload_dir", "/tmp/finscribe_uploads")
+        self.staging_dir = storage_config.get("staging_dir", "/tmp/finscribe_staging")
+        os.makedirs(self.upload_dir, exist_ok=True)
+        os.makedirs(self.staging_dir, exist_ok=True)
+        
+        # Active learning
+        al_config = self.config.get("active_learning", {})
+        self.active_learning_enabled = al_config.get("enabled", True)
+        self.active_learning_file = al_config.get("file_path", "./active_learning.jsonl")
+    
+    async def process_document(self, file_content: bytes, filename: str, model_type: str = "fine_tuned") -> Dict[str, Any]:
+        """
+        Complete pipeline: Parse document layout and apply financial reasoning.
         """
         document_id = str(uuid.uuid4())
-        file_path = os.path.join(self.upload_dir, f"{document_id}_{filename}")
+        start_time = datetime.utcnow()
         
-        # 1. ETL: Save file to disk (simple ingestion)
+        logger.info(f"Processing document: {filename} (ID: {document_id})")
+        
         try:
-            # Simple file type check and conversion to image if needed (mocked)
-            if filename.lower().endswith(('.png', '.jpg', '.jpeg')):
-                img = Image.open(BytesIO(file_content))
-                img.save(file_path)
-            else:
-                # For PDF, we would convert to image pages here (out of scope for credit limit)
-                # For now, we'll just save the raw file and assume the OCR service handles it
-                with open(file_path, "wb") as f:
-                    f.write(file_content)
+            # Step 1: Parse document layout with PaddleOCR-VL
+            logger.info("Step 1: Running PaddleOCR-VL for document layout parsing...")
+            ocr_results = await self.ocr_service.parse_document(file_content)
+            
+            # Step 2: Enrich with ERNIE 4.5 VLM for semantic understanding
+            logger.info("Step 2: Enriching with ERNIE 4.5 for semantic reasoning...")
+            enriched_data = await self.vlm_service.enrich_financial_data(ocr_results, file_content)
+            
+            # Step 3: Apply business rule validation
+            logger.info("Step 3: Applying business rule validation...")
+            validation_results = self.validator.validate(enriched_data)
+            
+            # Build extracted fields for frontend compatibility
+            extracted_fields = self._build_extracted_fields(enriched_data, model_type)
+            
+            # Step 4: Log to active learning if enabled
+            if self.active_learning_enabled and model_type == "fine_tuned":
+                await self._log_active_learning_data(
+                    document_id, filename, enriched_data, validation_results
+                )
+            
+            end_time = datetime.utcnow()
+            processing_time_ms = (end_time - start_time).total_seconds() * 1000
+            
+            return {
+                "success": True,
+                "document_id": document_id,
+                "status": "completed",
+                "extracted_data": extracted_fields,
+                "structured_output": enriched_data.get("structured_data", {}),
+                "validation": validation_results,
+                "raw_ocr_output": ocr_results,
+                "metadata": {
+                    "source_file": filename,
+                    "processing_timestamp": start_time.isoformat(),
+                    "processing_time_ms": processing_time_ms,
+                    "model_versions": {
+                        "paddleocr_vl": ocr_results.get("model_version", "PaddleOCR-VL-0.9B"),
+                        "ernie_vl": enriched_data.get("model_version", "ERNIE-4.5-VL-28B-A3B-Thinking")
+                    },
+                    "model_type": model_type
+                },
+                "active_learning_ready": validation_results.get("needs_review", False)
+            }
+            
         except Exception as e:
-            return AnalysisResult(
-                document_id=document_id,
-                status="failed",
-                extracted_data=[],
-                raw_ocr_output={},
-                validation_status=f"ETL Failed: {str(e)}"
-            )
-
-        # 2. AI Pipeline: OCR
-        raw_ocr_output = ocr_service.process_document(file_path)
+            logger.error(f"Error processing document: {str(e)}")
+            return {
+                "success": False,
+                "document_id": document_id,
+                "status": "failed",
+                "error": str(e),
+                "extracted_data": [],
+                "validation": None
+            }
+    
+    def _build_extracted_fields(self, enriched_data: Dict[str, Any], model_type: str) -> List[Dict[str, Any]]:
+        """Convert structured data to frontend-compatible extracted fields format."""
+        fields = []
+        structured = enriched_data.get("structured_data", {})
+        confidences = enriched_data.get("confidence_scores", {})
         
-        # 3. AI Pipeline: Semantic Parsing (LLM)
-        structured_data = llm_service.parse_financial_data(raw_ocr_output)
+        # Vendor info
+        vendor = structured.get("vendor_block", {})
+        if vendor.get("name"):
+            fields.append({
+                "field_name": "vendor_name",
+                "value": vendor.get("name"),
+                "confidence": vendor.get("confidence", 0.95),
+                "source_model": f"ERNIE-4.5-VL ({model_type})",
+                "lineage_id": str(uuid.uuid4())
+            })
         
-        # 4. Validation & Lineage
-        extracted_fields: List[ExtractedField] = []
-        for item in structured_data:
-            # Mock lineage ID and validation
-            lineage_id = str(uuid.uuid4())
-            extracted_fields.append(ExtractedField(
-                field_name=item["field_name"],
-                value=item["value"],
-                confidence=item["confidence"],
-                source_model=item["source_model"],
-                lineage_id=lineage_id
-            ))
-            
-        # 5. Active Learning Check (Mock)
-        active_learning_ready = len(extracted_fields) > 0 and model_type == "fine_tuned"
+        # Client/Invoice info
+        client = structured.get("client_info", {})
+        if client.get("invoice_number"):
+            fields.append({
+                "field_name": "invoice_number",
+                "value": client.get("invoice_number"),
+                "confidence": client.get("confidence", 0.94),
+                "source_model": f"ERNIE-4.5-VL ({model_type})",
+                "lineage_id": str(uuid.uuid4())
+            })
+        if client.get("invoice_date"):
+            fields.append({
+                "field_name": "invoice_date",
+                "value": client.get("invoice_date"),
+                "confidence": client.get("confidence", 0.94),
+                "source_model": f"ERNIE-4.5-VL ({model_type})",
+                "lineage_id": str(uuid.uuid4())
+            })
         
-        # 6. Active Learning Data Logging
-        if active_learning_ready:
-            await self._log_active_learning_data(document_id, filename, extracted_fields)
-            
-        # 7. Cleanup (Optional, but good practice)
-        os.remove(file_path)
-
-        return AnalysisResult(
-            document_id=document_id,
-            status="completed",
-            extracted_data=extracted_fields,
-            raw_ocr_output=raw_ocr_output,
-            validation_status="validated",
-            active_learning_ready=active_learning_ready
-        )
-
-    async def _log_active_learning_data(self, document_id: str, filename: str, extracted_fields: List[ExtractedField]):
-        """Logs data to active_learning.jsonl for LoRA SFT."""
+        # Financial summary
+        summary = structured.get("financial_summary", {})
+        if summary.get("subtotal"):
+            fields.append({
+                "field_name": "subtotal",
+                "value": f"${summary.get('subtotal'):,.2f}",
+                "confidence": 0.97,
+                "source_model": f"ERNIE-4.5-VL ({model_type})",
+                "lineage_id": str(uuid.uuid4())
+            })
+        if summary.get("grand_total"):
+            fields.append({
+                "field_name": "total",
+                "value": f"${summary.get('grand_total'):,.2f}",
+                "confidence": 0.98,
+                "source_model": f"ERNIE-4.5-VL ({model_type})",
+                "lineage_id": str(uuid.uuid4())
+            })
+        
+        # Line items count
+        line_items = structured.get("line_items", [])
+        if line_items:
+            fields.append({
+                "field_name": "line_items_count",
+                "value": str(len(line_items)),
+                "confidence": confidences.get("line_items", 0.95),
+                "source_model": f"PaddleOCR-VL ({model_type})",
+                "lineage_id": str(uuid.uuid4())
+            })
+        
+        return fields
+    
+    async def _log_active_learning_data(
+        self, 
+        document_id: str, 
+        filename: str, 
+        enriched_data: Dict[str, Any],
+        validation: Dict[str, Any]
+    ):
+        """Log data to active_learning.jsonl for LoRA SFT."""
         log_entry = {
             "document_id": document_id,
             "source_file": filename,
-            "extracted_data": [f.model_dump() for f in extracted_fields],
-            "timestamp": "2025-12-20T10:00:00Z" # Placeholder for real timestamp
+            "timestamp": datetime.utcnow().isoformat(),
+            "model_output": enriched_data.get("structured_data", {}),
+            "validation": validation,
+            "needs_review": validation.get("needs_review", False),
+            "difficulty_label": "medium" if validation.get("needs_review") else "easy",
+            "error_type": validation.get("issues", [])[:1] if validation.get("issues") else None
         }
         
         try:
             async with aiofiles.open(self.active_learning_file, mode="a") as f:
                 await f.write(json.dumps(log_entry) + "\n")
+            logger.info(f"Logged active learning data for document {document_id}")
         except Exception as e:
-            print(f"Warning: Could not log to active learning file: {e}")
-
-    async def compare_documents(self, file_content: bytes, filename: str) -> Dict[str, Any]:
+            logger.warning(f"Could not log to active learning file: {e}")
+    
+    async def compare_models(self, file_content: bytes, filename: str) -> Dict[str, Any]:
         """
-        Processes the document with both fine-tuned and baseline models.
+        Process document with both fine-tuned and baseline configurations for comparison.
         """
-        # Mocking the baseline model by simply changing the model_type flag
+        document_id = str(uuid.uuid4())
+        
+        # Run with fine-tuned model
         fine_tuned_result = await self.process_document(file_content, filename, model_type="fine_tuned")
+        
+        # Run with baseline model (simulated difference)
         baseline_result = await self.process_document(file_content, filename, model_type="baseline")
         
-        # Mock comparison logic
-        comparison_summary = {
-            "fine_tuned_confidence_avg": sum(f.confidence for f in fine_tuned_result.extracted_data) / len(fine_tuned_result.extracted_data),
-            "baseline_confidence_avg": sum(f.confidence for f in baseline_result.extracted_data) / len(baseline_result.extracted_data),
-            "accuracy_gain": "20% (Mock)"
-        }
+        # Calculate comparison metrics
+        ft_conf = self._avg_confidence(fine_tuned_result.get("extracted_data", []))
+        bl_conf = self._avg_confidence(baseline_result.get("extracted_data", []))
         
         return {
-            "document_id": fine_tuned_result.document_id,
+            "document_id": document_id,
             "status": "completed",
             "fine_tuned_result": fine_tuned_result,
             "baseline_result": baseline_result,
-            "comparison_summary": comparison_summary
+            "comparison_summary": {
+                "fine_tuned_confidence_avg": ft_conf,
+                "baseline_confidence_avg": bl_conf,
+                "confidence_improvement": f"{((ft_conf - bl_conf) / bl_conf * 100) if bl_conf > 0 else 0:.1f}%",
+                "fine_tuned_fields_extracted": len(fine_tuned_result.get("extracted_data", [])),
+                "baseline_fields_extracted": len(baseline_result.get("extracted_data", []))
+            }
         }
+    
+    def _avg_confidence(self, fields: List[Dict[str, Any]]) -> float:
+        """Calculate average confidence across extracted fields."""
+        if not fields:
+            return 0.0
+        return sum(f.get("confidence", 0) for f in fields) / len(fields)
 
-processor = DocumentProcessor()
+
+# Global processor instance
+processor = FinancialDocumentProcessor()
