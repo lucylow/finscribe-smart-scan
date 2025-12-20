@@ -67,6 +67,8 @@ class InvoiceMetadata:
     currency: str
     language: str
     layout_type: str
+    invoice_type: str  # commercial, service, proforma, industry_specific
+    challenge_category: str  # complex_table, key_value, visual_noise, multi_page, dense_data, multi_currency
     vendor: CompanyInfo
     client: CompanyInfo
     items: List[InvoiceItem]
@@ -76,6 +78,15 @@ class InvoiceMetadata:
     tax_total: float
     discount_total: float
     grand_total: float
+    # Additional fields for commercial invoices
+    hs_codes: Optional[List[str]] = None
+    incoterms: str = ""
+    country_of_origin: str = ""
+    customs_value: float = 0.0
+    # Additional fields for industry-specific invoices
+    industry: str = ""
+    contract_number: str = ""
+    project_code: str = ""
     
     def to_json(self) -> Dict:
         """Convert to JSON-serializable dictionary"""
@@ -83,6 +94,8 @@ class InvoiceMetadata:
         data['vendor'] = asdict(self.vendor)
         data['client'] = asdict(self.client)
         data['items'] = [asdict(item) for item in self.items]
+        # Remove None values
+        data = {k: v for k, v in data.items() if v is not None}
         return data
 
 
@@ -192,6 +205,122 @@ class SyntheticInvoiceGenerator:
             ))
         
         return items
+    
+    def generate_commercial_invoice_items(self, language: str, num_items: int) -> Tuple[List[InvoiceItem], List[str]]:
+        """Generate items for commercial invoice with HS codes"""
+        faker = self.fakers.get(language, self.fakers.get('en_US', Faker()))
+        items = []
+        hs_codes = []
+        
+        # HS codes are 6-10 digit codes for product classification
+        hs_code_prefixes = [
+            '8471',  # Automatic data processing machines
+            '8517',  # Telephone sets, smartphones
+            '8528',  # Monitors and projectors
+            '8529',  # Parts for reception apparatus
+            '8536',  # Electrical apparatus for switching
+            '8708',  # Parts for motor vehicles
+            '9027',  # Instruments for physical/chemical analysis
+        ]
+        
+        product_categories = [
+            ('Electronic Components', 50, 500),
+            ('Machinery Parts', 200, 5000),
+            ('Finished Goods', 100, 3000),
+            ('Raw Materials', 30, 200),
+            ('Packaging Materials', 10, 100),
+        ]
+        
+        for _ in range(num_items):
+            category, min_price, max_price = random.choice(product_categories)
+            description = f"{category}: {faker.bs()}"
+            quantity = random.randint(1, 100)
+            unit_price = random.uniform(min_price, max_price)
+            tax_rate = 0.0  # Commercial invoices often have 0% tax (duty calculated separately)
+            discount = 0.0
+            
+            # Generate HS code (6-10 digits)
+            prefix = random.choice(hs_code_prefixes)
+            hs_code = prefix + ''.join([str(random.randint(0, 9)) for _ in range(6 - len(prefix))])
+            hs_codes.append(hs_code)
+            
+            items.append(InvoiceItem(
+                description=description,
+                quantity=quantity,
+                unit_price=round(unit_price, 2),
+                tax_rate=tax_rate,
+                discount=round(discount, 2)
+            ))
+        
+        return items, hs_codes
+    
+    def generate_service_invoice_items(self, language: str, num_items: int) -> List[InvoiceItem]:
+        """Generate items for service invoice with descriptive text"""
+        faker = self.fakers.get(language, self.fakers.get('en_US', Faker()))
+        items = []
+        
+        service_types = [
+            ('Consulting Services', 80, 300),
+            ('Software Development', 100, 250),
+            ('Design Services', 75, 200),
+            ('Training Services', 150, 500),
+            ('Maintenance & Support', 50, 150),
+            ('Cloud Services Subscription', 100, 500),
+        ]
+        
+        for _ in range(num_items):
+            service_type, min_rate, max_rate = random.choice(service_types)
+            # For services, description is more detailed
+            hours = random.randint(1, 40)
+            hourly_rate = random.uniform(min_rate, max_rate)
+            description = f"{service_type}: {faker.text(max_nb_chars=80)}"
+            quantity = hours  # Hours for services
+            unit_price = hourly_rate
+            tax_rate = random.choice([0.0, 7.0, 19.0, 21.0])
+            discount = random.choice([0.0, 0.0, 5.0, 10.0])
+            
+            items.append(InvoiceItem(
+                description=description,
+                quantity=quantity,
+                unit_price=round(unit_price, 2),
+                tax_rate=tax_rate,
+                discount=round(discount, 2)
+            ))
+        
+        return items
+    
+    def determine_challenge_category(
+        self, 
+        invoice_type: str, 
+        num_items: int, 
+        layout: str,
+        currency: str,
+        language: str
+    ) -> str:
+        """Determine challenge category based on invoice characteristics"""
+        # Multi-page if many items
+        if num_items > 25 or layout == 'multi_page':
+            return 'multi_page'
+        
+        # Complex table for commercial invoices or dense layouts
+        if invoice_type == 'commercial' or num_items > 15:
+            return 'complex_table'
+        
+        # Visual noise for branded/industry-specific
+        if invoice_type == 'industry_specific':
+            return 'visual_noise'
+        
+        # Multi-currency if currency differs from standard
+        if currency not in ['USD', 'EUR'] or language != 'en_US':
+            if random.random() < 0.3:  # 30% chance
+                return 'multi_currency'
+        
+        # Dense data for complex invoices
+        if num_items > 10:
+            return 'dense_data'
+        
+        # Default to key-value extraction
+        return 'key_value'
     
     def _create_classic_layout(self, invoice_data: InvoiceMetadata, filename: str):
         """Create classic left-aligned invoice layout"""
@@ -519,28 +648,76 @@ class SyntheticInvoiceGenerator:
         complexity_key = random.choice(list(self.config['variations']['complexity_levels'].keys()))
         complexity = self.config['variations']['complexity_levels'][complexity_key]
         
+        # Select invoice type based on configured distribution or default
+        invoice_types_config = self.config.get('variations', {}).get('invoice_types', {})
+        if invoice_types_config:
+            # Weighted selection based on distribution
+            invoice_types = list(invoice_types_config.keys())
+            weights = [invoice_types_config[t].get('weight', 1.0) for t in invoice_types]
+            invoice_type = random.choices(invoice_types, weights=weights)[0]
+        else:
+            # Default distribution: 30% commercial, 25% service, 15% proforma, 30% industry_specific
+            invoice_type = random.choices(
+                ['commercial', 'service', 'proforma', 'industry_specific'],
+                weights=[0.30, 0.25, 0.15, 0.30]
+            )[0]
+        
         faker = self.fakers.get(language, self.fakers.get('en_US', Faker()))
         
         # Generate company information
         vendor = self.generate_company_info(language, is_vendor=True)
         client = self.generate_company_info(language, is_vendor=False)
         
-        # Generate invoice items based on complexity
+        # Generate invoice items based on invoice type and complexity
         num_items = random.randint(complexity['min_items'], complexity['max_items'])
-        items = self.generate_invoice_items(language, num_items)
+        hs_codes = None
+        industry = ""
+        contract_number = ""
+        project_code = ""
+        incoterms = ""
+        country_of_origin = ""
+        
+        if invoice_type == 'commercial':
+            items, hs_codes = self.generate_commercial_invoice_items(language, num_items)
+            # Commercial invoice specific fields
+            incoterms = random.choice(['FOB', 'CIF', 'EXW', 'DDP', 'CFR', 'CPT'])
+            country_of_origin = vendor.country
+        elif invoice_type == 'service':
+            items = self.generate_service_invoice_items(language, num_items)
+            contract_number = faker.bothify('CON-####-??')
+        elif invoice_type == 'industry_specific':
+            items = self.generate_invoice_items(language, num_items)
+            industries = ['construction', 'healthcare', 'retail', 'freelancing', 'manufacturing']
+            industry = random.choice(industries)
+            project_code = faker.bothify('PRJ-####')
+        else:  # proforma
+            items = self.generate_invoice_items(language, num_items)
         
         # Calculate totals
         subtotal, tax_total, discount_total, grand_total = self.calculate_totals(items)
         
+        # Determine challenge category
+        challenge_category = self.determine_challenge_category(
+            invoice_type, num_items, layout, currency, language
+        )
+        
         # Create invoice metadata
         issue_date_obj = faker.date_this_year()
+        invoice_id_str = f"INV-{datetime.now().year}-{invoice_id:06d}"
+        
+        # For proforma, prefix with PROFORMA
+        if invoice_type == 'proforma':
+            invoice_id_str = f"PROFORMA-{invoice_id_str}"
+        
         invoice_data = InvoiceMetadata(
-            invoice_id=f"INV-{datetime.now().year}-{invoice_id:06d}",
+            invoice_id=invoice_id_str,
             issue_date=issue_date_obj.strftime('%Y-%m-%d'),
             due_date=(issue_date_obj + timedelta(days=30)).strftime('%Y-%m-%d'),
             currency=currency,
             language=language,
             layout_type=layout,
+            invoice_type=invoice_type,
+            challenge_category=challenge_category,
             vendor=vendor,
             client=client,
             items=items,
@@ -554,7 +731,14 @@ class SyntheticInvoiceGenerator:
             subtotal=round(subtotal, 2),
             tax_total=round(tax_total, 2),
             discount_total=round(discount_total, 2),
-            grand_total=round(grand_total, 2)
+            grand_total=round(grand_total, 2),
+            hs_codes=hs_codes,
+            incoterms=incoterms,
+            country_of_origin=country_of_origin,
+            customs_value=round(subtotal, 2) if invoice_type == 'commercial' else 0.0,
+            industry=industry,
+            contract_number=contract_number,
+            project_code=project_code
         )
         
         # Generate PDF based on layout type
@@ -650,7 +834,17 @@ class SyntheticInvoiceGenerator:
             'generation_date': datetime.now().isoformat(),
             'languages_used': list(set(m['metadata']['language'] for m in all_metadata)),
             'currencies_used': list(set(m['metadata']['currency'] for m in all_metadata)),
-            'layouts_used': list(set(m['metadata']['layout_type'] for m in all_metadata))
+            'layouts_used': list(set(m['metadata']['layout_type'] for m in all_metadata)),
+            'invoice_types': list(set(m['metadata'].get('invoice_type', 'standard') for m in all_metadata)),
+            'challenge_categories': list(set(m['metadata'].get('challenge_category', 'key_value') for m in all_metadata)),
+            'invoice_type_distribution': {
+                inv_type: sum(1 for m in all_metadata if m['metadata'].get('invoice_type') == inv_type)
+                for inv_type in ['commercial', 'service', 'proforma', 'industry_specific']
+            },
+            'challenge_category_distribution': {
+                cat: sum(1 for m in all_metadata if m['metadata'].get('challenge_category') == cat)
+                for cat in ['complex_table', 'key_value', 'visual_noise', 'multi_page', 'dense_data', 'multi_currency']
+            }
         }
         
         output_dir_str = self.config['generation']['output_dir']
@@ -670,6 +864,16 @@ class SyntheticInvoiceGenerator:
         print(f"Languages: {summary['languages_used']}")
         print(f"Currencies: {summary['currencies_used']}")
         print(f"Layouts: {summary['layouts_used']}")
+        print(f"Invoice types: {summary['invoice_types']}")
+        print(f"Challenge categories: {summary['challenge_categories']}")
+        print(f"\nInvoice Type Distribution:")
+        for inv_type, count in summary['invoice_type_distribution'].items():
+            percentage = (count / summary['total_invoices']) * 100 if summary['total_invoices'] > 0 else 0
+            print(f"  {inv_type}: {count} ({percentage:.1f}%)")
+        print(f"\nChallenge Category Distribution:")
+        for cat, count in summary['challenge_category_distribution'].items():
+            percentage = (count / summary['total_invoices']) * 100 if summary['total_invoices'] > 0 else 0
+            print(f"  {cat}: {count} ({percentage:.1f}%)")
         
         return all_metadata
 

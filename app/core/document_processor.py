@@ -109,6 +109,15 @@ class FinancialDocumentProcessor:
                     logger.warning(f"Post-processing failed (non-critical): {str(pp_error)}")
                     # Continue with pipeline even if post-processing fails
             
+            # Step 1.6: Generate combined JSON + Markdown output if post-processing succeeded
+            markdown_output = None
+            if self.post_processing_enabled and post_processed_data and post_processed_data.get("success"):
+                try:
+                    markdown_output = self.post_processor.generate_markdown(post_processed_data)
+                    logger.info("Markdown output generated successfully")
+                except Exception as md_error:
+                    logger.warning(f"Markdown generation failed (non-critical): {str(md_error)}")
+            
             # Step 2: Enrich with ERNIE VLM for semantic understanding
             logger.info("Step 2: Enriching with ERNIE VLM for semantic reasoning...")
             try:
@@ -214,6 +223,7 @@ class FinancialDocumentProcessor:
                 "validation": validation_results,
                 "raw_ocr_output": ocr_results or {},
                 "post_processed_data": post_processed_data if self.post_processing_enabled else None,
+                "markdown_output": markdown_output,  # Human-readable Markdown format
                 "metadata": {
                     "source_file": filename,
                     "processing_timestamp": start_time.isoformat(),
@@ -225,7 +235,8 @@ class FinancialDocumentProcessor:
                     },
                     "model_type": model_type,
                     "partial_results": ocr_results.get("status") == "partial" or enriched_data.get("status") == "partial" if enriched_data else False,
-                    "post_processing_enabled": self.post_processing_enabled
+                    "post_processing_enabled": self.post_processing_enabled,
+                    "output_formats": ["json", "markdown"] if markdown_output else ["json"]
                 },
                 "active_learning_ready": validation_results.get("needs_review", False) if validation_results else False
             }
@@ -435,6 +446,54 @@ class FinancialDocumentProcessor:
         if not fields:
             return 0.0
         return sum(f.get("confidence", 0) for f in fields) / len(fields)
+    
+    async def process_document_with_combined_output(
+        self, 
+        file_content: bytes, 
+        filename: str, 
+        model_type: str = "fine_tuned"
+    ) -> Dict[str, Any]:
+        """
+        Process document and return both JSON and Markdown outputs simultaneously.
+        This is the recommended approach for PaddleOCR-VL structured output.
+        
+        Args:
+            file_content: Document file bytes
+            filename: Original filename
+            model_type: Model type to use ("fine_tuned" or "baseline")
+        
+        Returns:
+            Dictionary with 'json' and 'markdown' keys containing structured outputs
+        """
+        # First get standard processing result
+        standard_result = await self.process_document(file_content, filename, model_type)
+        
+        # If post-processing is enabled and we have OCR results, generate combined output
+        if self.post_processing_enabled and standard_result.get("raw_ocr_output"):
+            try:
+                combined = self.post_processor.generate_combined_output(
+                    standard_result.get("raw_ocr_output")
+                )
+                return {
+                    "success": standard_result.get("success", False),
+                    "document_id": standard_result.get("document_id"),
+                    "status": standard_result.get("status"),
+                    "json": combined.get("json", {}),
+                    "markdown": combined.get("markdown", ""),
+                    "metadata": {
+                        **standard_result.get("metadata", {}),
+                        **combined.get("metadata", {})
+                    },
+                    "validation": standard_result.get("validation"),
+                    "extracted_data": standard_result.get("extracted_data", [])
+                }
+            except Exception as e:
+                logger.warning(f"Failed to generate combined output: {str(e)}")
+                # Fall back to standard result
+                return standard_result
+        
+        # Fallback: return standard result with markdown if available
+        return standard_result
 
 
 # Global processor instance

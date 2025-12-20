@@ -876,4 +876,233 @@ class FinancialDocumentPostProcessor:
     def process_ocr_output(self, ocr_results: Dict) -> Dict:
         """Public interface for processing OCR results"""
         return self.extract_financial_structure(ocr_results)
+    
+    def generate_markdown(self, structured_data: Dict) -> str:
+        """
+        Generate human-readable Markdown output from structured financial data.
+        This preserves the document's visual layout and makes it easy to verify extraction.
+        
+        Args:
+            structured_data: Structured data dictionary (from extract_financial_structure)
+        
+        Returns:
+            Markdown-formatted string
+        """
+        if not structured_data.get('success'):
+            return f"# Document Processing Error\n\n{structured_data.get('error', 'Unknown error')}\n"
+        
+        data = structured_data.get('data', {})
+        validation = structured_data.get('validation', {})
+        metadata = structured_data.get('metadata', {})
+        
+        md_lines = []
+        
+        # Document header
+        md_lines.append("# Financial Document")
+        md_lines.append("")
+        if metadata.get('processing_timestamp'):
+            md_lines.append(f"**Processed:** {metadata.get('processing_timestamp')}")
+        md_lines.append("")
+        
+        # Vendor Information
+        vendor = data.get('vendor', {})
+        if vendor:
+            md_lines.append("## Vendor Information")
+            md_lines.append("")
+            if vendor.get('name'):
+                md_lines.append(f"**Name:** {vendor.get('name')}")
+            if vendor.get('address'):
+                md_lines.append(f"**Address:** {vendor.get('address')}")
+            if vendor.get('contact'):
+                contact = vendor.get('contact', {})
+                if contact.get('email'):
+                    md_lines.append(f"**Email:** {contact.get('email')}")
+                if contact.get('phone'):
+                    md_lines.append(f"**Phone:** {contact.get('phone')}")
+            md_lines.append("")
+        
+        # Client/Invoice Information
+        client = data.get('client', {})
+        if client:
+            md_lines.append("## Invoice Information")
+            md_lines.append("")
+            if client.get('invoice_number'):
+                md_lines.append(f"**Invoice Number:** {client.get('invoice_number')}")
+            if client.get('client_name'):
+                md_lines.append(f"**Client:** {client.get('client_name')}")
+            if client.get('dates'):
+                dates = client.get('dates', {})
+                if dates.get('invoice_date'):
+                    md_lines.append(f"**Invoice Date:** {dates.get('invoice_date')}")
+                if dates.get('due_date'):
+                    md_lines.append(f"**Due Date:** {dates.get('due_date')}")
+            md_lines.append("")
+        
+        # Line Items Table
+        line_items = data.get('line_items', [])
+        if line_items:
+            md_lines.append("## Line Items")
+            md_lines.append("")
+            
+            # Determine table headers from first item
+            if line_items:
+                headers = list(line_items[0].keys())
+                # Filter out internal keys and prioritize common ones
+                priority_headers = ['description', 'item', 'qty', 'quantity', 'unit_price', 'price', 'total', 'line_total']
+                ordered_headers = []
+                for h in priority_headers:
+                    if h in headers:
+                        ordered_headers.append(h)
+                for h in headers:
+                    if h not in ordered_headers:
+                        ordered_headers.append(h)
+                
+                # Create table header
+                md_lines.append("| " + " | ".join(h.replace('_', ' ').title() for h in ordered_headers) + " |")
+                md_lines.append("| " + " | ".join(["---"] * len(ordered_headers)) + " |")
+                
+                # Add rows
+                for item in line_items:
+                    row_values = []
+                    for header in ordered_headers:
+                        value = item.get(header, '')
+                        # Format numeric values
+                        if isinstance(value, (int, float)):
+                            if 'price' in header.lower() or 'total' in header.lower() or 'amount' in header.lower():
+                                row_values.append(f"${value:,.2f}")
+                            else:
+                                row_values.append(str(value))
+                        else:
+                            row_values.append(str(value))
+                    md_lines.append("| " + " | ".join(row_values) + " |")
+            
+            md_lines.append("")
+        
+        # Financial Summary
+        financial_summary = data.get('financial_summary', {})
+        if financial_summary:
+            md_lines.append("## Financial Summary")
+            md_lines.append("")
+            
+            currency = financial_summary.get('currency', '$')
+            if not currency:
+                currency = '$'
+            
+            subtotal = financial_summary.get('subtotal', 0)
+            if subtotal:
+                md_lines.append(f"**Subtotal:** {currency}{subtotal:,.2f}")
+            
+            tax = financial_summary.get('tax', {})
+            if tax.get('rate') or tax.get('amount'):
+                tax_rate = tax.get('rate', 0)
+                tax_amount = tax.get('amount', 0)
+                if tax_rate:
+                    md_lines.append(f"**Tax ({tax_rate}%):** {currency}{tax_amount:,.2f}")
+                elif tax_amount:
+                    md_lines.append(f"**Tax:** {currency}{tax_amount:,.2f}")
+            
+            discount = financial_summary.get('discount', {})
+            if discount.get('rate') or discount.get('amount'):
+                disc_rate = discount.get('rate', 0)
+                disc_amount = discount.get('amount', 0)
+                if disc_rate:
+                    md_lines.append(f"**Discount ({disc_rate}%):** {currency}{disc_amount:,.2f}")
+                elif disc_amount:
+                    md_lines.append(f"**Discount:** {currency}{disc_amount:,.2f}")
+            
+            grand_total = financial_summary.get('grand_total', 0)
+            if grand_total:
+                md_lines.append("")
+                md_lines.append(f"### Grand Total: {currency}{grand_total:,.2f}")
+            
+            payment_terms = financial_summary.get('payment_terms', '')
+            if payment_terms:
+                md_lines.append(f"**Payment Terms:** {payment_terms}")
+            
+            md_lines.append("")
+        
+        # Validation Results
+        if validation:
+            md_lines.append("## Validation Results")
+            md_lines.append("")
+            
+            is_valid = validation.get('is_valid', False)
+            md_lines.append(f"**Status:** {'✅ Valid' if is_valid else '⚠️ Issues Found'}")
+            md_lines.append("")
+            
+            confidence_scores = validation.get('confidence_scores', {})
+            if confidence_scores:
+                md_lines.append("### Confidence Scores")
+                for section, score in confidence_scores.items():
+                    percentage = score * 100
+                    md_lines.append(f"- **{section.replace('_', ' ').title()}:** {percentage:.1f}%")
+                md_lines.append("")
+            
+            overall_confidence = validation.get('overall_confidence', 0)
+            if overall_confidence:
+                md_lines.append(f"**Overall Confidence:** {overall_confidence * 100:.1f}%")
+                md_lines.append("")
+            
+            errors = validation.get('errors', [])
+            if errors:
+                md_lines.append("### Errors")
+                for error in errors:
+                    md_lines.append(f"- ❌ {error}")
+                md_lines.append("")
+            
+            warnings = validation.get('warnings', [])
+            if warnings:
+                md_lines.append("### Warnings")
+                for warning in warnings:
+                    md_lines.append(f"- ⚠️ {warning}")
+                md_lines.append("")
+            
+            arithmetic_checks = validation.get('arithmetic_checks', {})
+            if arithmetic_checks:
+                md_lines.append("### Arithmetic Validation")
+                for check_name, check_result in arithmetic_checks.items():
+                    if isinstance(check_result, dict):
+                        is_valid_check = check_result.get('is_valid', False)
+                        calculated = check_result.get('calculated', 0)
+                        extracted = check_result.get('extracted', 0)
+                        difference = check_result.get('difference', 0)
+                        status = "✅" if is_valid_check else "❌"
+                        md_lines.append(f"- {status} **{check_name.replace('_', ' ').title()}:**")
+                        md_lines.append(f"  - Calculated: {calculated:,.2f}")
+                        md_lines.append(f"  - Extracted: {extracted:,.2f}")
+                        md_lines.append(f"  - Difference: {difference:,.2f}")
+                md_lines.append("")
+        
+        return "\n".join(md_lines)
+    
+    def generate_combined_output(self, ocr_results: Dict) -> Dict[str, Any]:
+        """
+        Generate both JSON and Markdown outputs simultaneously.
+        This is the recommended approach for PaddleOCR-VL structured output.
+        
+        Args:
+            ocr_results: Raw OCR output from PaddleOCR-VL
+        
+        Returns:
+            Dictionary containing:
+            - json: Structured JSON data
+            - markdown: Human-readable Markdown format
+            - metadata: Processing metadata
+        """
+        # Generate structured JSON
+        json_output = self.extract_financial_structure(ocr_results)
+        
+        # Generate Markdown from JSON
+        markdown_output = self.generate_markdown(json_output)
+        
+        return {
+            'json': json_output,
+            'markdown': markdown_output,
+            'metadata': {
+                'timestamp': datetime.now().isoformat(),
+                'version': '1.0',
+                'formats': ['json', 'markdown'],
+                'success': json_output.get('success', False)
+            }
+        }
 

@@ -4,12 +4,17 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { toast } from "sonner";
-import Index from "./pages/Index";
-import FinScribe from "./pages/FinScribe";
-import Auth from "./pages/Auth";
-import PricingPage from "./pages/PricingPage";
-import NotFound from "./pages/NotFound";
+import { lazy, Suspense } from "react";
+import { ThemeProvider } from "@/components/ThemeProvider";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { Skeleton } from "@/components/ui/skeleton";
+
+// Lazy load pages for better performance
+const Index = lazy(() => import("./pages/Index"));
+const FinScribe = lazy(() => import("./pages/FinScribe"));
+const Auth = lazy(() => import("./pages/Auth"));
+const PricingPage = lazy(() => import("./pages/PricingPage"));
+const NotFound = lazy(() => import("./pages/NotFound"));
 
 // Configure QueryClient with error handling
 const queryClient = new QueryClient({

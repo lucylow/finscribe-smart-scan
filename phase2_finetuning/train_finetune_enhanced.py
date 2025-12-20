@@ -104,6 +104,7 @@ class InvoiceInstructionDataset(Dataset):
         response = conversations[1]['content']  # Assistant message
         
         # Format as chat messages for the processor
+        # PaddleOCR-VL typically uses this format
         messages = [
             {
                 "role": "user",
@@ -120,14 +121,26 @@ class InvoiceInstructionDataset(Dataset):
         
         # Process with processor
         try:
-            # Use apply_chat_template if available, otherwise manual formatting
+            # Try to use the processor's chat template if available
             if hasattr(self.processor, 'apply_chat_template'):
-                text_input = self.processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
+                # Get the formatted text with special tokens
+                text_input = self.processor.apply_chat_template(
+                    messages, 
+                    tokenize=False, 
+                    add_generation_prompt=False
+                )
+            elif hasattr(self.processor, 'tokenizer') and hasattr(self.processor.tokenizer, 'apply_chat_template'):
+                text_input = self.processor.tokenizer.apply_chat_template(
+                    messages,
+                    tokenize=False,
+                    add_generation_prompt=False
+                )
             else:
-                # Manual formatting
-                text_input = f"<image>\n{prompt}\n{response}"
+                # Fallback: manual formatting
+                # Format: <image>\n[Human]: prompt\n[Assistant]: response
+                text_input = f"<image>\nHuman: {prompt}\nAssistant: {response}"
             
-            # Process image and text
+            # Process image and text together
             encoding = self.processor(
                 images=image,
                 text=text_input,
@@ -136,6 +149,22 @@ class InvoiceInstructionDataset(Dataset):
                 max_length=self.max_length,
                 return_tensors="pt"
             )
+            
+            # Store the prompt text length for better masking (if tokenizer available)
+            if hasattr(self.processor, 'tokenizer'):
+                try:
+                    # Tokenize just the prompt to find its length
+                    prompt_text = f"<image>\nHuman: {prompt}\nAssistant: "
+                    prompt_tokens = self.processor.tokenizer.encode(
+                        prompt_text,
+                        add_special_tokens=False,
+                        return_tensors="pt"
+                    )
+                    encoding['prompt_length'] = prompt_tokens.size(1)
+                except:
+                    encoding['prompt_length'] = None
+            else:
+                encoding['prompt_length'] = None
         except Exception as e:
             logger.warning(f"Error processing sample {idx}: {e}")
             # Create minimal encoding
@@ -180,32 +209,103 @@ class CompletionOnlyTrainer(Trainer):
     preventing the model from forgetting how to follow instructions.
     """
     
-    def __init__(self, loss_config: Optional[Dict] = None, *args, **kwargs):
+    def __init__(self, loss_config: Optional[Dict] = None, tokenizer=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.loss_config = loss_config or {}
         self.region_weights = self.loss_config.get('region_weights', {})
+        self.tokenizer = tokenizer
+        
+        # Common special tokens for assistant response markers
+        # These will be used to identify where the assistant response starts
+        self.assistant_tokens = []
+        if tokenizer:
+            # Try to find assistant-related tokens
+            for token_name in ['assistant', 'assistant:', 'ai:', 'AI:', '[|AI|]', '<|assistant|>']:
+                if hasattr(tokenizer, 'convert_tokens_to_ids'):
+                    try:
+                        token_id = tokenizer.convert_tokens_to_ids(token_name)
+                        if token_id != tokenizer.unk_token_id:
+                            self.assistant_tokens.append(token_id)
+                    except:
+                        pass
     
-    def _mask_prompt_tokens(self, labels: torch.Tensor, input_ids: torch.Tensor) -> torch.Tensor:
+    def _find_assistant_start(self, input_ids: torch.Tensor, prompt_lengths: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """
+        Find the position where assistant response starts for each sequence in the batch.
+        
+        Args:
+            input_ids: Input token IDs of shape (batch_size, seq_len)
+            prompt_lengths: Optional tensor of prompt lengths from dataset (batch_size,)
+        
+        Returns:
+            Tensor of shape (batch_size,) with start positions
+        """
+        batch_size = input_ids.size(0)
+        seq_len = input_ids.size(1)
+        start_positions = torch.zeros(batch_size, dtype=torch.long, device=input_ids.device)
+        
+        # If we have explicit prompt lengths from the dataset, use those
+        if prompt_lengths is not None:
+            for i in range(batch_size):
+                prompt_len = prompt_lengths[i].item() if isinstance(prompt_lengths[i], torch.Tensor) else prompt_lengths[i]
+                if prompt_len and prompt_len > 0 and prompt_len < seq_len:
+                    start_positions[i] = prompt_len
+                else:
+                    # Fallback to token-based search
+                    start_positions[i] = self._find_assistant_token(input_ids[i], seq_len)
+        else:
+            # Try to find assistant tokens
+            for i in range(batch_size):
+                start_positions[i] = self._find_assistant_token(input_ids[i], seq_len)
+        
+        return start_positions
+    
+    def _find_assistant_token(self, seq: torch.Tensor, seq_len: int) -> int:
+        """Find assistant token position in a single sequence."""
+        # Try to find assistant-related tokens
+        if self.assistant_tokens:
+            for token_id in self.assistant_tokens:
+                positions = (seq == token_id).nonzero(as_tuple=True)[0]
+                if len(positions) > 0:
+                    # Start after the assistant token
+                    return (positions[0] + 1).item()
+        
+        # Try common patterns: "Assistant:", "AI:", etc.
+        if self.tokenizer:
+            try:
+                # Try to find "Assistant" or "AI" tokens
+                for pattern in ["Assistant", "AI", "assistant", "ai"]:
+                    pattern_ids = self.tokenizer.encode(pattern, add_special_tokens=False)
+                    if len(pattern_ids) > 0:
+                        # Search for pattern in sequence
+                        pattern_len = len(pattern_ids)
+                        for i in range(seq_len - pattern_len + 1):
+                            if torch.equal(seq[i:i+pattern_len], torch.tensor(pattern_ids, device=seq.device)):
+                                return i + pattern_len
+            except:
+                pass
+        
+        # Fallback: estimate based on sequence structure
+        # Assume prompt is roughly first 40-60% of sequence
+        return int(seq_len * 0.5)
+    
+    def _mask_prompt_tokens(self, labels: torch.Tensor, input_ids: torch.Tensor, prompt_lengths: Optional[torch.Tensor] = None) -> torch.Tensor:
         """
         Mask prompt tokens by setting them to -100 (ignored in loss calculation).
         
-        The prompt typically ends with the assistant's response starting.
-        We need to identify where the prompt ends and the response begins.
+        Uses tokenizer special tokens to identify where the assistant response begins.
         """
         # Create a copy of labels
         masked_labels = labels.clone()
         
-        # Find the position where assistant response starts
-        # This is a simplified approach - in practice, you'd use tokenizer special tokens
-        # For PaddleOCR-VL, we assume the prompt ends before the response content
+        # Find where assistant response starts for each sequence
+        assistant_starts = self._find_assistant_start(input_ids)
         
-        # Simple heuristic: mask everything before the last 50% of tokens
-        # (This is a placeholder - adjust based on your actual prompt/response split)
-        seq_len = labels.size(-1)
-        prompt_end = seq_len // 2  # Adjust this based on your actual data
-        
-        # Mask prompt tokens (set to -100)
-        masked_labels[:, :prompt_end] = -100
+        # Mask all tokens before assistant response
+        batch_size = labels.size(0)
+        for i in range(batch_size):
+            start_pos = assistant_starts[i].item()
+            masked_labels[i, :start_pos] = -100
         
         return masked_labels
     
@@ -221,7 +321,13 @@ class CompletionOnlyTrainer(Trainer):
         
         # Apply completion-only masking
         if labels is not None:
-            labels = self._mask_prompt_tokens(labels, inputs.get("input_ids"))
+            # Extract prompt lengths if available
+            prompt_lengths = inputs.pop("prompt_length", None)
+            if prompt_lengths is not None and isinstance(prompt_lengths, torch.Tensor):
+                # Handle batched prompt lengths
+                if prompt_lengths.dim() == 0:
+                    prompt_lengths = prompt_lengths.unsqueeze(0)
+            labels = self._mask_prompt_tokens(labels, inputs.get("input_ids"), prompt_lengths)
             inputs["labels"] = labels
         
         outputs = model(**inputs)
@@ -442,6 +548,7 @@ def main():
         train_dataset=train_subset,
         eval_dataset=val_subset,
         loss_config=config.get('loss', {}),
+        tokenizer=processor.tokenizer if hasattr(processor, 'tokenizer') else None,
         callbacks=[EvaluationCallback(val_subset, config)]
     )
     

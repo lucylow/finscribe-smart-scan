@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Assets (sample images - keep structure but ignore actual images)
+assets/real_invoices/*.jpg
+assets/real_invoices/*.jpeg
+assets/real_invoices/*.png
+assets/real_invoices/*.pdf
+!assets/real_invoices/.gitkeep
+
+# Demo results
+assets/demo_results/*.gif
+assets/demo_results/*.png
+assets/demo_results/*.jpg
+!assets/demo_results/.gitkeep
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

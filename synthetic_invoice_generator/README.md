@@ -4,12 +4,15 @@ A comprehensive system for generating synthetic invoice datasets with realistic 
 
 ## Features
 
+- **Multiple Invoice Types**: Support for Commercial, Service, Proforma, and Industry-Specific invoices
+- **Challenge-Based Categorization**: Automatic categorization by layout challenge (complex_table, key_value, visual_noise, multi_page, dense_data, multi_currency)
+- **Commercial Invoice Features**: HS codes, Incoterms (FOB, CIF, EXW, etc.), customs value, country of origin
 - **Multiple Layout Templates**: Classic, modern, compact, multi-column, receipt-style, and multi-page layouts
 - **Multi-language Support**: Generate invoices in multiple languages (English, German, French, Spanish, Japanese, Chinese)
 - **Currency Variations**: Support for USD, EUR, GBP, JPY, CNY
 - **Complexity Levels**: Simple (1-5 items), medium (6-15 items), complex (16-30 items, multi-page)
 - **Realistic Augmentation**: Image augmentation to simulate scanned documents with rotation, blur, noise, folds, and other artifacts
-- **Ground Truth Generation**: Complete JSON annotations for training
+- **Ground Truth Generation**: Complete JSON annotations for training with invoice type and challenge category metadata
 - **Scalable Generation**: Batch processing for thousands of invoices
 
 ## Installation
@@ -73,6 +76,8 @@ Each invoice has a corresponding JSON file with complete metadata:
   "currency": "USD",
   "language": "en_US",
   "layout_type": "classic_left",
+  "invoice_type": "commercial",
+  "challenge_category": "complex_table",
   "vendor": {
     "name": "Tech Solutions LLC",
     "address": "123 Main St",
@@ -83,9 +88,17 @@ Each invoice has a corresponding JSON file with complete metadata:
   "subtotal": 8500.00,
   "tax_total": 1615.00,
   "grand_total": 10115.00,
+  "hs_codes": ["847130", "851712"],
+  "incoterms": "FOB",
+  "country_of_origin": "USA",
+  "customs_value": 8500.00,
   ...
 }
 ```
+
+**Invoice Types**: `commercial`, `service`, `proforma`, `industry_specific`
+
+**Challenge Categories**: `complex_table`, `key_value`, `visual_noise`, `multi_page`, `dense_data`, `multi_currency`
 
 ## Training Manifest
 
@@ -104,6 +117,43 @@ The `training_manifest.json` file contains all training pairs:
   ...
 ]
 ```
+
+## Invoice Types
+
+The generator supports four invoice types with distinct characteristics:
+
+### Commercial Invoice (30% default distribution)
+- **Purpose**: Cross-border shipment of goods
+- **Key Features**: HS codes, Incoterms, customs value, country of origin
+- **Challenge**: Complex table layouts with dense structured data
+
+### Service Invoice (25% default distribution)
+- **Purpose**: Services, consulting, SaaS
+- **Key Features**: Service descriptions, hourly/project rates, contract numbers
+- **Challenge**: Key-value pair extraction from descriptive text
+
+### Proforma Invoice (15% default distribution)
+- **Purpose**: Preliminary quotations/estimates
+- **Key Features**: Clearly marked "PROFORMA" in invoice ID
+- **Challenge**: Document type identification
+
+### Industry-Specific Invoice (30% default distribution)
+- **Purpose**: Industry-specific formats (construction, healthcare, retail, etc.)
+- **Key Features**: Industry classification, project codes, industry-specific terminology
+- **Challenge**: Visual noise and unconventional layouts
+
+See `INVOICE_TYPE_ENHANCEMENTS.md` for detailed information.
+
+## Challenge-Based Categorization
+
+Each invoice is automatically categorized by the layout challenge it presents, enabling targeted training and evaluation:
+
+- **complex_table**: Multi-level headers, merged cells (commercial invoices, 15+ items)
+- **key_value**: Scattered fields, key-value pairs (default for standard invoices)
+- **visual_noise**: Heavy branding, stamps, watermarks (industry-specific invoices)
+- **multi_page**: Key information on later pages (25+ items, multi-page layout)
+- **dense_data**: High information density (10+ items)
+- **multi_currency**: Multiple currencies or languages
 
 ## Customization
 

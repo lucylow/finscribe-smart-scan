@@ -2,6 +2,25 @@
 
 This directory contains the implementation of Phase 2 fine-tuning strategy for PaddleOCR-VL, focusing on teaching the model to recognize and extract **5 key semantic regions** from invoices:
 
+## 🆕 Semantic Understanding Training
+
+**NEW**: We now support **semantic understanding training** that teaches the model to understand document structure and logic, not just extract text. See **[SEMANTIC_TRAINING_GUIDE.md](./SEMANTIC_TRAINING_GUIDE.md)** for complete instructions.
+
+The semantic approach uses **instruction fine-tuning** with diverse prompt types:
+- **Field Extraction**: Extract specific fields on demand
+- **Full JSON Parsing**: Parse entire documents into structured JSON
+- **Table Reconstruction**: Convert tables to CSV/JSON formats
+- **Logical Reasoning**: Verify arithmetic and validate consistency
+- **Summarization**: Provide concise document summaries
+
+Use `create_semantic_instruction_pairs.py` to generate training data with these instruction types.
+
+---
+
+## Original Approach: Semantic Region Extraction
+
+The original approach focuses on teaching the model to recognize and extract **5 key semantic regions** from invoices:
+
 1. **Vendor Block** (name, address, contact)
 2. **Client/Invoice Info** (date, number, due date)
 3. **Line Item Table** (description, quantity, price, total)
@@ -36,6 +55,25 @@ pip install -r requirements.txt
 
 ### 2. Prepare Training Data
 
+**Option A: Semantic Understanding Training (Recommended)**
+
+Generate diverse instruction pairs for semantic understanding:
+
+```bash
+# Generate semantic instruction pairs with all 5 instruction types
+python create_semantic_instruction_pairs.py \
+    --manifest ../synthetic_invoice_generator/output/training_manifest.json \
+    --output semantic_instruction_pairs.jsonl
+
+# Or generate only specific types
+python create_semantic_instruction_pairs.py \
+    --manifest ../synthetic_invoice_generator/output/training_manifest.json \
+    --output semantic_instruction_pairs.jsonl \
+    --include-types field_extraction full_json_parsing
+```
+
+**Option B: Original Semantic Region Extraction**
+
 Convert your Phase 1 synthetic invoice data into instruction-response pairs:
 
 ```bash
@@ -64,8 +102,24 @@ Edit `finetune_config.yaml` to adjust:
 
 ### 4. Run Training
 
+**For semantic understanding training (recommended):**
+
+```bash
+python train_finetune_enhanced.py \
+    --config finetune_config.yaml \
+    --dataset semantic_instruction_pairs.jsonl
+```
+
+**For original semantic region extraction:**
+
 ```bash
 python train_finetune.py --config finetune_config.yaml
+```
+
+**Quick start script:**
+
+```bash
+./example_semantic_training.sh
 ```
 
 **Note**: The training script is a framework that may need adaptation based on the actual PaddleOCR-VL/ERNIEKit API. See "Integration Notes" below.

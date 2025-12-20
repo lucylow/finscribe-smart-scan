@@ -13,6 +13,7 @@ from .paddleocr_prompts import (
     OCR_PROMPT,
     TABLE_RECOGNITION_PROMPT,
 )
+from .semantic_layout import SemanticLayoutAnalyzer, SemanticLayoutResult
 
 logger = logging.getLogger(__name__)
 
@@ -265,11 +266,22 @@ class PaddleOCRVLService:
                 timeout=ocr_config.get("timeout", 30),
                 max_retries=ocr_config.get("max_retries", 3)
             )
+        
+        # Initialize semantic layout analyzer for deep layout understanding
+        self.layout_analyzer = SemanticLayoutAnalyzer()
+        self.semantic_layout_enabled = config.get("semantic_layout", {}).get("enabled", True)
     
     async def parse_document(self, image_bytes: bytes) -> Dict[str, Any]:
         """
         Parse full document using configured OCR client.
         This performs initial layout analysis to detect regions.
+        
+        The two-stage process:
+        1. Stage 1 (Layout Analysis): PP-DocLayoutV2 detects and classifies semantic regions
+        2. Stage 2 (Element Recognition): PaddleOCR-VL-0.9B recognizes content and structure
+        
+        Returns:
+            Dict with OCR results, optionally enhanced with semantic layout understanding
         """
         try:
             if not image_bytes or len(image_bytes) == 0:
@@ -284,6 +296,16 @@ class PaddleOCRVLService:
             
             if "status" not in result:
                 result["status"] = "success"
+            
+            # Enhance with semantic layout understanding if enabled
+            if self.semantic_layout_enabled:
+                try:
+                    layout_result = self.layout_analyzer.analyze_layout(result)
+                    result["semantic_layout"] = layout_result.to_dict()
+                    logger.info(f"Semantic layout analysis completed: {len(layout_result.regions)} regions detected")
+                except Exception as layout_error:
+                    logger.warning(f"Semantic layout analysis failed (non-critical): {str(layout_error)}")
+                    # Continue without semantic layout enhancement
             
             return result
         except Exception as e:
@@ -355,6 +377,44 @@ class PaddleOCRVLService:
             return result
         except Exception as e:
             logger.error(f"Error parsing region '{region_type}': {str(e)}", exc_info=True)
+            raise
+    
+    async def parse_document_with_semantic_layout(self, image_bytes: bytes) -> Dict[str, Any]:
+        """
+        Parse document with full semantic layout understanding.
+        
+        This method explicitly implements the two-stage process:
+        1. Stage 1: Layout Analysis - Detect and classify all semantic regions with reading order
+        2. Stage 2: Element Recognition - Recognize content and internal structure for each region
+        
+        Returns:
+            Dict with semantic layout result including regions, reading order, and recognized elements
+        """
+        try:
+            if not image_bytes or len(image_bytes) == 0:
+                raise ValueError("Image bytes cannot be empty")
+            
+            logger.info("Running semantic layout analysis (two-stage process)")
+            
+            # Stage 1: Get initial OCR results (includes layout analysis from PP-DocLayoutV2)
+            ocr_results = await self.parse_document(image_bytes)
+            
+            # Stage 2: Analyze semantic layout from OCR results
+            layout_result = self.layout_analyzer.analyze_layout(ocr_results)
+            
+            # Return combined result
+            return {
+                "status": "success",
+                "model_version": "PaddleOCR-VL-0.9B",
+                "semantic_layout": layout_result.to_dict(),
+                "raw_ocr": ocr_results,
+                "processing_stages": {
+                    "stage1_layout_analysis": "PP-DocLayoutV2",
+                    "stage2_element_recognition": "PaddleOCR-VL-0.9B"
+                }
+            }
+        except Exception as e:
+            logger.error(f"Error in semantic layout parsing: {str(e)}", exc_info=True)
             raise
     
     async def parse_mixed_document(

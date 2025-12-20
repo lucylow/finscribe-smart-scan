@@ -40,6 +40,30 @@ variations:
       min_items: 16
       max_items: 30
       pages: 3
+  
+  # Invoice type distribution (weights for random selection)
+  invoice_types:
+    commercial:
+      weight: 0.30
+      description: "Cross-border shipment invoices with HS codes, Incoterms, customs value"
+    service:
+      weight: 0.25
+      description: "Service invoices with hourly/project rates, contract numbers"
+    proforma:
+      weight: 0.15
+      description: "Preliminary quotations/estimates marked as Proforma"
+    industry_specific:
+      weight: 0.30
+      description: "Industry-specific invoices (construction, healthcare, retail, etc.)"
+  
+  # Challenge categories (automatically determined, but can be configured)
+  challenge_categories:
+    - complex_table
+    - key_value
+    - visual_noise
+    - multi_page
+    - dense_data
+    - multi_currency
 
 augmentation:
   apply_augmentation: true

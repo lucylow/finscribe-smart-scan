@@ -1,0 +1,15 @@
+# Requirements for Synthetic Invoice Generator Example
+# Install with: pip install -r requirements_synthetic_data.txt
+
+# Core dependencies
+faker>=19.0.0
+reportlab>=4.0.0
+Pillow>=10.0.0
+
+# Optional: for PDF to image conversion (useful for training)
+pdf2image>=1.16.0
+
+# Optional: for enhanced image augmentation
+# imgaug>=0.4.0
+# opencv-python>=4.8.0
+

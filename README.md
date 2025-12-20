@@ -18,10 +18,28 @@
 
 ### Additional Documentation
 
+- **[Hackathon Submission Guide](HACKATHON_SUBMISSION.md)** — Complete hackathon submission documentation
+- **[Hackathon Checklist](HACKATHON_CHECKLIST.md)** — Pre-submission checklist ⭐
+- **[Resources Used](HACKATHON_RESOURCES_USED.md)** — Repositories and tutorials used
 - **[API Documentation](http://localhost:8000/docs)** — Interactive OpenAPI/Swagger docs (when backend is running)
 - **[Backend Runbook](FinScribe%20AI%20Backend%20Runbook.md)** — Detailed deployment and operation guide
 - **[Monetization Setup](MONETIZATION_SETUP.md)** — Stripe integration and billing configuration
 - **[Implementation Summary](IMPLEMENTATION_SUMMARY.md)** — Technical implementation details
+
+### 🏆 Hackathon Project
+
+This project was built for the **ERNIE & PaddleOCR-VL Hackathon**, demonstrating fine-tuning of PaddleOCR-VL for financial document processing. 
+
+**Quick Links**:
+- 📋 [Submission Checklist](HACKATHON_CHECKLIST.md) - Ensure everything is ready
+- 📝 [Complete Submission Guide](HACKATHON_SUBMISSION.md) - Full submission documentation
+- 🔗 [Resources Used](HACKATHON_RESOURCES_USED.md) - Repositories and modifications
+
+**Key Achievements**:
+- ✅ 94.2% field extraction accuracy (vs 76.8% baseline)
+- ✅ Fine-tuned PaddleOCR-VL using completion-only training
+- ✅ Production-ready application with web interface
+- ✅ Comprehensive evaluation and comparison tools
 
 </div>
 

@@ -91,26 +91,64 @@ result = await service.parse_mixed_document(image_bytes, regions)
 - Better handling of CurrencyAmount objects
 - Consistent prompt usage across all formatters
 
-### 5. Documentation and Examples
+### 5. Semantic Layout Understanding (`app/core/models/semantic_layout.py`)
+
+**Purpose**: Deep structural and semantic understanding of document layout using PaddleOCR-VL's two-stage architecture.
+
+**Key Features**:
+- **Stage 1 (Layout Analysis)**: Detects and classifies semantic regions with reading order
+- **Stage 2 (Element Recognition)**: Recognizes content and internal structure for each region
+- Reading order prediction for multi-column documents
+- Structured output with semantic relationships
+- Region classification (text, table, formula, image, etc.)
+
+**Usage**:
+```python
+# Parse with full semantic layout understanding
+result = await service.parse_document_with_semantic_layout(image_bytes)
+
+# Access semantic layout
+semantic_layout = result["semantic_layout"]
+regions = semantic_layout["regions"]  # List of detected regions
+reading_order = semantic_layout["reading_order"]  # Document reading order
+pages = semantic_layout["pages"]  # Structured page content
+```
+
+**See**: `SEMANTIC_LAYOUT_GUIDE.md` for comprehensive documentation
+
+### 6. Documentation and Examples
 
 **Files Created**:
 - `PADDLEOCR_PROMPTS_GUIDE.md`: Comprehensive usage guide
+- `SEMANTIC_LAYOUT_GUIDE.md`: Semantic layout understanding guide
 - `examples/paddleocr_prompts_example.py`: Practical examples
+- `examples/semantic_layout_example.py`: Semantic layout examples
 - `PADDLEOCR_IMPLEMENTATION_SUMMARY.md`: This file
 
 ## Architecture: Two-Stage Processing Pipeline
 
-### Stage 1: Layout Analysis
-- Uses PP-DocLayoutV2 (or similar) to detect and classify regions
-- Identifies: text blocks, tables, logos, etc.
-- Outputs: List of regions with bounding boxes and types
+PaddleOCR-VL uses a two-stage architecture for deep semantic layout understanding:
 
-### Stage 2: Targeted Element Recognition
-- Each detected region is cropped
-- Passed to PaddleOCR-VL-0.9B with appropriate task prompt:
+### Stage 1: Layout Analysis (PP-DocLayoutV2)
+- **Component**: RT-DETR detector + Pointer Network
+- **Function**: Detects and classifies all semantic regions (text blocks, tables, formulas, images)
+- **Key Feature**: Predicts correct reading order for multi-column documents
+- **Output**: List of regions with bounding boxes, types, and reading order
+
+### Stage 2: Element Recognition (PaddleOCR-VL-0.9B)
+- **Component**: Vision-Language Model
+- **Function**: Recognizes specific content and internal structure for each region
+- **Process**: Each region is cropped and processed with appropriate task prompt:
   - Text regions → `"OCR:"` prompt
   - Table regions → `"Table Recognition:"` prompt
-- Model outputs structured JSON for each region
+  - Formula regions → `"Formula Recognition:"` prompt
+- **Output**: Structured content (text, table cells, formulas) with internal structure
+
+**Benefits**:
+- Specialized models for each stage (geometry vs. content)
+- Holistic document understanding
+- Accurate reading order for complex layouts
+- Foundation for fine-tuning on domain-specific documents
 
 ## Region Type to Prompt Mapping
 
@@ -229,12 +267,15 @@ The `finscribe/data/formatters.py` now:
 ### New Files
 - `app/core/models/paddleocr_prompts.py` - Prompt system
 - `app/core/models/invoice_schema.py` - Multi-currency schema
+- `app/core/models/semantic_layout.py` - Semantic layout analyzer
 - `PADDLEOCR_PROMPTS_GUIDE.md` - Usage guide
+- `SEMANTIC_LAYOUT_GUIDE.md` - Semantic layout documentation
 - `examples/paddleocr_prompts_example.py` - Examples
+- `examples/semantic_layout_example.py` - Semantic layout examples
 - `PADDLEOCR_IMPLEMENTATION_SUMMARY.md` - This file
 
 ### Modified Files
-- `app/core/models/paddleocr_vl_service.py` - Added region processing and prompt support
+- `app/core/models/paddleocr_vl_service.py` - Added region processing, prompt support, and semantic layout integration
 - `finscribe/data/formatters.py` - Integrated prompt system
 
 ## Key Benefits
@@ -243,6 +284,8 @@ The `finscribe/data/formatters.py` now:
 2. **Better Accuracy**: Task-specific prompts improve recognition quality
 3. **Multi-Currency Support**: Handles international invoices properly
 4. **Mixed Elements**: Processes complex documents with text + tables
-5. **Fine-Tuning Ready**: Structured for effective model fine-tuning
-6. **Type Safety**: Dataclasses provide structure and validation
+5. **Semantic Layout Understanding**: Deep structural understanding with reading order
+6. **Fine-Tuning Ready**: Structured for effective model fine-tuning
+7. **Type Safety**: Dataclasses provide structure and validation
+8. **Reading Order**: Correctly handles multi-column financial statements
 
