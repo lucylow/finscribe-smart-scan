@@ -1,0 +1,53 @@
+generation:
+  num_invoices: 5000
+  batch_size: 100
+  output_dir: "./output"
+  
+variations:
+  layouts:
+    - classic_left
+    - modern_centered
+    - compact_table
+    - multi_column
+    - receipt_style
+    - multi_page
+    
+  languages:
+    - en_US
+    - de_DE
+    - fr_FR
+    - es_ES
+    - ja_JP
+    - zh_CN
+    
+  currencies:
+    - USD
+    - EUR
+    - GBP
+    - JPY
+    - CNY
+    
+  complexity_levels:
+    simple:
+      min_items: 1
+      max_items: 5
+      pages: 1
+    medium:
+      min_items: 6
+      max_items: 15
+      pages: 2
+    complex:
+      min_items: 16
+      max_items: 30
+      pages: 3
+
+augmentation:
+  apply_augmentation: true
+  augmentation_types:
+    - rotation: [-5, 5]  # degrees
+    - skew: [-0.1, 0.1]
+    - noise: [0.01, 0.05]
+    - blur: [0.5, 1.5]
+    - brightness: [0.8, 1.2]
+    - contrast: [0.8, 1.2]
+

@@ -6,6 +6,18 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from .api.v1.endpoints import router as api_router
+from .api.v1.metrics import router as metrics_router
+try:
+    from .api.v1.endpoints_enhanced import router as enhanced_router
+    ENHANCED_ENDPOINTS_AVAILABLE = True
+except ImportError:
+    ENHANCED_ENDPOINTS_AVAILABLE = False
+    logger.warning("Enhanced endpoints not available")
+try:
+    from .api.v1.billing import router as billing_router
+    BILLING_AVAILABLE = True
+except ImportError:
+    BILLING_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +85,11 @@ async def general_exception_handler(request: Request, exc: Exception):
     )
 
 app.include_router(api_router, prefix="/api/v1")
+app.include_router(metrics_router, prefix="/api/v1")
+if ENHANCED_ENDPOINTS_AVAILABLE:
+    app.include_router(enhanced_router, prefix="/api/v1", tags=["enhanced"])
+if BILLING_AVAILABLE:
+    app.include_router(billing_router, prefix="/api/v1/billing", tags=["billing"])
 
 @app.get("/")
 def read_root():

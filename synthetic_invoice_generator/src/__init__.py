@@ -1,0 +1,2 @@
+"""Synthetic Invoice Generator Package"""
+

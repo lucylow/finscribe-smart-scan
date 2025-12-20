@@ -87,6 +87,18 @@ def process_job(job_id: str, file_content: bytes, filename: str, job_type: str):
             
             logger.info(f"Job {job_id}: Completed successfully")
             
+            # TODO: Integrate usage tracking here
+            # from app.billing.usage import record_document_usage
+            # user_id = get_user_id_from_job(job_id)  # Get from job metadata
+            # pages = result.get("metadata", {}).get("page_count", 1)
+            # record_document_usage(
+            #     db=db_session,
+            #     user_id=user_id,
+            #     document_id=result.get("document_id", job_id),
+            #     pages=pages,
+            #     plan_tier=user.plan
+            # )
+            
         except asyncio.TimeoutError:
             error_msg = f"Processing timeout after {timeout_seconds} seconds"
             logger.error(f"Job {job_id}: {error_msg}")
