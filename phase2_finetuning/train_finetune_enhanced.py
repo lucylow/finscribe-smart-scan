@@ -38,6 +38,21 @@ import numpy as np
 from tqdm import tqdm
 import logging
 
+# Import advanced loss and augmentation
+try:
+    from advanced_loss import create_loss_function, CombinedLoss
+    ADVANCED_LOSS_AVAILABLE = True
+except ImportError:
+    ADVANCED_LOSS_AVAILABLE = False
+    logger.warning("Advanced loss functions not available. Using standard loss.")
+
+try:
+    from advanced_augmentation import DocumentAugmentation
+    ADVANCED_AUG_AVAILABLE = True
+except ImportError:
+    ADVANCED_AUG_AVAILABLE = False
+    logger.warning("Advanced augmentation not available. Using basic augmentation.")
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -52,7 +67,8 @@ class InvoiceInstructionDataset(Dataset):
         jsonl_path: str,
         processor,
         max_length: int = 2048,
-        image_size: tuple = (1024, 1024)
+        image_size: tuple = (1024, 1024),
+        augmentation: Optional[DocumentAugmentation] = None
     ):
         """
         Initialize dataset.
@@ -66,6 +82,7 @@ class InvoiceInstructionDataset(Dataset):
         self.processor = processor
         self.max_length = max_length
         self.image_size = image_size
+        self.augmentation = augmentation  # Optional augmentation for training
         
         # Load all samples
         self.samples = []
@@ -75,6 +92,8 @@ class InvoiceInstructionDataset(Dataset):
                     self.samples.append(json.loads(line))
         
         logger.info(f"Loaded {len(self.samples)} training samples")
+        if self.augmentation is not None:
+            logger.info("Data augmentation enabled")
     
     def __len__(self):
         return len(self.samples)
@@ -93,6 +112,10 @@ class InvoiceInstructionDataset(Dataset):
             image = Image.open(image_path).convert('RGB')
             # Resize maintaining aspect ratio
             image.thumbnail(self.image_size, Image.Resampling.LANCZOS)
+            
+            # Apply augmentation if enabled (only during training)
+            if self.augmentation is not None:
+                image = self.augmentation(image)
         except Exception as e:
             logger.warning(f"Error loading image {image_path}: {e}")
             # Return a blank image as fallback
@@ -209,11 +232,12 @@ class CompletionOnlyTrainer(Trainer):
     preventing the model from forgetting how to follow instructions.
     """
     
-    def __init__(self, loss_config: Optional[Dict] = None, tokenizer=None, *args, **kwargs):
+    def __init__(self, loss_config: Optional[Dict] = None, tokenizer=None, advanced_loss_fn=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.loss_config = loss_config or {}
         self.region_weights = self.loss_config.get('region_weights', {})
         self.tokenizer = tokenizer
+        self.advanced_loss_fn = advanced_loss_fn  # Optional advanced loss function
         
         # Common special tokens for assistant response markers
         # These will be used to identify where the assistant response starts
@@ -334,20 +358,35 @@ class CompletionOnlyTrainer(Trainer):
         logits = outputs.logits
         
         if labels is not None:
-            # Compute cross-entropy loss
+            # Prepare logits and labels for loss computation
             shift_logits = logits[..., :-1, :].contiguous()
             shift_labels = labels[..., 1:].contiguous()
             
-            loss_fct = torch.nn.CrossEntropyLoss(ignore_index=-100)
-            loss = loss_fct(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
-            
-            # Apply region-based weighting if configured
-            if self.region_weights and "region" in inputs:
-                region = inputs.get("region")
-                if isinstance(region, list) and region:
-                    current_region = region[0]
-                    weight = self.region_weights.get(current_region, 1.0)
-                    loss = loss * weight
+            # Use advanced loss function if available, otherwise use standard CE
+            if self.advanced_loss_fn is not None:
+                # Get region for weighting if available
+                region = None
+                if "region" in inputs:
+                    region_val = inputs.get("region")
+                    if isinstance(region_val, list) and region_val:
+                        region = region_val[0]
+                    elif isinstance(region_val, str):
+                        region = region_val
+                
+                # Compute loss using advanced loss function
+                loss = self.advanced_loss_fn(shift_logits, shift_labels, region=region)
+            else:
+                # Standard cross-entropy loss
+                loss_fct = torch.nn.CrossEntropyLoss(ignore_index=-100)
+                loss = loss_fct(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
+                
+                # Apply region-based weighting if configured
+                if self.region_weights and "region" in inputs:
+                    region = inputs.get("region")
+                    if isinstance(region, list) and region:
+                        current_region = region[0]
+                        weight = self.region_weights.get(current_region, 1.0)
+                        loss = loss * weight
         else:
             loss = outputs.loss if hasattr(outputs, 'loss') else None
             if loss is None:
@@ -480,6 +519,15 @@ def main():
         logger.error("Note: PaddleOCR-VL may use a custom model class. Adjust imports as needed.")
         sys.exit(1)
     
+    # Enable gradient checkpointing for memory efficiency
+    if config.get('training', {}).get('gradient_checkpointing', True):
+        if hasattr(model, 'gradient_checkpointing_enable'):
+            model.gradient_checkpointing_enable()
+            logger.info("Gradient checkpointing enabled")
+        elif hasattr(model, 'config') and hasattr(model.config, 'gradient_checkpointing'):
+            model.config.gradient_checkpointing = True
+            logger.info("Gradient checkpointing enabled (via config)")
+    
     # Apply LoRA
     if config.get('lora', {}).get('enabled', False):
         logger.info("Setting up LoRA...")
@@ -491,11 +539,25 @@ def main():
     dataset_path = config['dataset_path']
     logger.info(f"Loading dataset from {dataset_path}")
     
+    # Setup augmentation for training dataset
+    augmentation = None
+    if ADVANCED_AUG_AVAILABLE and config.get('augmentation', {}).get('enabled', True):
+        aug_config = config.get('augmentation', {})
+        augmentation = DocumentAugmentation(
+            rotation_range=tuple(aug_config.get('rotation_range', [-5, 5])),
+            brightness_range=tuple(aug_config.get('brightness_range', [0.8, 1.2])),
+            contrast_range=tuple(aug_config.get('contrast_range', [0.8, 1.2])),
+            noise_std=tuple(aug_config.get('noise_std', [0.01, 0.05])),
+            blur_probability=aug_config.get('blur_probability', 0.1),
+            enabled=aug_config.get('enabled', True)
+        )
+    
     train_dataset = InvoiceInstructionDataset(
         dataset_path,
         processor,
         max_length=config.get('max_length', 2048),
-        image_size=tuple(config.get('vision_processor', {}).get('train', {}).get('size', [1024, 1024]))
+        image_size=tuple(config.get('vision_processor', {}).get('train', {}).get('size', [1024, 1024])),
+        augmentation=augmentation
     )
     
     # Create validation split
@@ -539,7 +601,24 @@ def main():
         greater_is_better=False,
         # Flash Attention 2 support
         attn_implementation=training_config.get('attn_implementation', 'flash_attention_2') if torch.cuda.is_available() else 'eager',
+        # Gradient checkpointing (can also be set on model, but setting here too for compatibility)
+        gradient_checkpointing=training_config.get('gradient_checkpointing', True),
     )
+    
+    # Create advanced loss function if configured
+    advanced_loss_fn = None
+    if ADVANCED_LOSS_AVAILABLE:
+        loss_config = config.get('loss', {})
+        if loss_config.get('use_focal', False) or loss_config.get('use_label_smoothing', False):
+            try:
+                advanced_loss_fn = create_loss_function(config)
+                logger.info("Using advanced loss function")
+                if loss_config.get('use_focal', False):
+                    logger.info(f"  - Focal Loss: alpha={loss_config.get('focal_alpha', 1.0)}, gamma={loss_config.get('focal_gamma', 2.0)}")
+                if loss_config.get('use_label_smoothing', False):
+                    logger.info(f"  - Label Smoothing: {loss_config.get('label_smoothing', 0.1)}")
+            except Exception as e:
+                logger.warning(f"Failed to create advanced loss function: {e}. Using standard loss.")
     
     # Create trainer with completion-only training
     trainer = CompletionOnlyTrainer(
@@ -549,6 +628,7 @@ def main():
         eval_dataset=val_subset,
         loss_config=config.get('loss', {}),
         tokenizer=processor.tokenizer if hasattr(processor, 'tokenizer') else None,
+        advanced_loss_fn=advanced_loss_fn,
         callbacks=[EvaluationCallback(val_subset, config)]
     )
     

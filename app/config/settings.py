@@ -36,6 +36,6 @@ def load_config() -> Dict[str, Any]:
         },
         "active_learning": {
             "enabled": os.getenv("ACTIVE_LEARNING_ENABLED", "true").lower() == "true",
-            "file_path": os.getenv("ACTIVE_LEARNING_FILE", "./active_learning.jsonl")
+            "file_path": os.getenv("ACTIVE_LEARNING_FILE", "data/active_learning.jsonl")
         }
     }

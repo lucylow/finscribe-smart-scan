@@ -1,0 +1,8 @@
+{
+  "finscribe_unsloth": {
+    "file_name": "finscribe_unsloth.jsonl",
+    "format": "jsonl",
+    "description": "FinScribe OCR -> validation/correction pairs for invoice JSON"
+  }
+}
+

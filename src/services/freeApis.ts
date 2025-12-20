@@ -472,7 +472,7 @@ export async function getCryptoPrices(
 // Utility: Cache Management
 // ============================================================================
 
-const cache = new Map<string, { data: any; timestamp: number; ttl: number }>();
+const cache = new Map<string, { data: unknown; timestamp: number; ttl: number }>();
 
 /**
  * Cache API response with TTL
@@ -481,7 +481,7 @@ const cache = new Map<string, { data: any; timestamp: number; ttl: number }>();
  * @param data - Data to cache
  * @param ttl - Time to live in milliseconds (default: 1 hour)
  */
-export function setCache(key: string, data: any, ttl: number = 3600000): void {
+export function setCache(key: string, data: unknown, ttl: number = 3600000): void {
   cache.set(key, {
     data,
     timestamp: Date.now(),

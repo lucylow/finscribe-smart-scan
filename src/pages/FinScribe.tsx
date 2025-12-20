@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -31,14 +32,33 @@ import PerformanceMetrics from '@/components/finscribe/PerformanceMetrics';
 import APIPlayground from '@/components/finscribe/APIPlayground';
 import AppSidebar from '@/components/finscribe/AppSidebar';
 import { analyzeDocument, compareWithBaseline } from '@/services/api';
+import { ErrorHandler } from '@/lib/errorHandler';
+
+interface AnalysisResult {
+  success: boolean;
+  job_id: string;
+  data?: Record<string, unknown>;
+  validation?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+  markdown_output?: string;
+  raw_ocr_output?: Record<string, unknown>;
+}
+
+interface ComparisonResult {
+  success: boolean;
+  job_id: string;
+  fine_tuned_result?: Record<string, unknown>;
+  baseline_result?: Record<string, unknown>;
+  comparison_summary?: Record<string, unknown>;
+}
 
 const FinScribe = () => {
   const [activeMode, setActiveMode] = useState('upload');
   const [file, setFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [processing, setProcessing] = useState(false);
-  const [results, setResults] = useState<any>(null);
-  const [comparisonResults, setComparisonResults] = useState<any>(null);
+  const [results, setResults] = useState<AnalysisResult | null>(null);
+  const [comparisonResults, setComparisonResults] = useState<ComparisonResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -52,70 +72,130 @@ const FinScribe = () => {
   const handleAnalyze = async () => {
     if (!file) {
       setError('Please select a file first');
+      toast.error('No file selected', {
+        description: 'Please upload a document to analyze.',
+      });
       return;
     }
 
     setProcessing(true);
     setError(null);
+    setUploadProgress(0);
+    
+    let progressInterval: NodeJS.Timeout | null = null;
     
     try {
-      const progressInterval = setInterval(() => {
+      // Simulate progress updates during upload
+      progressInterval = setInterval(() => {
         setUploadProgress(prev => {
-          if (prev >= 90) {
-            clearInterval(progressInterval);
-            return 90;
+          if (prev >= 85) {
+            return 85; // Hold at 85% until actual completion
           }
-          return prev + 10;
+          return prev + Math.random() * 5; // Gradual progress
         });
-      }, 100);
+      }, 200);
 
       const formData = new FormData();
       formData.append('file', file);
 
+      toast.info('Starting analysis...', {
+        description: 'Your document is being processed.',
+        duration: 2000,
+      });
+
       const response = await analyzeDocument(formData);
       
-      clearInterval(progressInterval);
+      if (progressInterval) {
+        clearInterval(progressInterval);
+      }
       setUploadProgress(100);
       
       setResults(response);
       setActiveMode('results');
+      
+      toast.success('Analysis complete!', {
+        description: 'Your document has been successfully analyzed.',
+        duration: 3000,
+      });
     } catch (err) {
+      if (progressInterval) {
+        clearInterval(progressInterval);
+      }
       const errorMessage = ErrorHandler.handleError(err, {
         showToast: false, // We'll show it in the UI instead
         logToConsole: true,
       });
       setError(errorMessage);
+      setUploadProgress(0);
     } finally {
       setProcessing(false);
-      setTimeout(() => setUploadProgress(0), 1000);
+      // Reset progress after a delay
+      setTimeout(() => {
+        if (!processing) {
+          setUploadProgress(0);
+        }
+      }, 2000);
     }
   };
 
   const handleCompare = async () => {
     if (!file) {
       setError('Please select a file first');
+      toast.error('No file selected', {
+        description: 'Please upload a document to compare.',
+      });
       return;
     }
 
     setProcessing(true);
     setError(null);
+    setUploadProgress(0);
     
     try {
+      // Simulate progress for comparison
+      const progressInterval = setInterval(() => {
+        setUploadProgress(prev => {
+          if (prev >= 85) {
+            return 85;
+          }
+          return prev + Math.random() * 5;
+        });
+      }, 200);
+
       const formData = new FormData();
       formData.append('file', file);
 
+      toast.info('Comparing models...', {
+        description: 'Analyzing with both fine-tuned and baseline models.',
+        duration: 2000,
+      });
+
       const response = await compareWithBaseline(formData);
+      
+      clearInterval(progressInterval);
+      setUploadProgress(100);
       
       setComparisonResults(response);
       setActiveMode('compare');
+      
+      toast.success('Comparison complete!', {
+        description: 'Model comparison results are ready.',
+        duration: 3000,
+      });
     } catch (err) {
       const errorMessage = ErrorHandler.handleError(err, {
-        showToast: false, // We'll show it in the UI instead
+        showToast: false,
         logToConsole: true,
       });
       setError(errorMessage);
+      setUploadProgress(0);
     } finally {
       setProcessing(false);
+      setTimeout(() => {
+        if (!processing) {
+          setUploadProgress(0);
+        }
+      }, 2000);
     }
   };
 
@@ -192,28 +272,30 @@ const FinScribe = () => {
               </p>
             </div>
 
-            <div className="grid lg:grid-cols-3 gap-8">
+            <div className="grid lg:grid-cols-3 gap-6 lg:gap-8">
               <div className="lg:col-span-2 space-y-4">
                 <DocumentUpload onFileSelect={handleFileSelect} file={file} />
                 
                 <AnimatePresence>
-                  {file && (
+                  {(file || processing) && (
                     <motion.div
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: 'auto' }}
                       exit={{ opacity: 0, height: 0 }}
+                      className="overflow-hidden"
                     >
                       <ProcessingStatus progress={uploadProgress} processing={processing} />
                     </motion.div>
                   )}
                 </AnimatePresence>
 
-                <div className="flex flex-wrap gap-3 justify-center pt-4">
+                <div className="flex flex-col sm:flex-row flex-wrap gap-3 justify-center pt-4">
                   <Button
                     size="lg"
                     onClick={handleAnalyze}
                     disabled={!file || processing}
-                    className="shadow-btn min-w-[180px] group"
+                    className="shadow-btn min-w-full sm:min-w-[180px] group"
+                    aria-label="Analyze document with AI"
                   >
                     {processing ? (
                       <>
@@ -221,16 +303,17 @@ const FinScribe = () => {
                           animate={{ rotate: 360 }}
                           transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
                           className="mr-2"
+                          aria-hidden="true"
                         >
                           <Sparkles className="w-4 h-4" />
                         </motion.div>
-                        Processing...
+                        <span>Processing...</span>
                       </>
                     ) : (
                       <>
-                        <CloudUpload className="w-4 h-4 mr-2" />
-                        Analyze with AI
-                        <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                        <CloudUpload className="w-4 h-4 mr-2" aria-hidden="true" />
+                        <span>Analyze with AI</span>
+                        <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" aria-hidden="true" />
                       </>
                     )}
                   </Button>
@@ -240,22 +323,23 @@ const FinScribe = () => {
                     size="lg"
                     onClick={handleCompare}
                     disabled={!file || processing}
-                    className="min-w-[160px]"
+                    className="min-w-full sm:min-w-[160px]"
+                    aria-label="Compare with baseline model"
                   >
-                    <GitCompare className="w-4 h-4 mr-2" />
-                    Compare Models
+                    <GitCompare className="w-4 h-4 mr-2" aria-hidden="true" />
+                    <span>Compare Models</span>
                   </Button>
                 </div>
               </div>
 
-              <div>
-                <Card className="h-full bg-gradient-to-br from-muted/50 to-muted/30 border-muted">
+              <div className="lg:block hidden">
+                <Card className="h-full bg-gradient-to-br from-muted/50 to-muted/30 border-muted sticky top-24">
                   <CardContent className="pt-6">
                     <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                      <Zap className="w-5 h-5 text-primary" />
-                      Supported Documents
+                      <Zap className="w-5 h-5 text-primary" aria-hidden="true" />
+                      <span>Supported Documents</span>
                     </h3>
-                    <ul className="space-y-3 mb-6">
+                    <ul className="space-y-3 mb-6" role="list">
                       {[
                         'Invoices & Bills (Multi-currency)',
                         'Receipts & Expense Reports',
@@ -269,8 +353,9 @@ const FinScribe = () => {
                           initial={{ opacity: 0, x: -10 }}
                           animate={{ opacity: 1, x: 0 }}
                           transition={{ delay: i * 0.1 }}
+                          role="listitem"
                         >
-                          <CheckCircle className="w-4 h-4 text-success flex-shrink-0" />
+                          <CheckCircle className="w-4 h-4 text-success flex-shrink-0" aria-hidden="true" />
                           <span>{item}</span>
                         </motion.li>
                       ))}
@@ -296,16 +381,28 @@ const FinScribe = () => {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
           >
-            <div className="flex flex-wrap justify-between items-center mb-6 gap-4">
-              <h2 className="text-2xl font-bold">Analysis Results</h2>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => handleDownloadResults('json')}>
-                  <FileJson className="w-4 h-4 mr-2" />
-                  JSON
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+              <h2 className="text-xl sm:text-2xl font-bold">Analysis Results</h2>
+              <div className="flex gap-2 w-full sm:w-auto">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => handleDownloadResults('json')}
+                  className="flex-1 sm:flex-initial"
+                  aria-label="Download results as JSON"
+                >
+                  <FileJson className="w-4 h-4 mr-2" aria-hidden="true" />
+                  <span>JSON</span>
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => handleDownloadResults('csv')}>
-                  <FileSpreadsheet className="w-4 h-4 mr-2" />
-                  CSV
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => handleDownloadResults('csv')}
+                  className="flex-1 sm:flex-initial"
+                  aria-label="Download results as CSV"
+                >
+                  <FileSpreadsheet className="w-4 h-4 mr-2" aria-hidden="true" />
+                  <span>CSV</span>
                 </Button>
               </div>
             </div>
@@ -422,13 +519,14 @@ const FinScribe = () => {
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Bar */}
-        <header className="sticky top-0 z-40 bg-card/95 backdrop-blur-xl border-b border-border/50 shadow-sm px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <header className="sticky top-0 z-40 bg-card/95 backdrop-blur-xl border-b border-border/50 shadow-sm px-4 py-3 sm:py-4 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
             <Button 
               variant="ghost" 
               size="icon"
               onClick={() => setSidebarOpen(!sidebarOpen)}
               className="hidden lg:flex hover:bg-muted/80 rounded-lg"
+              aria-label={sidebarOpen ? "Close sidebar" : "Open sidebar"}
             >
               {sidebarOpen ? (
                 <PanelLeftClose className="w-5 h-5" />
@@ -438,57 +536,69 @@ const FinScribe = () => {
             </Button>
 
             {/* Mobile Logo */}
-            <div className="lg:hidden flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+            <Link to="/" className="lg:hidden flex items-center gap-2 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
                 <Sparkles className="w-4 h-4 text-primary-foreground" />
               </div>
-              <span className="font-bold">FinScribe</span>
-            </div>
+              <span className="font-bold truncate">FinScribe</span>
+            </Link>
 
-            <Badge className="hidden md:flex gap-1 items-center bg-primary/10 text-primary border-0">
+            <Badge className="hidden md:flex gap-1 items-center bg-primary/10 text-primary border-0 flex-shrink-0">
               <CheckCircle className="w-3 h-3" />
-              98% Accuracy
+              <span className="hidden lg:inline">98% Accuracy</span>
+              <span className="lg:hidden">98%</span>
             </Badge>
           </div>
 
           {/* Mobile Navigation */}
-          <div className="flex lg:hidden gap-2 overflow-x-auto">
+          <div className="flex lg:hidden gap-1 sm:gap-2 overflow-x-auto scrollbar-hide flex-1 justify-end">
             {['upload', 'compare', 'features', 'metrics', 'api'].map((mode) => (
               <Button
                 key={mode}
                 variant={activeMode === mode ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => setActiveMode(mode)}
-                className="capitalize whitespace-nowrap"
+                className="capitalize whitespace-nowrap text-xs sm:text-sm"
+                aria-label={`Switch to ${mode} mode`}
+                aria-current={activeMode === mode ? "page" : undefined}
               >
-                {mode === 'upload' ? 'Upload' : 
-                 mode === 'compare' ? 'Compare' :
-                 mode === 'features' ? 'Demo' :
-                 mode === 'metrics' ? 'Metrics' : 'API'}
+                <span className="hidden sm:inline">
+                  {mode === 'upload' ? 'Upload' : 
+                   mode === 'compare' ? 'Compare' :
+                   mode === 'features' ? 'Demo' :
+                   mode === 'metrics' ? 'Metrics' : 'API'}
+                </span>
+                <span className="sm:hidden">
+                  {mode === 'upload' ? 'Up' : 
+                   mode === 'compare' ? 'Cmp' :
+                   mode === 'features' ? 'Demo' :
+                   mode === 'metrics' ? 'Met' : 'API'}
+                </span>
               </Button>
             ))}
           </div>
 
-          <Badge variant="outline" className="hidden sm:flex">Privacy-First</Badge>
+          <Badge variant="outline" className="hidden sm:flex flex-shrink-0 ml-2">Privacy-First</Badge>
         </header>
 
         {/* Content Area */}
-        <main className="flex-1 p-6 overflow-auto">
+        <main className="flex-1 p-4 sm:p-6 overflow-auto">
           <AnimatePresence mode="wait">
             {error && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                className="mb-6"
+                className="mb-4 sm:mb-6"
                 role="alert"
                 aria-live="assertive"
+                aria-atomic="true"
               >
-                <Alert variant="destructive">
-                  <AlertDescription className="flex items-center justify-between gap-4">
-                    <span className="flex-1">{error}</span>
-                    <div className="flex gap-2 flex-shrink-0">
-                      {(error.includes('Network') || error.includes('timeout') || error.includes('connection')) && (
+                <Alert variant="destructive" className="border-destructive/50">
+                  <AlertDescription className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+                    <span className="flex-1 text-sm sm:text-base">{error}</span>
+                    <div className="flex gap-2 flex-shrink-0 w-full sm:w-auto">
+                      {ErrorHandler.isRetryable(new Error(error)) && (
                         <Button 
                           variant="outline" 
                           size="sm" 
@@ -500,7 +610,8 @@ const FinScribe = () => {
                               handleCompare();
                             }
                           }}
-                          className="text-xs"
+                          className="text-xs sm:text-sm flex-1 sm:flex-initial"
+                          aria-label="Retry operation"
                         >
                           Retry
                         </Button>
@@ -510,6 +621,7 @@ const FinScribe = () => {
                         size="sm" 
                         onClick={() => setError(null)}
                         aria-label="Dismiss error"
+                        className="flex-shrink-0"
                       >
                         <X className="w-4 h-4" />
                       </Button>
@@ -526,19 +638,20 @@ const FinScribe = () => {
         </main>
 
         {/* Footer */}
-        <footer className="border-t bg-muted/30 px-6 py-4">
-          <div className="flex flex-wrap justify-between items-center gap-4 text-sm text-muted-foreground">
+        <footer className="border-t bg-muted/30 px-4 sm:px-6 py-3 sm:py-4">
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-3 sm:gap-4 text-xs sm:text-sm text-muted-foreground">
             <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-primary" />
-              <span>FinScribe AI - PaddleOCR-VL + ERNIE 4.5</span>
+              <Sparkles className="w-4 h-4 text-primary" aria-hidden="true" />
+              <span className="text-center sm:text-left">FinScribe AI - PaddleOCR-VL + ERNIE 4.5</span>
             </div>
-            <div className="flex items-center gap-4">
-              <span>ERNIE AI Developer Challenge</span>
+            <div className="flex items-center gap-3 sm:gap-4 flex-wrap justify-center">
+              <span className="hidden sm:inline">ERNIE AI Developer Challenge</span>
               <a 
                 href="https://github.com" 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="hover:text-primary transition-colors"
+                className="hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded"
+                aria-label="Visit GitHub repository"
               >
                 GitHub
               </a>

@@ -42,7 +42,18 @@ peft>=0.6.0
 accelerate>=0.24.0
 faker>=19.0.0
 tqdm>=4.66.0
+python-dateutil>=2.8.0
+# Receipt processing dependencies
+opencv-python>=4.8.0
+numpy>=1.24.0
+pyyaml>=6.0
 # Optional: for quantization
 # optimum[onnxruntime]>=1.14.0
 # Optional: for TEDS evaluation
 # teds>=1.0.0
+# CAMEL-AI integration
+camel-ai[all]>=0.2.5
+fastmcp
+# Unsloth integration (install from GitHub: pip install "unsloth @ git+https://github.com/unslothai/unsloth.git")
+# trl>=0.7.0  # For SFTTrainer (uncomment if using Unsloth training)
+# bitsandbytes>=0.41.0  # For QLoRA quantization (uncomment if using QLoRA)

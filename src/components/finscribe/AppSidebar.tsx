@@ -23,6 +23,7 @@ import { cn } from '@/lib/utils';
 
 interface AppSidebarProps {
   activeMode: string;
+  onModeChange: (mode: string) => void;
 }
 
 const navigationItems = [
@@ -41,7 +42,7 @@ const quickStats = [
   { label: 'Success', value: '98.5%', change: '+1.2%', icon: TrendingUp },
 ];
 
-function AppSidebar({ activeMode }: AppSidebarProps) {
+function AppSidebar({ activeMode, onModeChange }: AppSidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -77,7 +78,13 @@ function AppSidebar({ activeMode }: AppSidebarProps) {
           return (
             <motion.button
               key={item.id}
-              onClick={() => navigate(`/app/${item.id}`)}
+              onClick={() => {
+                onModeChange(item.id);
+                // Also update URL if needed
+                if (item.id !== 'upload' && item.id !== 'compare') {
+                  navigate(`/app/${item.id}`);
+                }
+              }}
               whileHover={{ x: 2 }}
               whileTap={{ scale: 0.98 }}
               aria-label={`Navigate to ${item.label}`}

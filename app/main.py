@@ -18,6 +18,18 @@ try:
     BILLING_AVAILABLE = True
 except ImportError:
     BILLING_AVAILABLE = False
+try:
+    from .api.v1.unsloth import router as unsloth_router
+    UNSLOTH_AVAILABLE = True
+except ImportError:
+    UNSLOTH_AVAILABLE = False
+    logger.warning("Unsloth endpoints not available")
+try:
+    from .api.v1.camel_endpoints import router as camel_router
+    CAMEL_AVAILABLE = True
+except ImportError:
+    CAMEL_AVAILABLE = False
+    logger.warning("CAMEL endpoints not available")
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +102,10 @@ if ENHANCED_ENDPOINTS_AVAILABLE:
     app.include_router(enhanced_router, prefix="/api/v1", tags=["enhanced"])
 if BILLING_AVAILABLE:
     app.include_router(billing_router, prefix="/api/v1/billing", tags=["billing"])
+if UNSLOTH_AVAILABLE:
+    app.include_router(unsloth_router, prefix="/api/v1", tags=["unsloth"])
+if CAMEL_AVAILABLE:
+    app.include_router(camel_router, prefix="/api/v1", tags=["camel"])
 
 @app.get("/")
 def read_root():

@@ -178,6 +178,8 @@ class ResultResponse(BaseModel):
     provenance: Provenance
     created_at: datetime
     processing_time_ms: Optional[int] = None
+    markdown_output: Optional[str] = None  # Human-readable Markdown format
+    output_formats: List[str] = Field(default_factory=lambda: ["json"])  # Available output formats
 
 
 # ============================================================================

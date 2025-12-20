@@ -1,6 +1,6 @@
 import React, { useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useDropzone } from 'react-dropzone';
+import { useDropzone, type FileRejection } from 'react-dropzone';
 import { CloudUpload, FileText, X, Image, FileCheck, Sparkles, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -42,7 +42,7 @@ function DualDocumentUpload({ onFile1Select, onFile2Select, file1, file2 }: Dual
     label: string;
     acceptFiles?: (files: File[]) => void;
   }) => {
-    const onDrop = useCallback((acceptedFiles: File[], rejectedFiles: any[]) => {
+    const onDrop = useCallback((acceptedFiles: File[], rejectedFiles: FileRejection[]) => {
       // Handle rejected files
       if (rejectedFiles.length > 0) {
         const rejection = rejectedFiles[0];

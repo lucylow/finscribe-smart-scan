@@ -137,9 +137,12 @@ async def _process_analysis(job_id: str, file_content: bytes, filename: str) -> 
         _update_job(job_id, "processing", 30, "ocr")
         
         try:
-            result = await processor.process_document(file_content, filename, model_type="fine_tuned")
+            # Use combined output to get both JSON and Markdown
+            result = await processor.process_document_with_combined_output(
+                file_content, filename, model_type="fine_tuned"
+            )
         except Exception as proc_error:
-            logger.error(f"Error in processor.process_document for job {job_id}: {str(proc_error)}", exc_info=True)
+            logger.error(f"Error in processor.process_document_with_combined_output for job {job_id}: {str(proc_error)}", exc_info=True)
             raise Exception(f"Document processing failed: {str(proc_error)}")
         
         # Validate result
@@ -155,16 +158,24 @@ async def _process_analysis(job_id: str, file_content: bytes, filename: str) -> 
         
         _update_job(job_id, "processing", 90, "postprocess")
         
-        # Build result in expected format
+        # Build result in expected format with structured output (JSON + Markdown)
         try:
+            # Get JSON data (either from 'json' key if using combined output, or 'structured_output' for backward compatibility)
+            json_data = result.get("json") or result.get("structured_output", {})
+            markdown_output = result.get("markdown") or result.get("markdown_output", "")
+            
             return {
                 "document_id": result.get("document_id", job_id),
                 "status": result.get("status", "completed"),
-                "data": result.get("structured_output", {}),
+                "data": json_data,
                 "extracted_data": result.get("extracted_data", []),
                 "validation": result.get("validation", {"is_valid": True}),
                 "raw_ocr_output": result.get("raw_ocr_output", {}),
-                "metadata": result.get("metadata", {}),
+                "metadata": {
+                    **result.get("metadata", {}),
+                    "output_formats": ["json", "markdown"] if markdown_output else ["json"]
+                },
+                "markdown_output": markdown_output,  # Human-readable Markdown format
                 "active_learning_ready": result.get("active_learning_ready", False)
             }
         except Exception as build_error:

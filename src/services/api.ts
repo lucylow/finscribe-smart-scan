@@ -1,5 +1,31 @@
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
+// Result types
+interface AnalysisResultData {
+  data?: Record<string, unknown>;
+  validation?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+  markdown_output?: string;
+  raw_ocr_output?: Record<string, unknown>;
+  extracted_data?: unknown[];
+  document_id?: string;
+  status?: string;
+  active_learning_ready?: boolean;
+}
+
+interface ComparisonResultData {
+  comparison?: Record<string, unknown>;
+  document1?: Record<string, unknown>;
+  document2?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+}
+
+interface BaselineComparisonResultData {
+  fine_tuned_result?: Record<string, unknown>;
+  baseline_result?: Record<string, unknown>;
+  comparison_summary?: Record<string, unknown>;
+}
+
 // Job status types
 interface JobResponse {
   job_id: string;
@@ -12,7 +38,7 @@ interface JobStatus {
   status: string;
   progress: number;
   stage?: string;
-  result?: any;
+  result?: AnalysisResultData | ComparisonResultData | BaselineComparisonResultData;
   error?: string;
 }
 
@@ -26,7 +52,7 @@ export class APIError extends Error {
   constructor(
     message: string,
     public statusCode?: number,
-    public details?: any
+    public details?: Record<string, unknown>
   ) {
     super(message);
     this.name = 'APIError';
@@ -97,14 +123,15 @@ async function pollJobStatus(jobId: string): Promise<JobStatus> {
         // Wait before next poll
         await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS));
         attempts++;
-      } catch (error: any) {
+      } catch (error: unknown) {
         clearTimeout(timeoutId);
-        if (error.name === 'AbortError') {
+        const err = error as { name?: string };
+        if (err.name === 'AbortError') {
           throw new TimeoutError('Poll request timed out');
         }
         throw error;
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (error instanceof APIError || error instanceof TimeoutError) {
         throw error;
       }
@@ -135,9 +162,10 @@ export const analyzeDocument = async (formData: FormData) => {
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
-    } catch (error: any) {
+    } catch (error: unknown) {
       clearTimeout(timeoutId);
-      if (error.name === 'AbortError') {
+      const err = error as { name?: string; message?: string };
+      if (err.name === 'AbortError') {
         throw new TimeoutError('Upload request timed out. The file may be too large or the connection is slow.');
       }
       if (error instanceof TypeError && error.message.includes('fetch')) {
@@ -189,6 +217,7 @@ export const analyzeDocument = async (formData: FormData) => {
         data: finalStatus.result.data || finalStatus.result,
         validation: finalStatus.result.validation,
         metadata: finalStatus.result.metadata,
+        markdown_output: finalStatus.result.markdown_output,
         raw_ocr_output: finalStatus.result.raw_ocr_output
       };
     }
@@ -224,9 +253,10 @@ export const compareDocuments = async (file1: File, file2: File) => {
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
-    } catch (error: any) {
+    } catch (error: unknown) {
       clearTimeout(timeoutId);
-      if (error.name === 'AbortError') {
+      const err = error as { name?: string; message?: string };
+      if (err.name === 'AbortError') {
         throw new TimeoutError('Upload request timed out. The files may be too large or the connection is slow.');
       }
       if (error instanceof TypeError && error.message.includes('fetch')) {
@@ -308,9 +338,10 @@ export const compareWithBaseline = async (formData: FormData) => {
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
-    } catch (error: any) {
+    } catch (error: unknown) {
       clearTimeout(timeoutId);
-      if (error.name === 'AbortError') {
+      const err = error as { name?: string; message?: string };
+      if (err.name === 'AbortError') {
         throw new TimeoutError('Upload request timed out. The file may be too large or the connection is slow.');
       }
       if (error instanceof TypeError && error.message.includes('fetch')) {
@@ -396,9 +427,10 @@ export const getHealthStatus = async () => {
       }
       
       return await response.json();
-    } catch (error: any) {
+    } catch (error: unknown) {
       clearTimeout(timeoutId);
-      if (error.name === 'AbortError') {
+      const err = error as { name?: string };
+      if (err.name === 'AbortError') {
         return { status: 'unhealthy', error: 'Health check timed out' };
       }
       if (error instanceof TypeError && error.message.includes('fetch')) {
@@ -418,7 +450,7 @@ export const getHealthStatus = async () => {
 /**
  * Submit corrections for active learning
  */
-export const submitCorrections = async (resultId: string, corrections: Record<string, any>) => {
+export const submitCorrections = async (resultId: string, corrections: Record<string, unknown>) => {
   try {
     if (!resultId) {
       throw new APIError('Result ID is required');
@@ -442,9 +474,10 @@ export const submitCorrections = async (resultId: string, corrections: Record<st
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
-    } catch (error: any) {
+    } catch (error: unknown) {
       clearTimeout(timeoutId);
-      if (error.name === 'AbortError') {
+      const err = error as { name?: string };
+      if (err.name === 'AbortError') {
         throw new TimeoutError('Request timed out');
       }
       if (error instanceof TypeError && error.message.includes('fetch')) {
@@ -499,9 +532,10 @@ export const getJobStatus = async (jobId: string): Promise<JobStatus> => {
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
-    } catch (error: any) {
+    } catch (error: unknown) {
       clearTimeout(timeoutId);
-      if (error.name === 'AbortError') {
+      const err = error as { name?: string };
+      if (err.name === 'AbortError') {
         throw new TimeoutError('Request timed out');
       }
       if (error instanceof TypeError && error.message.includes('fetch')) {

@@ -1,0 +1,87 @@
+# Receipt Processing Configuration
+# Configuration for receipt-specific processing and generation
+
+generation:
+  num_receipts: 1000
+  output_dir: "./receipt_dataset"
+  receipt_types:
+    - grocery
+    - restaurant
+    - retail
+    - gas
+    - pharmacy
+  
+  variations:
+    languages:
+      - en_US
+      - de_DE
+      - fr_FR
+      - es_ES
+      - ja_JP
+    
+    currencies:
+      - "$"
+      - "€"
+      - "£"
+      - "¥"
+    
+    quality_levels:
+      - "high"     # Clean digital receipts
+      - "medium"   # Good quality scans
+      - "low"      # Poor quality photos
+
+augmentation:
+  apply_thermal_effect: true
+  add_noise: true
+  noise_level: [5, 15]
+  random_rotation: [-5, 5]
+  perspective_skew: [-0.1, 0.1]
+  blur_effect: [0.5, 1.5]
+  brightness_adjust: [0.8, 1.2]
+
+processing:
+  # Receipt-specific processing options
+  detect_receipt_type: true
+  validate_arithmetic: true
+  extract_line_items: true
+  extract_payment_info: true
+  
+  # Confidence thresholds
+  min_confidence: 0.7
+  field_extraction_confidence: 0.8
+
+training:
+  model_name: "PaddlePaddle/PaddleOCR-VL"
+  fine_tuning_method: "LoRA"
+  learning_rate: 2e-4
+  batch_size: 4
+  epochs: 5
+  lora_rank: 16
+  
+  train_test_split:
+    train: 0.8
+    val: 0.1
+    test: 0.1
+
+evaluation:
+  metrics:
+    - field_extraction_accuracy
+    - table_structure_accuracy
+    - arithmetic_validation_rate
+    - processing_time
+  
+  thresholds:
+    high_confidence: 0.9
+    medium_confidence: 0.7
+    low_confidence: 0.5
+
+output:
+  formats:
+    - json
+    - csv
+    - xml
+  
+  include_confidence: true
+  include_validation: true
+  include_raw_text: false
+

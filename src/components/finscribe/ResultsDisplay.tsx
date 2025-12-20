@@ -5,7 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { CheckCircle, XCircle, AlertTriangle, FileText, Building2, DollarSign, Code, TableIcon, Layers } from 'lucide-react';
+import { CheckCircle, XCircle, AlertTriangle, FileText, Building2, DollarSign, Code, TableIcon, Layers, FileCode } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface LineItem {
   description: string;
@@ -38,6 +40,7 @@ interface ResultsProps {
     data: ResultsData;
     validation?: Validation;
     metadata?: Record<string, unknown>;
+    markdown_output?: string;
   };
 }
 
@@ -64,7 +67,7 @@ function ResultsDisplay({ results }: ResultsProps) {
       animate="visible"
     >
       {/* Overview Cards */}
-      <motion.div variants={itemVariants} className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <motion.div variants={itemVariants} className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-6">
         <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20">
           <CardContent className="pt-4 pb-4">
             <div className="flex items-center gap-3">
@@ -161,6 +164,12 @@ function ResultsDisplay({ results }: ResultsProps) {
               <TableIcon className="w-4 h-4" />
               Line Items
             </TabsTrigger>
+            {results.markdown_output && (
+              <TabsTrigger value="markdown" className="gap-2">
+                <FileCode className="w-4 h-4" />
+                Markdown
+              </TabsTrigger>
+            )}
             <TabsTrigger value="structured" className="gap-2">
               <Layers className="w-4 h-4" />
               Structured
@@ -213,8 +222,28 @@ function ResultsDisplay({ results }: ResultsProps) {
             )}
           </TabsContent>
 
+          {results.markdown_output && (
+            <TabsContent value="markdown">
+              <Card className="overflow-hidden">
+                <CardHeader className="bg-muted/30 py-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <FileCode className="w-4 h-4" />
+                    Structured Markdown Output
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-4">
+                  <div className="prose prose-sm max-w-none dark:prose-invert prose-headings:font-semibold prose-table:w-full prose-td:border prose-th:border prose-th:bg-muted">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {results.markdown_output}
+                    </ReactMarkdown>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
+
           <TabsContent value="structured">
-            <div className="grid md:grid-cols-2 gap-4">
+            <div className="grid sm:grid-cols-1 md:grid-cols-2 gap-4">
               <Card className="overflow-hidden">
                 <CardHeader className="bg-muted/30 py-3">
                   <CardTitle className="text-base flex items-center gap-2">

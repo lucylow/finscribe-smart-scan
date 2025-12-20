@@ -14,6 +14,7 @@ from .models.ernie_vlm_service import ErnieVLMService
 from .validation.financial_validator import FinancialValidator
 from .post_processing import FinancialDocumentPostProcessor
 from ..config.settings import load_config
+from finscribe.receipts.processor import ReceiptProcessor
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -41,6 +42,11 @@ class FinancialDocumentProcessor:
             config=post_processing_config if post_processing_config else None
         )
         self.post_processing_enabled = self.config.get("post_processing", {}).get("enabled", True)
+        
+        # Initialize receipt processor
+        receipt_config = self.config.get("receipt_processing", {})
+        self.receipt_processor = ReceiptProcessor(paddleocr_service=self.ocr_service)
+        self.receipt_processing_enabled = receipt_config.get("enabled", True) if receipt_config else True
         
         # Storage paths
         storage_config = self.config.get("storage", {})
@@ -98,8 +104,24 @@ class FinancialDocumentProcessor:
                 logger.error(f"OCR processing failed: {str(ocr_error)}", exc_info=True)
                 raise Exception(f"OCR processing failed: {str(ocr_error)}")
             
+            # Step 1.4: Detect if document is a receipt and process accordingly
+            receipt_data = None
+            is_receipt = False
+            if self.receipt_processing_enabled and ocr_results:
+                try:
+                    # Try to detect if this is a receipt
+                    receipt_result = self.receipt_processor.process_receipt_from_ocr(ocr_results)
+                    if receipt_result.get("success"):
+                        is_receipt = True
+                        receipt_data = receipt_result
+                        logger.info(f"Detected receipt type: {receipt_result.get('receipt_type', 'unknown')}")
+                except Exception as receipt_error:
+                    logger.debug(f"Receipt processing attempt failed (may not be a receipt): {str(receipt_error)}")
+                    # Not a receipt, continue with normal processing
+            
             # Step 1.5: Apply post-processing intelligence (Phase 3) if enabled
-            if self.post_processing_enabled and ocr_results:
+            # Skip post-processing for receipts as they have specialized processing
+            if self.post_processing_enabled and ocr_results and not is_receipt:
                 logger.info("Step 1.5: Applying post-processing intelligence layer...")
                 try:
                     post_processed_data = self.post_processor.process_ocr_output(ocr_results)
@@ -119,9 +141,33 @@ class FinancialDocumentProcessor:
                     logger.warning(f"Markdown generation failed (non-critical): {str(md_error)}")
             
             # Step 2: Enrich with ERNIE VLM for semantic understanding
-            logger.info("Step 2: Enriching with ERNIE VLM for semantic reasoning...")
-            try:
-                enriched_data = await self.vlm_service.enrich_financial_data(ocr_results, file_content)
+            # For receipts, we can still use VLM but with receipt-specific structure
+            if is_receipt and receipt_data:
+                # For receipts, use the receipt data structure
+                enriched_data = {
+                    "structured_data": {
+                        "document_type": "receipt",
+                        "receipt_type": receipt_data.get("receipt_type", "unknown"),
+                        "merchant_info": receipt_data.get("data", {}).get("merchant_info", {}),
+                        "transaction_info": receipt_data.get("data", {}).get("transaction_info", {}),
+                        "line_items": receipt_data.get("data", {}).get("items", []),
+                        "financial_summary": {
+                            "subtotal": receipt_data.get("data", {}).get("totals", {}).get("subtotal", 0),
+                            "tax": receipt_data.get("data", {}).get("totals", {}).get("tax", 0),
+                            "discount": receipt_data.get("data", {}).get("totals", {}).get("discount", 0),
+                            "grand_total": receipt_data.get("data", {}).get("totals", {}).get("total", 0),
+                            "currency": "$"
+                        },
+                        "payment_info": receipt_data.get("data", {}).get("payment_info", {})
+                    },
+                    "status": "completed",
+                    "model_version": "ReceiptProcessor"
+                }
+                logger.info("Using receipt-specific processing pipeline")
+            else:
+                logger.info("Step 2: Enriching with ERNIE VLM for semantic reasoning...")
+                try:
+                    enriched_data = await self.vlm_service.enrich_financial_data(ocr_results, file_content)
                 
                 # Validate VLM results
                 if not enriched_data or not isinstance(enriched_data, dict):
@@ -182,7 +228,16 @@ class FinancialDocumentProcessor:
             # Step 3: Apply business rule validation
             logger.info("Step 3: Applying business rule validation...")
             try:
-                validation_results = self.validator.validate(enriched_data)
+                if is_receipt and receipt_data:
+                    # Use receipt-specific validation
+                    validation_results = receipt_data.get("validation", {
+                        "is_valid": True,
+                        "errors": [],
+                        "warnings": []
+                    })
+                else:
+                    # Use standard financial document validation
+                    validation_results = self.validator.validate(enriched_data)
             except Exception as validation_error:
                 logger.error(f"Validation failed: {str(validation_error)}", exc_info=True)
                 # Create a default validation result if validation fails
@@ -222,20 +277,25 @@ class FinancialDocumentProcessor:
                 "structured_output": enriched_data.get("structured_data", {}),
                 "validation": validation_results,
                 "raw_ocr_output": ocr_results or {},
-                "post_processed_data": post_processed_data if self.post_processing_enabled else None,
+                "post_processed_data": post_processed_data if self.post_processing_enabled and not is_receipt else None,
+                "receipt_data": receipt_data if is_receipt else None,  # Include receipt-specific data
                 "markdown_output": markdown_output,  # Human-readable Markdown format
                 "metadata": {
                     "source_file": filename,
                     "processing_timestamp": start_time.isoformat(),
                     "processing_time_ms": processing_time_ms,
+                    "document_type": "receipt" if is_receipt else "invoice",
+                    "receipt_type": receipt_data.get("receipt_type") if is_receipt else None,
                     "model_versions": {
                         "paddleocr_vl": ocr_results.get("model_version", "PaddleOCR-VL-0.9B") if ocr_results else "unknown",
                         "ernie_vl": enriched_data.get("model_version", "ERNIE-5") if enriched_data else "unknown",
-                        "ernie_family": enriched_data.get("model_family", "unknown") if enriched_data else "unknown"
+                        "ernie_family": enriched_data.get("model_family", "unknown") if enriched_data else "unknown",
+                        "receipt_processor": "ReceiptProcessor" if is_receipt else None
                     },
                     "model_type": model_type,
                     "partial_results": ocr_results.get("status") == "partial" or enriched_data.get("status") == "partial" if enriched_data else False,
-                    "post_processing_enabled": self.post_processing_enabled,
+                    "post_processing_enabled": self.post_processing_enabled and not is_receipt,
+                    "receipt_processing_enabled": is_receipt,
                     "output_formats": ["json", "markdown"] if markdown_output else ["json"]
                 },
                 "active_learning_ready": validation_results.get("needs_review", False) if validation_results else False
@@ -266,16 +326,29 @@ class FinancialDocumentProcessor:
         model_family = enriched_data.get("model_family", "ernie-5")
         source_model_label = f"{model_name} ({model_type})"
         
-        # Vendor info
-        vendor = structured.get("vendor_block", {})
-        if vendor.get("name"):
-            fields.append({
-                "field_name": "vendor_name",
-                "value": vendor.get("name"),
-                "confidence": vendor.get("confidence", 0.95),
-                "source_model": source_model_label,
-                "lineage_id": str(uuid.uuid4())
-            })
+        # Handle receipt vs invoice structure
+        # For receipts, merchant_info is used instead of vendor_block
+        if structured.get("document_type") == "receipt":
+            merchant = structured.get("merchant_info", {})
+            if merchant.get("name"):
+                fields.append({
+                    "field_name": "merchant_name",
+                    "value": merchant.get("name"),
+                    "confidence": 0.95,
+                    "source_model": source_model_label,
+                    "lineage_id": str(uuid.uuid4())
+                })
+        else:
+            # Vendor info (for invoices)
+            vendor = structured.get("vendor_block", {})
+            if vendor.get("name"):
+                fields.append({
+                    "field_name": "vendor_name",
+                    "value": vendor.get("name"),
+                    "confidence": vendor.get("confidence", 0.95),
+                    "source_model": source_model_label,
+                    "lineage_id": str(uuid.uuid4())
+                })
         
         # Client/Invoice info
         client = structured.get("client_info", {})

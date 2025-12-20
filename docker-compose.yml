@@ -1,144 +1,56 @@
 version: '3.8'
-
 services:
-  backend:
-    build:
-      context: .
-      dockerfile: Dockerfile
+  ocr_service:
+    build: ./ocr_service
+    container_name: finscribe_ocr
+    ports:
+      - "8002:8000"
+    volumes:
+      - ./data:/data
+
+  llamafactory:
+    build: ./llamafactory-docker
+    container_name: finscribe_llamafactory
     ports:
       - "8000:8000"
     environment:
-      - MODEL_MODE=mock
-      - MAX_UPLOAD_MB=50
-      - REDIS_URL=redis://redis:6379/0
-      - DATABASE_URL=postgresql://finscribe:finscribe@postgres:5432/finscribe
-      - MINIO_ENDPOINT=minio:9000
-      - MINIO_ACCESS_KEY=minioadmin
-      - MINIO_SECRET_KEY=minioadmin
-      - STORAGE_BUCKET=finscribe
+      - HF_TOKEN=${HF_TOKEN:-}
+      - NVIDIA_VISIBLE_DEVICES=all
     volumes:
-      - ./active_learning.jsonl:/app/active_learning.jsonl
-      - upload_staging:/tmp/finscribe_uploads
-      - ./logs:/app/logs
-    depends_on:
-      redis:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: celery -A app.core.celery_app worker --loglevel=info --queues=cpu,gpu
-    environment:
-      - MODEL_MODE=mock
-      - MAX_UPLOAD_MB=50
-      - REDIS_URL=redis://redis:6379/0
-      - DATABASE_URL=postgresql://finscribe:finscribe@postgres:5432/finscribe
-      - MINIO_ENDPOINT=minio:9000
-      - MINIO_ACCESS_KEY=minioadmin
-      - MINIO_SECRET_KEY=minioadmin
-      - STORAGE_BUCKET=finscribe
-    volumes:
-      - ./active_learning.jsonl:/app/active_learning.jsonl
-      - upload_staging:/tmp/finscribe_uploads
-      - ./logs:/app/logs
-    depends_on:
-      redis:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "celery", "-A", "app.core.celery_app", "inspect", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-    volumes:
-      - redis_data:/data
+      - ./llamafactory-data:/home/app/LLaMA-Factory/data
+      - ./llamafactory-saves:/home/app/LLaMA-Factory/saves
+      - ./llamafactory-exports:/home/app/LLaMA-Factory/exports
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
 
   postgres:
     image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: finscribe
+      POSTGRES_PASSWORD: finscribe_pass
+      POSTGRES_DB: finscribe
+    volumes:
+      - pgdata:/var/lib/postgresql/data
     ports:
       - "5432:5432"
-    environment:
-      - POSTGRES_USER=finscribe
-      - POSTGRES_PASSWORD=finscribe
-      - POSTGRES_DB=finscribe
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U finscribe"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
 
   minio:
     image: minio/minio:latest
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - miniodata:/data
     ports:
       - "9000:9000"
       - "9001:9001"
-    environment:
-      - MINIO_ROOT_USER=minioadmin
-      - MINIO_ROOT_PASSWORD=minioadmin
-    command: server /data --console-address ":9001"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    volumes:
-      - minio_data:/data
-
-  # Optional: Prometheus for metrics
-  prometheus:
-    image: prom/prometheus:latest
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
-      - prometheus_data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-    profiles:
-      - monitoring
-
-  # Optional: Grafana for dashboards
-  grafana:
-    image: grafana/grafana:latest
-    ports:
-      - "3000:3000"
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-    volumes:
-      - grafana_data:/var/lib/grafana
-    profiles:
-      - monitoring
 
 volumes:
-  redis_data:
-  postgres_data:
-  minio_data:
-  upload_staging:
-  prometheus_data:
-  grafana_data:
+  pgdata:
+  miniodata:

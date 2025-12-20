@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useDropzone } from 'react-dropzone';
+import { useDropzone, type FileRejection } from 'react-dropzone';
 import { CloudUpload, FileText, X, Image, FileCheck, Sparkles, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -13,11 +13,12 @@ interface DocumentUploadProps {
   file: File | null;
 }
 
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+
 function DocumentUpload({ onFileSelect, file }: DocumentUploadProps) {
-  const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
   const [validationError, setValidationError] = useState<string | null>(null);
 
-  const onDrop = useCallback((acceptedFiles: File[], rejectedFiles: any[]) => {
+  const onDrop = useCallback((acceptedFiles: File[], rejectedFiles: FileRejection[]) => {
     // Clear previous validation errors
     setValidationError(null);
 

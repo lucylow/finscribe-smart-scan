@@ -1,0 +1,19 @@
+# Requirements for LLaMA-Factory integration
+# Core dependencies for LLM client and Streamlit UI
+
+requests>=2.31.0
+streamlit>=1.28.0
+python-multipart>=0.0.6
+
+# For OCR service (optional, if using PaddleOCR)
+# paddlepaddle>=2.5.0
+# paddleocr>=2.7.0
+
+# For FastAPI OCR service
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+aiofiles>=23.2.0
+
+# Note: LLaMA-Factory itself should be installed via:
+# pip install -e ".[torch,metrics]" from the LLaMA-Factory repo
+

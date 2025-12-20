@@ -20,9 +20,10 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      retry: (failureCount, error: any) => {
+      retry: (failureCount, error: unknown) => {
         // Don't retry on 4xx errors (client errors)
-        if (error?.statusCode && error.statusCode >= 400 && error.statusCode < 500) {
+        const errorObj = error as { statusCode?: number };
+        if (errorObj?.statusCode && errorObj.statusCode >= 400 && errorObj.statusCode < 500) {
           return false;
         }
         // Retry up to 2 times for other errors
@@ -50,26 +51,28 @@ if (typeof window !== 'undefined') {
     event.preventDefault();
   });
 
-  // Handle general JavaScript errors
+  // Handle errors (both JavaScript errors and resource loading errors)
   window.addEventListener('error', (event) => {
-    console.error('Global error:', event.error);
-    // ErrorBoundary will handle React errors, this is for non-React errors
-    if (!event.error?.componentStack) {
-      toast.error('An unexpected error occurred', {
-        description: 'Please refresh the page and try again.',
-      });
-    }
-  });
-
-  // Handle resource loading errors (images, scripts, etc.)
-  window.addEventListener('error', (event) => {
-    if (event.target && event.target !== window) {
+    // Resource loading errors have event.target but no event.error
+    if (event.target && event.target !== window && !event.error) {
       const target = event.target as HTMLElement;
       console.error('Resource loading error:', {
         tag: target.tagName,
         src: (target as HTMLImageElement).src || (target as HTMLScriptElement).src,
       });
       // Don't show toast for resource errors as they're usually non-critical
+      return;
+    }
+
+    // Handle general JavaScript errors (have event.error)
+    if (event.error) {
+      console.error('Global error:', event.error);
+      // ErrorBoundary will handle React errors, this is for non-React errors
+      if (!event.error?.componentStack) {
+        toast.error('An unexpected error occurred', {
+          description: 'Please refresh the page and try again.',
+        });
+      }
     }
   }, true);
 }

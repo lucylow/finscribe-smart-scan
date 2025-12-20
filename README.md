@@ -668,18 +668,42 @@ finscribe-smart-scan/
 │   ├── security/                 # Security utilities (RBAC, PII, audit)
 │   ├── storage/                  # Object storage service
 │   └── main.py                   # FastAPI application entry point
-├── src/                          # Frontend React application
+├── src/                          # Frontend React application (Lovable)
 │   ├── components/               # React components
 │   │   ├── finscribe/            # FinScribe-specific components
 │   │   └── ui/                   # shadcn/ui components
 │   ├── pages/                    # Page components
 │   ├── services/                 # API client services
 │   └── integrations/             # Supabase integration
-├── finscribe/                    # Training and data utilities
+├── ml/                           # Machine Learning & Training
+│   ├── training/                 # Training scripts
+│   │   ├── camel_agent.py        # CAMEL-AI agent
+│   │   ├── camel_tools.py        # CAMEL tools
+│   │   └── train_finscribe_vl.py # Main training script
+│   ├── finetuning/               # Fine-tuning scripts and configs
+│   │   ├── phase2_finetuning/    # Phase 2 fine-tuning
+│   │   ├── erniekit_finetuning/  # ERNIE-Kit integration
+│   │   ├── unsloth/              # Unsloth training
+│   │   └── unsloth_api/          # Unsloth API service
+│   ├── examples/                 # ML examples and demos
+│   ├── evaluation/               # Model evaluation scripts
+│   └── synthetic_invoice_generator/  # Synthetic data generation
+├── services/                     # External services
+│   ├── ocr_service/              # OCR service
+│   ├── mock_validator/           # Mock validation service
+│   ├── streamlit_demo/           # Streamlit demo application
+│   └── streamlit_unsloth/        # Streamlit Unsloth demo
+├── finscribe/                    # Core ML utilities library
 │   ├── data/                     # Dataset building scripts
-│   └── training/                 # Training configuration
-├── phase2_finetuning/            # Fine-tuning scripts and configs
-├── synthetic_invoice_generator/  # Synthetic data generation
+│   ├── training/                 # Training utilities
+│   ├── eval/                     # Evaluation utilities
+│   └── synthetic/                # Synthetic data generation
+├── docs/                         # Documentation
+│   ├── *.md                      # All markdown documentation files
+│   └── ...                       # Implementation guides, runbooks, etc.
+├── data/                         # Data files
+│   ├── active_learning.jsonl     # Active learning data
+│   └── *.jsonl                   # Training datasets
 ├── tests/                        # Test suite
 │   ├── unit/                     # Unit tests
 │   └── integration/              # Integration tests
@@ -688,7 +712,9 @@ finscribe-smart-scan/
 ├── docker-compose.yml            # Docker Compose configuration
 ├── Dockerfile                    # Docker image definition
 ├── requirements.txt              # Python dependencies
-├── package.json                  # Node.js dependencies
+├── package.json                  # Node.js dependencies (Lovable)
+├── vite.config.ts                # Vite configuration (Lovable)
+├── index.html                    # HTML entry point (Lovable)
 └── README.md                     # This file
 ```
 

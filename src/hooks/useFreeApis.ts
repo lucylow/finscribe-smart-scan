@@ -4,7 +4,7 @@
  * Provides easy-to-use hooks for integrating free external APIs in React components
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   ocrImage,
   getCachedExchangeRates,
@@ -303,6 +303,9 @@ export function useCryptoPrices(coins: string[] = ['bitcoin', 'ethereum'], vsCur
   const [error, setError] = useState<string | null>(null);
   const [prices, setPrices] = useState<Record<string, Record<string, number>> | null>(null);
 
+  // Memoize the coins array as a string for dependency comparison
+  const coinsKey = useMemo(() => coins.join(','), [coins]);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -336,7 +339,7 @@ export function useCryptoPrices(coins: string[] = ['bitcoin', 'ethereum'], vsCur
       cancelled = true;
       clearInterval(interval);
     };
-  }, [coins.join(','), vsCurrency]);
+  }, [coins, coinsKey, vsCurrency]);
 
   return {
     prices,

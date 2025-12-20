@@ -49,6 +49,8 @@ class ResultResponse(BaseModel):
     data: Dict[str, Any]
     validation: Dict[str, Any]
     metadata: Dict[str, Any]
+    markdown_output: Optional[str] = None  # Human-readable Markdown format
+    output_formats: Optional[List[str]] = None  # Available output formats
 
 # --- In-memory job store (would be Redis/DB in production) ---
 from ..core.worker import JOB_STATUS, process_job, process_compare_documents_job
@@ -501,7 +503,9 @@ async def get_result(result_id: str):
                         job_id=job_id,
                         data=result.get("data", {}),
                         validation=result.get("validation", {"is_valid": True}),
-                        metadata=result.get("metadata", {})
+                        metadata=result.get("metadata", {}),
+                        markdown_output=result.get("markdown_output"),
+                        output_formats=result.get("metadata", {}).get("output_formats", ["json"])
                     )
             except Exception as e:
                 logger.warning(f"Error processing job {job_id} for result {result_id}: {str(e)}")
@@ -518,6 +522,90 @@ async def get_result(result_id: str):
         raise HTTPException(
             status_code=500,
             detail="An error occurred while retrieving the result."
+        )
+
+@router.get("/results/{result_id}/download")
+async def download_result(result_id: str, format: str = "json"):
+    """
+    Download result in specified format (json or markdown).
+    Returns the structured output in the requested format for easy export.
+    """
+    from fastapi.responses import Response
+    
+    try:
+        # Validate result_id format
+        try:
+            uuid.UUID(result_id)
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid result ID format: {result_id}"
+            )
+        
+        # Validate format
+        if format not in ["json", "markdown"]:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported format: {format}. Supported formats: json, markdown"
+            )
+        
+        # Find the job with this result
+        result_data = None
+        for job_id, job_data in JOB_STATUS.items():
+            try:
+                result = job_data.get("result")
+                if result and result.get("document_id") == result_id:
+                    result_data = result
+                    break
+            except Exception as e:
+                logger.warning(f"Error processing job {job_id} for download: {str(e)}")
+                continue
+        
+        if not result_data:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Result with ID {result_id} not found. It may have expired or the job may not be completed."
+            )
+        
+        # Generate file content based on format
+        if format == "json":
+            json_data = result_data.get("data", {})
+            content = json.dumps(json_data, indent=2, ensure_ascii=False)
+            return Response(
+                content=content,
+                media_type="application/json",
+                headers={
+                    "Content-Disposition": f'attachment; filename="result_{result_id}.json"'
+                }
+            )
+        elif format == "markdown":
+            markdown_content = result_data.get("markdown_output", "")
+            if not markdown_content:
+                # Fallback: generate markdown from JSON data if not available
+                from app.core.post_processing import FinancialDocumentPostProcessor
+                post_processor = FinancialDocumentPostProcessor()
+                structured_data = {
+                    "success": True,
+                    "data": result_data.get("data", {}),
+                    "validation": result_data.get("validation", {}),
+                    "metadata": result_data.get("metadata", {})
+                }
+                markdown_content = post_processor.generate_markdown(structured_data)
+            
+            return Response(
+                content=markdown_content,
+                media_type="text/markdown",
+                headers={
+                    "Content-Disposition": f'attachment; filename="result_{result_id}.md"'
+                }
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error downloading result: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="An error occurred while downloading the result."
         )
 
 @router.post("/results/{result_id}/corrections")
@@ -582,7 +670,7 @@ async def submit_corrections(result_id: str, corrections: Dict[str, Any]):
             }
             
             # Append to JSONL file
-            active_learning_path = os.path.join(os.path.dirname(__file__), "../../../active_learning.jsonl")
+            active_learning_path = os.path.join(os.path.dirname(__file__), "../../../data/active_learning.jsonl")
             try:
                 # Ensure directory exists
                 os.makedirs(os.path.dirname(active_learning_path), exist_ok=True)
@@ -612,7 +700,7 @@ async def submit_corrections(result_id: str, corrections: Dict[str, Any]):
 async def export_active_learning(format: str = Query("jsonl", regex="^(jsonl|json)$")):
     """Export active learning data for model training."""
     try:
-        active_learning_path = os.path.join(os.path.dirname(__file__), "../../../active_learning.jsonl")
+        active_learning_path = os.path.join(os.path.dirname(__file__), "../../../data/active_learning.jsonl")
         
         if not os.path.exists(active_learning_path):
             return {"entries": [], "count": 0}
