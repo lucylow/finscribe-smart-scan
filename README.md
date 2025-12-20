@@ -3,7 +3,7 @@
 
 [](https://www.python.org/downloads/)[](https://www.paddlepaddle.org.cn/)[](https://huggingface.co/PaddlePaddle/PaddleOCR-VL)[](https://baiduernieai.devpost.com/)
 
-Built on top of: https://github.com/lucylow/pure-white-zone — this repository extends that foundation to deliver an end-to-end **Financial Document Intelligence** stack leveraging a fine-tuned **PaddleOCR-VL** model plus business logic validation and production-ready inference.
+This repository extends that foundation to deliver an end-to-end **Financial Document Intelligence** stack leveraging a fine-tuned **PaddleOCR-VL** model plus business logic validation and production-ready inference.
 
 **📖 Table of Contents**
 ------------------------
