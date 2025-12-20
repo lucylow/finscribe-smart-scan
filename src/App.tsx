@@ -60,27 +60,55 @@ if (typeof window !== 'undefined') {
       });
     }
   });
+
+  // Handle resource loading errors (images, scripts, etc.)
+  window.addEventListener('error', (event) => {
+    if (event.target && event.target !== window) {
+      const target = event.target as HTMLElement;
+      console.error('Resource loading error:', {
+        tag: target.tagName,
+        src: (target as HTMLImageElement).src || (target as HTMLScriptElement).src,
+      });
+      // Don't show toast for resource errors as they're usually non-critical
+    }
+  }, true);
 }
+
+// Loading fallback component
+const PageSkeleton = () => (
+  <div className="min-h-screen p-6 space-y-6">
+    <Skeleton className="h-12 w-64" />
+    <div className="space-y-4">
+      <Skeleton className="h-8 w-full" />
+      <Skeleton className="h-8 w-3/4" />
+      <Skeleton className="h-64 w-full" />
+    </div>
+  </div>
+);
 
 const App = () => (
   <ErrorBoundary>
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/pricing" element={<PricingPage />} />
-            <Route path="/app" element={<Navigate to="/app/upload" replace />} />
-            <Route path="/app/*" element={<FinScribe />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </QueryClientProvider>
+    <ThemeProvider defaultTheme="system" storageKey="finscribe-ui-theme">
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Suspense fallback={<PageSkeleton />}>
+              <Routes>
+                <Route path="/" element={<Index />} />
+                <Route path="/auth" element={<Auth />} />
+                <Route path="/pricing" element={<PricingPage />} />
+                <Route path="/app" element={<Navigate to="/app/upload" replace />} />
+                <Route path="/app/*" element={<FinScribe />} />
+                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </Suspense>
+          </BrowserRouter>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ThemeProvider>
   </ErrorBoundary>
 );
 
