@@ -1,0 +1,1 @@
+{"document_id": "example-doc-001", "source_file": "example.pdf", "extracted_data": [{"field_name": "total_amount", "value": 100.00, "confidence": 0.85}], "correction": {"total_amount": 100.00}, "timestamp": "2025-12-20T10:00:00Z"}
