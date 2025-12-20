@@ -204,6 +204,94 @@ export const analyzeDocument = async (formData: FormData) => {
 };
 
 /**
+ * Compare two documents side-by-side (e.g., quote vs invoice)
+ */
+export const compareDocuments = async (file1: File, file2: File) => {
+  try {
+    const formData = new FormData();
+    formData.append('file1', file1);
+    formData.append('file2', file2);
+
+    // Step 1: Submit both documents for comparison
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    
+    let response: Response;
+    try {
+      response = await fetch(`${API_BASE_URL}/api/v1/compare-documents`, {
+        method: 'POST',
+        body: formData,
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+    } catch (error: any) {
+      clearTimeout(timeoutId);
+      if (error.name === 'AbortError') {
+        throw new TimeoutError('Upload request timed out. The files may be too large or the connection is slow.');
+      }
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new NetworkError('Network error. Please check your connection and try again.');
+      }
+      throw error;
+    }
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: response.statusText }));
+      
+      if (response.status === 400) {
+        throw new APIError(
+          errorData.error || errorData.detail || 'Invalid file(s). Please check file types and sizes.',
+          response.status,
+          errorData
+        );
+      }
+      if (response.status === 413) {
+        throw new APIError(
+          'File(s) too large. Please use smaller files.',
+          response.status,
+          errorData
+        );
+      }
+      
+      throw new APIError(
+        errorData.error || errorData.detail || `Document comparison request failed: ${response.statusText}`,
+        response.status,
+        errorData
+      );
+    }
+    
+    const jobResponse: JobResponse = await response.json();
+    
+    if (!jobResponse.job_id) {
+      throw new APIError('Invalid response: missing job_id', 500);
+    }
+    
+    // Step 2: Poll for completion
+    const finalStatus = await pollJobStatus(jobResponse.job_id);
+    
+    // Step 3: Return result in format expected by frontend
+    if (finalStatus.result) {
+      return {
+        success: true,
+        job_id: jobResponse.job_id,
+        comparison: finalStatus.result.comparison,
+        document1: finalStatus.result.document1,
+        document2: finalStatus.result.document2,
+        metadata: finalStatus.result.metadata
+      };
+    }
+    
+    throw new APIError('No result returned from document comparison', 500);
+  } catch (error) {
+    console.error('API Error:', error);
+    if (error instanceof APIError || error instanceof NetworkError || error instanceof TimeoutError) {
+      throw error;
+    }
+    throw new APIError(error instanceof Error ? error.message : 'Document comparison failed');
+  }
+};
+
+/**
  * Compare document analysis with baseline model
  */
 export const compareWithBaseline = async (formData: FormData) => {

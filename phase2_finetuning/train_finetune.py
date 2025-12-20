@@ -291,10 +291,11 @@ def main():
     print(f"Loading dataset from {dataset_path}")
     
     # Split dataset (if not pre-split)
+    max_seq_length = config.get('training', {}).get('max_sequence_length', 512)
     train_dataset = InvoiceInstructionDataset(
         dataset_path,
         processor,
-        max_length=512,
+        max_length=max_seq_length,
         image_size=tuple(config.get('vision_processor', {}).get('train', {}).get('size', [224, 224]))
     )
     

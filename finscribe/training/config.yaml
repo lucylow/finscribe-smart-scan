@@ -1,0 +1,140 @@
+# PaddleOCR-VL Fine-Tuning Configuration
+# Based on official PaddleOCR-VL training methodology
+
+model:
+  name: "PaddlePaddle/PaddleOCR-VL"
+  base_model: "PaddlePaddle/PaddleOCR-VL"
+  # Alternative: Use local model path
+  # base_model: "/path/to/local/model"
+
+data:
+  # Training data paths
+  train_file: "training_data/instruction_pairs.jsonl"
+  validation_file: "training_data/validation_pairs.jsonl"
+  test_file: "training_data/test_pairs.jsonl"
+  
+  # Data processing
+  max_seq_length: 2048
+  image_size: 1024  # Input image size
+  
+  # Augmentation (applied during training)
+  augmentation:
+    enabled: true
+    rotation_range: [-5, 5]  # degrees
+    brightness_range: [0.8, 1.2]
+    contrast_range: [0.8, 1.2]
+    noise_std: [0.01, 0.05]
+    blur_probability: 0.1
+
+training:
+  # Output
+  output_dir: "outputs/finetuned_model"
+  
+  # Training hyperparameters (critical parameters from PaddleOCR guidance)
+  num_train_epochs: 5
+  per_device_train_batch_size: 4  # Adjust based on GPU memory
+  per_device_eval_batch_size: 4
+  gradient_accumulation_steps: 4  # Effective batch size = batch_size * gradient_accumulation_steps
+  
+  # Learning rate (critical: start low, adjust based on loss)
+  learning_rate: 2.0e-5  # Range: 1e-5 to 5e-5
+  weight_decay: 0.01
+  
+  # Scheduler
+  lr_scheduler_type: "cosine"
+  warmup_steps: 100  # 10% of total steps recommended
+  
+  # Optimization
+  optimizer: "adamw"
+  fp16: true  # Mixed precision training
+  bf16: false  # Use bf16 if supported (better than fp16)
+  
+  # Logging and saving
+  logging_steps: 10
+  save_steps: 500
+  eval_steps: 500
+  save_total_limit: 3  # Keep only last 3 checkpoints
+  
+  # Evaluation
+  evaluation_strategy: "steps"
+  load_best_model_at_end: true
+  metric_for_best_model: "eval_loss"
+
+# LoRA Configuration (Low-Rank Adaptation for efficient fine-tuning)
+lora:
+  enabled: true
+  r: 16  # LoRA rank (16-32 recommended)
+  lora_alpha: 32  # Scaling parameter (typically 2x rank)
+  target_modules:
+    - "q_proj"
+    - "v_proj"
+    - "k_proj"
+    - "o_proj"
+  lora_dropout: 0.05  # Dropout for LoRA layers
+
+# Loss Configuration
+loss:
+  weighted: true
+  weights:
+    table_cell_token: 2.0  # Higher weight for table cells
+    financial_field_token: 1.5  # Higher weight for financial fields
+    regular_token: 1.0
+  
+  # Field-specific weights
+  field_weights:
+    line_item_table: 2.5
+    financial_summary: 2.0
+    vendor_block: 1.5
+    client_info: 1.5
+    invoice_metadata: 1.5
+
+# Evaluation Configuration
+evaluation:
+  # Metrics
+  metrics:
+    - "field_extraction_accuracy"
+    - "table_teds_score"
+    - "numerical_validation"
+    - "f1_score"
+  
+  # Thresholds for field-level accuracy
+  thresholds:
+    vendor_block: 0.95
+    client_info: 0.95
+    invoice_metadata: 0.95
+    line_item_table: 0.90
+    financial_summary: 0.95
+  
+  # Numerical validation tolerance
+  numerical_tolerance: 0.01
+
+# Hard Sample Mining
+hard_sample_mining:
+  enabled: true
+  min_errors_per_sample: 3  # Samples with 3+ errors are considered hard
+  confidence_threshold: 0.5  # Low confidence threshold
+  synthesis_ratio: 0.1  # 10% of dataset should be hard samples
+
+# ERNIEKit Integration
+erniekit:
+  enabled: true
+  # If ERNIEKit is not available, fallback to HuggingFace Transformers
+  fallback_to_huggingface: true
+
+# GPU Configuration
+gpu:
+  # Multi-GPU training
+  use_multi_gpu: false
+  num_gpus: 1
+  
+  # Memory optimization
+  gradient_checkpointing: true  # Trade compute for memory
+  dataloader_num_workers: 4
+
+# Logging
+logging:
+  use_tensorboard: true
+  tensorboard_dir: "logs/tensorboard"
+  use_wandb: false  # Set to true to use Weights & Biases
+  wandb_project: "finscribe-ocr-finetuning"
+

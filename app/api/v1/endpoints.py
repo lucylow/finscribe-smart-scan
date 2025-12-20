@@ -51,7 +51,7 @@ class ResultResponse(BaseModel):
     metadata: Dict[str, Any]
 
 # --- In-memory job store (would be Redis/DB in production) ---
-from ..core.worker import JOB_STATUS, process_job
+from ..core.worker import JOB_STATUS, process_job, process_compare_documents_job
 
 # --- Configuration ---
 MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "50"))
@@ -181,6 +181,143 @@ async def analyze_document(
         raise
     except Exception as e:
         logger.error(f"Unexpected error in analyze_document: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="An unexpected error occurred while processing your request."
+        )
+
+@router.post("/compare-documents", response_model=JobResponse)
+async def compare_documents(
+    background_tasks: BackgroundTasks,
+    file1: UploadFile = File(..., description="First document (e.g., Quote/Proposal)"),
+    file2: UploadFile = File(..., description="Second document (e.g., Invoice)")
+):
+    """
+    Compare two documents side-by-side using multimodal reasoning.
+    Useful for comparing quotes with invoices, proposals with contracts, etc.
+    Returns job_id and poll_url for async processing.
+    """
+    try:
+        # Validate both files
+        for idx, file in enumerate([file1, file2], 1):
+            file_label = f"File {idx}"
+            
+            if not file.filename:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"{file_label} must have a filename"
+                )
+            
+            # Validate file extension
+            file_ext = os.path.splitext(file.filename)[1].lower()
+            if file_ext not in ALLOWED_EXTENSIONS:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"{file_label} has unsupported extension: {file_ext}. Allowed extensions: {', '.join(ALLOWED_EXTENSIONS)}"
+                )
+            
+            # Validate file type
+            content_type = file.content_type or ""
+            if content_type not in ALLOWED_TYPES and not any(content_type.startswith(t) for t in ALLOWED_TYPES):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"{file_label} has unsupported file type: {content_type}. Allowed: PDF, PNG, JPG, TIFF"
+                )
+        
+        # Read both files
+        try:
+            contents1 = await file1.read()
+            contents2 = await file2.read()
+        except Exception as e:
+            logger.error(f"Error reading files: {str(e)}")
+            raise HTTPException(
+                status_code=400,
+                detail="Failed to read file(s). File(s) may be corrupted or inaccessible."
+            )
+        
+        file_size1 = len(contents1)
+        file_size2 = len(contents2)
+        file_size_mb1 = file_size1 / (1024 * 1024)
+        file_size_mb2 = file_size2 / (1024 * 1024)
+        
+        # Validate file sizes
+        for idx, (file_size, file_size_mb, filename) in enumerate(
+            [(file_size1, file_size_mb1, file1.filename), (file_size2, file_size_mb2, file2.filename)], 1
+        ):
+            if file_size < MIN_UPLOAD_BYTES:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"File {idx} ({filename}) too small: {file_size} bytes. Minimum size: {MIN_UPLOAD_BYTES} bytes"
+                )
+            if file_size_mb > MAX_UPLOAD_MB:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"File {idx} ({filename}) too large: {file_size_mb:.1f}MB. Maximum: {MAX_UPLOAD_MB}MB"
+                )
+        
+        # Generate job ID
+        try:
+            job_id = str(uuid.uuid4())
+            checksum1 = hashlib.sha256(contents1).hexdigest()
+            checksum2 = hashlib.sha256(contents2).hexdigest()
+        except Exception as e:
+            logger.error(f"Error generating job ID or checksum: {str(e)}")
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to initialize job. Please try again."
+            )
+        
+        # Initialize job status
+        try:
+            JOB_STATUS[job_id] = {
+                "status": "queued",
+                "progress": 0,
+                "stage": "received",
+                "result": None,
+                "error": None,
+                "checksum1": checksum1,
+                "checksum2": checksum2,
+                "filename1": file1.filename,
+                "filename2": file2.filename,
+                "file_size1": file_size1,
+                "file_size2": file_size2,
+                "job_type": "compare_documents"
+            }
+        except Exception as e:
+            logger.error(f"Error initializing job status: {str(e)}")
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to initialize job status. Please try again."
+            )
+        
+        # Queue background processing
+        try:
+            # Store file contents temporarily (in production, use proper storage)
+            background_tasks.add_task(
+                process_compare_documents_job, 
+                job_id, 
+                contents1, 
+                file1.filename,
+                contents2,
+                file2.filename
+            )
+        except Exception as e:
+            logger.error(f"Error queueing background task: {str(e)}")
+            JOB_STATUS.pop(job_id, None)
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to queue processing task. Please try again."
+            )
+        
+        return JobResponse(
+            job_id=job_id,
+            poll_url=f"/api/v1/jobs/{job_id}",
+            status="queued"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in compare_documents: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail="An unexpected error occurred while processing your request."

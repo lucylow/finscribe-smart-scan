@@ -1,9 +1,18 @@
 import aiohttp
 import base64
 import json
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
 from abc import ABC, abstractmethod
 import logging
+from PIL import Image
+import io
+
+from .paddleocr_prompts import (
+    get_prompt_for_region,
+    is_table_region,
+    OCR_PROMPT,
+    TABLE_RECOGNITION_PROMPT,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -79,8 +88,24 @@ class PaddleOCRVLClient(OCRClientBase):
         self.timeout = timeout
         self.max_retries = max_retries
     
-    async def analyze_image(self, image_bytes: bytes) -> Dict[str, Any]:
-        """Send image to PaddleOCR-VL via vLLM and return structured output."""
+    async def analyze_image(
+        self, 
+        image_bytes: bytes, 
+        region_type: Optional[str] = None,
+        prompt: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Send image to PaddleOCR-VL via vLLM and return structured output.
+        
+        Args:
+            image_bytes: Image data to process
+            region_type: Type of region (e.g., "line_items_table", "vendor_block")
+                        Used to determine the appropriate task-specific prompt
+            prompt: Optional custom prompt. If not provided, uses region_type to determine prompt.
+        
+        Returns:
+            Structured OCR output
+        """
         import time
         import asyncio
         
@@ -89,6 +114,20 @@ class PaddleOCRVLClient(OCRClientBase):
             raise ValueError("Image bytes cannot be empty")
         
         image_data = base64.b64encode(image_bytes).decode('utf-8')
+        
+        # Determine the appropriate prompt
+        if prompt is None:
+            if region_type:
+                prompt = get_prompt_for_region(region_type)
+            else:
+                # Default to OCR for full document parsing
+                prompt = OCR_PROMPT
+        
+        # Build context-aware prompt message
+        if is_table_region(region_type) if region_type else False:
+            prompt_text = f"{prompt} Extract the table structure and return as JSON array of rows. Each row should be an object with keys matching the table headers."
+        else:
+            prompt_text = f"{prompt} Extract all text and structure as JSON."
         
         messages = [
             {
@@ -100,7 +139,7 @@ class PaddleOCRVLClient(OCRClientBase):
                     },
                     {
                         "type": "text",
-                        "text": "Parse this financial document. Extract all text with bounding boxes, identify semantic regions (header, vendor, client, line items, totals), and return as structured JSON."
+                        "text": prompt_text
                     }
                 ]
             }
@@ -208,7 +247,10 @@ class PaddleOCRVLClient(OCRClientBase):
 
 
 class PaddleOCRVLService:
-    """Service factory for PaddleOCR-VL with model mode switching."""
+    """
+    Service factory for PaddleOCR-VL with model mode switching.
+    Supports task-specific prompts and mixed element processing.
+    """
     
     def __init__(self, config: Dict[str, Any]):
         self.config = config
@@ -225,7 +267,10 @@ class PaddleOCRVLService:
             )
     
     async def parse_document(self, image_bytes: bytes) -> Dict[str, Any]:
-        """Parse document using configured OCR client."""
+        """
+        Parse full document using configured OCR client.
+        This performs initial layout analysis to detect regions.
+        """
         try:
             if not image_bytes or len(image_bytes) == 0:
                 raise ValueError("Image bytes cannot be empty")
@@ -243,4 +288,141 @@ class PaddleOCRVLService:
             return result
         except Exception as e:
             logger.error(f"Error in OCR parse_document: {str(e)}", exc_info=True)
+            raise
+    
+    async def parse_region(
+        self, 
+        image_bytes: bytes, 
+        region_type: str,
+        bbox: Optional[Dict[str, int]] = None
+    ) -> Dict[str, Any]:
+        """
+        Parse a specific region of a document with the appropriate task-specific prompt.
+        
+        This is used in Stage 2 of the pipeline: after layout analysis detects regions,
+        each region is cropped and processed with the appropriate prompt.
+        
+        Args:
+            image_bytes: Full document image or cropped region image
+            region_type: Type of region (e.g., "line_items_table", "vendor_block")
+            bbox: Optional bounding box dict with keys: x, y, w, h
+        
+        Returns:
+            Structured output for the specific region
+        """
+        try:
+            if not image_bytes or len(image_bytes) == 0:
+                raise ValueError("Image bytes cannot be empty")
+            
+            # If bbox is provided, crop the image to the region
+            if bbox:
+                try:
+                    image = Image.open(io.BytesIO(image_bytes))
+                    cropped = image.crop((
+                        bbox.get("x", 0),
+                        bbox.get("y", 0),
+                        bbox.get("x", 0) + bbox.get("w", image.width),
+                        bbox.get("y", 0) + bbox.get("h", image.height)
+                    ))
+                    # Convert back to bytes
+                    img_byte_arr = io.BytesIO()
+                    cropped.save(img_byte_arr, format='PNG')
+                    image_bytes = img_byte_arr.getvalue()
+                except Exception as crop_error:
+                    logger.warning(f"Failed to crop region, using full image: {str(crop_error)}")
+            
+            logger.info(f"Parsing region type '{region_type}' with prompt '{get_prompt_for_region(region_type)}'")
+            
+            if isinstance(self.client, PaddleOCRVLClient):
+                result = await self.client.analyze_image(image_bytes, region_type=region_type)
+            else:
+                # Mock client doesn't support region-specific processing yet
+                result = await self.client.analyze_image(image_bytes)
+                # Add region metadata
+                result["region_type"] = region_type
+                result["prompt_used"] = get_prompt_for_region(region_type)
+            
+            # Validate result structure
+            if not isinstance(result, dict):
+                raise ValueError("OCR service returned invalid result type")
+            
+            if "status" not in result:
+                result["status"] = "success"
+            
+            result["region_type"] = region_type
+            result["prompt_used"] = get_prompt_for_region(region_type)
+            
+            return result
+        except Exception as e:
+            logger.error(f"Error parsing region '{region_type}': {str(e)}", exc_info=True)
+            raise
+    
+    async def parse_mixed_document(
+        self, 
+        image_bytes: bytes,
+        regions: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """
+        Process a document with mixed elements (text + tables) by processing each region
+        with its appropriate task-specific prompt.
+        
+        This implements the two-stage pipeline:
+        1. Layout analysis (regions should be pre-detected)
+        2. Targeted element recognition for each region
+        
+        Args:
+            image_bytes: Full document image
+            regions: List of region dicts, each with:
+                - type: Region type (e.g., "line_items_table", "vendor_block")
+                - bbox: Optional bounding box dict with x, y, w, h
+        
+        Returns:
+            Combined structured output with results for each region
+        """
+        try:
+            if not image_bytes or len(image_bytes) == 0:
+                raise ValueError("Image bytes cannot be empty")
+            
+            if not regions:
+                # Fallback to full document parsing
+                logger.warning("No regions provided, falling back to full document parsing")
+                return await self.parse_document(image_bytes)
+            
+            logger.info(f"Processing mixed document with {len(regions)} regions")
+            
+            region_results = {}
+            
+            # Process each region with its appropriate prompt
+            for i, region in enumerate(regions):
+                region_type = region.get("type", "text")
+                bbox = region.get("bbox")
+                
+                try:
+                    result = await self.parse_region(
+                        image_bytes,
+                        region_type=region_type,
+                        bbox=bbox
+                    )
+                    region_results[region_type] = result
+                    logger.info(f"Successfully processed region {i+1}/{len(regions)}: {region_type}")
+                except Exception as region_error:
+                    logger.error(f"Failed to process region {i+1} ({region_type}): {str(region_error)}")
+                    region_results[region_type] = {
+                        "status": "failed",
+                        "error": str(region_error),
+                        "region_type": region_type
+                    }
+            
+            # Combine results
+            combined_result = {
+                "status": "success",
+                "model_version": "PaddleOCR-VL-0.9B",
+                "regions_processed": len(regions),
+                "region_results": region_results,
+                "processing_strategy": "mixed_elements"
+            }
+            
+            return combined_result
+        except Exception as e:
+            logger.error(f"Error processing mixed document: {str(e)}", exc_info=True)
             raise

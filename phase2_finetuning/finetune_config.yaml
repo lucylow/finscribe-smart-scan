@@ -1,9 +1,25 @@
+# ============================================================================
 # Phase 2: Fine-Tuning Configuration for PaddleOCR-VL
-# This configuration uses LoRA for efficient fine-tuning
+# ============================================================================
+# This configuration uses LoRA for efficient fine-tuning of PaddleOCR-VL-0.9B
+# for financial document analysis (invoice parsing with 5 semantic regions).
+#
+# HYPERPARAMETER TUNING GUIDE:
+# - Start with this baseline configuration (conservative values)
+# - Perform A/B testing by changing ONE parameter at a time
+# - Monitor: validation loss, field extraction accuracy, TEDS score
+# - Use early stopping to prevent overfitting
+# - Adjust learning rate proportionally with batch size changes
+#
+# KEY RECOMMENDATIONS:
+# - Learning Rate: Most critical parameter. Start at 2e-5, test range 1e-5 to 5e-5
+# - Batch Size: Increase as GPU memory allows (4, 8, 16). If reduced, decrease LR.
+# - Max Sequence Length: Must accommodate full JSON output (2048+ recommended)
+# ============================================================================
 
 # Model Configuration
-model_name_or_path: "PaddlePaddle/PaddleOCR-VL"  # Start from pre-trained weights
-dataset_path: "./paddleocr_finetune_data.jsonl"  # Your prepared instruction-response pairs
+model_name_or_path: "PaddlePaddle/PaddleOCR-VL"  # Base model: PaddleOCR-VL-0.9B
+dataset_path: "./paddleocr_finetune_data.jsonl"  # Instruction-response pairs JSONL file
 
 # LoRA Configuration for Efficient Fine-Tuning
 # LoRA (Low-Rank Adaptation) allows fine-tuning with minimal parameters
@@ -19,38 +35,107 @@ lora:
   dropout: 0.05            # Dropout for LoRA layers
   bias: "none"             # Bias treatment: "none", "all", or "lora_only"
 
-# Training Hyperparameters
+# ============================================================================
+# Training Hyperparameters - MOST CRITICAL SECTION
+# ============================================================================
 training:
+  # LEARNING RATE (MOST CRITICAL PARAMETER)
+  # Purpose: Controls step size for weight updates
+  # Recommended Range: 1e-5 to 5e-5
+  # Tuning: Start conservative (2e-5). Too high = instability, too low = slow convergence
+  #         Monitor loss closely. If loss spikes or NaN, reduce by 2-5x.
+  #         If batch size changes, adjust proportionally (e.g., 2x batch = 2x LR)
+  learning_rate: 2.0e-5
+  
+  # BATCH SIZE
+  # Purpose: Number of samples processed before model update
+  # Recommended: As high as GPU memory allows (4, 8, 16)
+  # Tuning: Increase for more stable gradients. If reducing batch size, decrease LR proportionally.
+  #         Effective batch size = per_device_batch_size * gradient_accumulation_steps * num_gpus
+  per_device_train_batch_size: 8      # Adjust based on GPU memory (16GB+ VRAM recommended)
+  per_device_eval_batch_size: 8       # Can be larger than train batch if memory allows
+  
+  # GRADIENT ACCUMULATION
+  # Purpose: Simulates larger batch size when GPU memory is limited
+  # Example: If you want effective batch=16 but can only fit 4 in memory, set this to 4
+  # Tuning: Use when you want larger effective batch but are memory constrained
+  gradient_accumulation_steps: 2      # Effective batch = 8 * 2 = 16 (assuming 1 GPU)
+  
+  # NUMBER OF EPOCHS
+  # Purpose: Complete passes through training dataset
+  # Recommended Range: 3 to 10
+  # Tuning: Use early stopping to prevent overfitting. Train until validation loss plateaus.
+  #         For small datasets, more epochs may be needed. Monitor for overfitting.
   num_train_epochs: 5
-  per_device_train_batch_size: 4      # Adjust based on GPU memory (16GB+ VRAM recommended)
-  gradient_accumulation_steps: 2      # Effective batch size = per_device_batch_size * gradient_accumulation_steps * num_gpus
-  learning_rate: 2.0e-4
-  warmup_steps: 100
-  warmup_ratio: 0.1                   # Alternative to warmup_steps (ratio of total steps)
+  
+  # WARMUP
+  # Purpose: Gradually increases LR from 0 to initial rate at start of training
+  # Recommended: 0.05 to 0.1 ratio (or 50-100 steps)
+  # Tuning: Short warmup (5-10% of total steps) typically sufficient
+  #         Prevents instability in initial training phase
+  warmup_steps: null                  # Use steps OR ratio (not both)
+  warmup_ratio: 0.1                   # 10% of total training steps (alternative to warmup_steps)
+  
+  # WEIGHT DECAY
+  # Purpose: Regularization to prevent overfitting by penalizing large weights
+  # Recommended Range: 0.01 to 0.1
+  # Tuning: Helps model generalize to unseen invoice layouts. Higher = more regularization.
   weight_decay: 0.01
-  max_grad_norm: 1.0                   # Gradient clipping
-  lr_scheduler_type: "cosine"         # Learning rate scheduler: "linear", "cosine", "cosine_with_restarts", etc.
   
-  # Logging and Saving
-  logging_steps: 10
-  save_steps: 500
-  save_total_limit: 3                  # Keep only last N checkpoints
-  eval_steps: 250
+  # GRADIENT CLIPPING
+  # Purpose: Prevents exploding gradients by capping gradient norm
+  # Recommended: 1.0 (conservative)
+  # Tuning: Increase if training is unstable, decrease if gradients seem too small
+  max_grad_norm: 1.0
+  
+  # LEARNING RATE SCHEDULER
+  # Purpose: Adjusts learning rate during training
+  # Options: "linear", "cosine", "cosine_with_restarts", "polynomial", "constant"
+  # Tuning: "cosine" gives smooth decay. "linear" is simple and effective.
+  lr_scheduler_type: "cosine"
+  
+  # MAX SEQUENCE LENGTH (NEW - CRITICAL FOR YOUR TASK)
+  # Purpose: Maximum tokens (text + image patches) for model input
+  # Recommended: 2048 or higher
+  # Tuning: MUST be long enough to accommodate full JSON output for your 5 semantic regions.
+  #         Too short will truncate outputs. Test with your longest expected JSON.
+  max_sequence_length: 2048           # Ensure this fits your structured JSON output
+  
+  # ========================================================================
+  # Logging and Checkpointing
+  # ========================================================================
+  logging_steps: 10                    # Log metrics every N steps (monitor loss frequently)
+  save_steps: 500                      # Save checkpoint every N steps
+  save_total_limit: 3                  # Keep only last N checkpoints (saves disk space)
+  eval_steps: 250                      # Run evaluation every N steps
   evaluation_strategy: "steps"         # "no", "steps", or "epoch"
+  load_best_model_at_end: true        # Load best checkpoint at end of training
+  metric_for_best_model: "eval_loss"  # Metric to determine "best" model
+  greater_is_better: false             # Lower eval_loss is better
   
-  # Mixed Precision Training (reduces memory usage and speeds up training)
-  fp16: true                            # Use FP16 for faster training (requires compatible GPU)
-  # fp16_opt_level: "O1"                # Optional: optimization level for FP16
+  # ========================================================================
+  # Mixed Precision Training
+  # ========================================================================
+  # Purpose: Reduces memory usage and speeds up training (2x faster, ~50% less memory)
+  # Options: fp16 (requires modern GPU with Tensor Cores), bf16 (A100+), or false
+  # Tuning: Use fp16 if available (RTX 20/30/40 series, V100+). Use bf16 for A100.
+  fp16: true                           # Use FP16 for faster training (RTX/V100+)
+  # bf16: false                         # Alternative: bf16 for A100 GPUs (better numerical stability)
+  # fp16_opt_level: "O1"                # Optional: FP16 optimization level (usually not needed)
   
+  # ========================================================================
   # Dataloader Settings
-  dataloader_num_workers: 4
-  dataloader_pin_memory: true
+  # ========================================================================
+  dataloader_num_workers: 4            # Parallel data loading (adjust based on CPU cores)
+  dataloader_pin_memory: true          # Faster GPU transfer (use if using GPU)
   
+  # ========================================================================
   # Other Settings
-  remove_unused_columns: false
-  report_to: ["tensorboard"]            # Logging backends: "tensorboard", "wandb", etc.
+  # ========================================================================
+  remove_unused_columns: false         # Keep all columns (needed for custom loss)
+  report_to: ["tensorboard"]           # Logging backends: "tensorboard", "wandb", "none"
   
-  # Seed for reproducibility
+  # Seed for reproducibility (set same seed for repeatable experiments)
   seed: 42
 
 # Data Augmentation Configuration
@@ -87,9 +172,11 @@ loss:
     vendor_block: 1.0
     client_invoice_info: 1.0
 
+# ============================================================================
 # Output Configuration
+# ============================================================================
 output_dir: "./finetuned_paddleocr_invoice_model"
-run_name: "paddleocr-vl-invoice-finetune"  # For logging/tracking
+run_name: "paddleocr-vl-invoice-finetune-baseline"  # For logging/tracking (update for experiments)
 
 # Evaluation Configuration
 evaluation:
@@ -111,10 +198,45 @@ data:
   val_split: 0.05                       # 5% for validation
   test_split: 0.05                      # 5% for testing
 
-# Early Stopping (optional)
+# ============================================================================
+# Early Stopping Configuration
+# ============================================================================
+# Purpose: Stop training when validation metric stops improving (prevents overfitting)
+# Tuning: Increase patience if training is slow to improve, decrease if overfitting quickly
 early_stopping:
   enabled: true
-  patience: 3                           # Number of evaluations without improvement
-  metric: "eval_loss"                   # Metric to monitor
-  mode: "min"                           # "min" or "max"
+  patience: 3                           # Number of evaluations without improvement before stopping
+  metric: "eval_loss"                   # Metric to monitor for improvement
+  mode: "min"                           # "min" (lower is better) or "max" (higher is better)
+  min_delta: 0.001                      # Minimum change to qualify as improvement (optional)
+
+# ============================================================================
+# Experiment Tracking & A/B Testing Configuration
+# ============================================================================
+# Use this section to document your hyperparameter experiments
+# Example experiments to run:
+#   Experiment 1: Test learning rates (1e-5, 2e-5, 5e-5) - change training.learning_rate
+#   Experiment 2: Test batch sizes (4, 8, 16) - change training.per_device_train_batch_size
+#                 (remember to adjust LR proportionally!)
+#   Experiment 3: Test warmup ratios (0.05, 0.1, 0.15)
+#   Experiment 4: Test weight decay (0.01, 0.05, 0.1)
+#
+experiment:
+  name: "baseline_v1"                   # Descriptive name for this experiment
+  description: "Conservative baseline with lr=2e-5, batch=8, epochs=5"
+  notes: |
+    Starting point based on recommended ranges.
+    Monitor: validation loss, field extraction accuracy, TEDS score.
+    If stable, can try higher learning rate or larger batch size.
+  
+  # Track which hyperparameters you're varying
+  hyperparameters_under_test:
+    - "learning_rate"
+  
+  # Expected results (fill after running)
+  results:
+    final_eval_loss: null
+    field_extraction_accuracy: null
+    teds_score: null
+    training_time_hours: null
 

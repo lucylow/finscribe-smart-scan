@@ -201,6 +201,157 @@ async def _process_comparison(job_id: str, file_content: bytes, filename: str) -
         logger.error(f"Error in _process_comparison for job {job_id}: {str(e)}", exc_info=True)
         raise
 
+
+def process_compare_documents_job(
+    job_id: str, 
+    file_content_1: bytes, 
+    filename_1: str,
+    file_content_2: bytes,
+    filename_2: str
+):
+    """
+    Background worker that processes multi-document comparison jobs.
+    Uses PaddleOCR-VL + ERNIE-VL for multimodal document comparison.
+    """
+    # Validate inputs
+    if not job_id or job_id not in JOB_STATUS:
+        logger.error(f"Invalid job_id: {job_id}")
+        return
+    
+    if not file_content_1 or len(file_content_1) == 0:
+        error_msg = "File 1 content is empty"
+        logger.error(f"{error_msg} for job {job_id}")
+        _update_job_error(job_id, error_msg)
+        return
+    
+    if not file_content_2 or len(file_content_2) == 0:
+        error_msg = "File 2 content is empty"
+        logger.error(f"{error_msg} for job {job_id}")
+        _update_job_error(job_id, error_msg)
+        return
+    
+    loop = None
+    try:
+        # Run async processing in sync context
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        # Set a timeout for the entire processing (10 minutes for two documents)
+        timeout_seconds = 600
+        
+        try:
+            # Update to processing state
+            _update_job(job_id, "processing", 5, "staging")
+            
+            # Run with timeout
+            result = loop.run_until_complete(
+                asyncio.wait_for(
+                    _process_document_comparison(job_id, file_content_1, filename_1, file_content_2, filename_2),
+                    timeout=timeout_seconds
+                )
+            )
+            
+            # Validate result
+            if not result or not isinstance(result, dict):
+                raise ValueError("Processing returned invalid result")
+            
+            # Mark completed
+            JOB_STATUS[job_id]["status"] = "completed"
+            JOB_STATUS[job_id]["progress"] = 100
+            JOB_STATUS[job_id]["stage"] = "completed"
+            JOB_STATUS[job_id]["result"] = result
+            
+            logger.info(f"Job {job_id}: Document comparison completed successfully")
+            
+        except asyncio.TimeoutError:
+            error_msg = f"Processing timeout after {timeout_seconds} seconds"
+            logger.error(f"Job {job_id}: {error_msg}")
+            _update_job_error(job_id, error_msg)
+        except Exception as e:
+            error_msg = str(e)
+            logger.error(f"Job {job_id}: Processing failed - {error_msg}", exc_info=True)
+            _update_job_error(job_id, error_msg)
+        finally:
+            if loop:
+                try:
+                    # Cancel any remaining tasks
+                    pending = asyncio.all_tasks(loop)
+                    for task in pending:
+                        task.cancel()
+                    # Give tasks time to cancel
+                    if pending:
+                        loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+                except Exception as cleanup_error:
+                    logger.warning(f"Error during cleanup for job {job_id}: {str(cleanup_error)}")
+                finally:
+                    loop.close()
+        
+    except Exception as e:
+        error_msg = f"Critical error in worker: {str(e)}"
+        logger.error(f"Job {job_id}: {error_msg}", exc_info=True)
+        _update_job_error(job_id, error_msg)
+
+
+async def _process_document_comparison(
+    job_id: str, 
+    file_content_1: bytes, 
+    filename_1: str,
+    file_content_2: bytes,
+    filename_2: str
+) -> Dict[str, Any]:
+    """Process two documents through OCR and VLM comparison."""
+    try:
+        # Process first document with OCR
+        _update_job(job_id, "processing", 10, "ocr_document1")
+        ocr_result_1 = await processor.ocr_service.parse_document(file_content_1)
+        
+        # Process second document with OCR
+        _update_job(job_id, "processing", 30, "ocr_document2")
+        ocr_result_2 = await processor.ocr_service.parse_document(file_content_2)
+        
+        # Run VLM comparison
+        _update_job(job_id, "processing", 50, "vlm_comparison")
+        
+        try:
+            comparison_result = await processor.vlm_service.compare_documents(
+                ocr_result_1, file_content_1,
+                ocr_result_2, file_content_2,
+                comparison_type="invoice_quote"
+            )
+        except Exception as vlm_error:
+            logger.error(f"Error in VLM compare_documents for job {job_id}: {str(vlm_error)}", exc_info=True)
+            raise Exception(f"Document comparison failed: {str(vlm_error)}")
+        
+        # Validate result
+        if not comparison_result:
+            raise ValueError("Comparison returned None result")
+        
+        _update_job(job_id, "processing", 90, "postprocess")
+        
+        # Build result in expected format
+        return {
+            "document_id": job_id,
+            "status": comparison_result.get("status", "completed"),
+            "comparison": comparison_result,
+            "document1": {
+                "filename": filename_1,
+                "ocr_result": ocr_result_1
+            },
+            "document2": {
+                "filename": filename_2,
+                "ocr_result": ocr_result_2
+            },
+            "metadata": {
+                "model_version": comparison_result.get("model_version", "unknown"),
+                "model_family": comparison_result.get("model_family", "unknown"),
+                "latency_ms": comparison_result.get("latency_ms", 0),
+                "token_usage": comparison_result.get("token_usage", {})
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error in _process_document_comparison for job {job_id}: {str(e)}", exc_info=True)
+        raise
+
 def _update_job(job_id: str, status: str, progress: int, stage: str):
     """Update job status with progress tracking."""
     try:

@@ -12,6 +12,7 @@ import logging
 from .models.paddleocr_vl_service import PaddleOCRVLService
 from .models.ernie_vlm_service import ErnieVLMService
 from .validation.financial_validator import FinancialValidator
+from .post_processing import FinancialDocumentPostProcessor
 from ..config.settings import load_config
 
 logging.basicConfig(level=logging.INFO)
@@ -33,6 +34,13 @@ class FinancialDocumentProcessor:
         self.validator = FinancialValidator(
             tolerance=self.config.get("validation", {}).get("arithmetic_tolerance", 0.01)
         )
+        
+        # Initialize post-processing intelligence layer (Phase 3)
+        post_processing_config = self.config.get("post_processing", {})
+        self.post_processor = FinancialDocumentPostProcessor(
+            config=post_processing_config if post_processing_config else None
+        )
+        self.post_processing_enabled = self.config.get("post_processing", {}).get("enabled", True)
         
         # Storage paths
         storage_config = self.config.get("storage", {})
@@ -71,6 +79,7 @@ class FinancialDocumentProcessor:
         ocr_results = None
         enriched_data = None
         validation_results = None
+        post_processed_data = None
         
         try:
             # Step 1: Parse document layout with PaddleOCR-VL
@@ -89,6 +98,17 @@ class FinancialDocumentProcessor:
                 logger.error(f"OCR processing failed: {str(ocr_error)}", exc_info=True)
                 raise Exception(f"OCR processing failed: {str(ocr_error)}")
             
+            # Step 1.5: Apply post-processing intelligence (Phase 3) if enabled
+            if self.post_processing_enabled and ocr_results:
+                logger.info("Step 1.5: Applying post-processing intelligence layer...")
+                try:
+                    post_processed_data = self.post_processor.process_ocr_output(ocr_results)
+                    if post_processed_data.get("success"):
+                        logger.info("Post-processing completed successfully")
+                except Exception as pp_error:
+                    logger.warning(f"Post-processing failed (non-critical): {str(pp_error)}")
+                    # Continue with pipeline even if post-processing fails
+            
             # Step 2: Enrich with ERNIE VLM for semantic understanding
             logger.info("Step 2: Enriching with ERNIE VLM for semantic reasoning...")
             try:
@@ -105,6 +125,40 @@ class FinancialDocumentProcessor:
                 if "structured_data" not in enriched_data:
                     enriched_data["structured_data"] = {}
                     logger.warning("VLM results missing structured_data - using empty structure")
+                
+                # Merge post-processed data if available (post-processing can supplement VLM output)
+                if post_processed_data and post_processed_data.get("success"):
+                    post_structured = post_processed_data.get("data", {})
+                    if post_structured:
+                        # Merge vendor data (post-processing takes precedence if VLM didn't extract it)
+                        if post_structured.get("vendor") and not enriched_data["structured_data"].get("vendor_block"):
+                            enriched_data["structured_data"]["vendor_block"] = post_structured["vendor"]
+                        # Merge client data
+                        if post_structured.get("client"):
+                            if not enriched_data["structured_data"].get("client_info"):
+                                enriched_data["structured_data"]["client_info"] = post_structured["client"]
+                            else:
+                                # Merge client fields that might be missing
+                                client_info = enriched_data["structured_data"]["client_info"]
+                                post_client = post_structured["client"]
+                                if not client_info.get("invoice_number") and post_client.get("invoice_number"):
+                                    client_info["invoice_number"] = post_client["invoice_number"]
+                                if not client_info.get("dates") and post_client.get("dates"):
+                                    client_info["dates"] = post_client["dates"]
+                        # Merge line items (post-processing can supplement)
+                        if post_structured.get("line_items") and not enriched_data["structured_data"].get("line_items"):
+                            enriched_data["structured_data"]["line_items"] = post_structured["line_items"]
+                        # Merge financial summary
+                        if post_structured.get("financial_summary"):
+                            if not enriched_data["structured_data"].get("financial_summary"):
+                                enriched_data["structured_data"]["financial_summary"] = post_structured["financial_summary"]
+                            else:
+                                # Merge financial fields
+                                summary = enriched_data["structured_data"]["financial_summary"]
+                                post_summary = post_structured["financial_summary"]
+                                for key in ["subtotal", "grand_total", "currency", "payment_terms"]:
+                                    if not summary.get(key) and post_summary.get(key):
+                                        summary[key] = post_summary[key]
                 
             except Exception as vlm_error:
                 logger.error(f"VLM enrichment failed: {str(vlm_error)}", exc_info=True)
@@ -159,6 +213,7 @@ class FinancialDocumentProcessor:
                 "structured_output": enriched_data.get("structured_data", {}),
                 "validation": validation_results,
                 "raw_ocr_output": ocr_results or {},
+                "post_processed_data": post_processed_data if self.post_processing_enabled else None,
                 "metadata": {
                     "source_file": filename,
                     "processing_timestamp": start_time.isoformat(),
@@ -169,7 +224,8 @@ class FinancialDocumentProcessor:
                         "ernie_family": enriched_data.get("model_family", "unknown") if enriched_data else "unknown"
                     },
                     "model_type": model_type,
-                    "partial_results": ocr_results.get("status") == "partial" or enriched_data.get("status") == "partial" if enriched_data else False
+                    "partial_results": ocr_results.get("status") == "partial" or enriched_data.get("status") == "partial" if enriched_data else False,
+                    "post_processing_enabled": self.post_processing_enabled
                 },
                 "active_learning_ready": validation_results.get("needs_review", False) if validation_results else False
             }

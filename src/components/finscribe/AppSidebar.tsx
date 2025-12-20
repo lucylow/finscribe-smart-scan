@@ -28,6 +28,7 @@ interface AppSidebarProps {
 const navigationItems = [
   { id: 'upload', label: 'Upload & Analyze', icon: Upload, description: 'Process documents' },
   { id: 'compare', label: 'Compare Models', icon: GitCompare, description: 'Fine-tuned vs Baseline' },
+  { id: 'compare-documents', label: 'Compare Documents', icon: FileText, description: 'Quote vs Invoice' },
   { id: 'features', label: 'Features Demo', icon: Wrench, description: 'Interactive demos' },
   { id: 'metrics', label: 'Performance', icon: BarChart3, description: 'Analytics dashboard' },
   { id: 'api', label: 'API Playground', icon: Rocket, description: 'Test endpoints' },

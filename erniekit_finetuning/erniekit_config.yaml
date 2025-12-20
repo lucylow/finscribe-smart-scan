@@ -1,0 +1,54 @@
+# ERNIE Fine-Tuning Configuration
+# For use with ERNIEKit or HuggingFace PEFT
+
+# Model Configuration
+model:
+  model_name_or_path: "baidu/ERNIE-4.5-8B"  # Use smaller model for fine-tuning
+  # Alternative models:
+  # - "baidu/ERNIE-5" (if available)
+  # - "baidu/ERNIE-4.5-VL-28B-A3B-Thinking" (requires ~80GB GPU memory)
+
+# LoRA Configuration
+lora:
+  enabled: true
+  r: 16                    # LoRA rank (higher = more parameters, better quality)
+  lora_alpha: 32          # Scaling parameter (typically 2x rank)
+  target_modules:         # Modules to apply LoRA to
+    - "q_proj"
+    - "v_proj"
+    - "k_proj"
+    - "o_proj"
+  lora_dropout: 0.1       # Dropout for LoRA layers
+
+# Training Configuration
+training:
+  num_train_epochs: 3
+  per_device_train_batch_size: 2      # Adjust based on GPU memory
+  per_device_eval_batch_size: 2
+  gradient_accumulation_steps: 4       # Effective batch size = 2 * 4 = 8
+  learning_rate: 2.0e-4
+  warmup_steps: 100
+  logging_steps: 10
+  save_steps: 500
+  eval_steps: 500
+  save_total_limit: 3                 # Keep only last 3 checkpoints
+  val_split_ratio: 0.1                 # 10% for validation
+  fp16: true                           # Mixed precision training
+  bf16: false                          # Use bf16 if supported (A100, H100)
+  use_tensorboard: true
+
+# Dataset Configuration
+dataset:
+  path: "./ernie_finetune_data.jsonl"
+  max_samples: null                    # null = use all samples
+
+# Output Configuration
+output_dir: "./finetuned_ernie"
+run_name: "ernie-financial-finetune"
+
+# ERNIEKit-Specific (if using ERNIEKit)
+erniekit:
+  # These settings apply if using official ERNIEKit framework
+  use_erniekit: false                  # Set to true if using ERNIEKit
+  erniekit_config_path: null          # Path to ERNIEKit config file
+

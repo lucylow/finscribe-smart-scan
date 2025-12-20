@@ -21,6 +21,7 @@ import {
   X,
   FileJson,
   FileSpreadsheet,
+  FileText,
   Sparkles,
   ArrowRight,
   CheckCircle,
@@ -40,21 +41,26 @@ import DocumentUpload from '@/components/finscribe/DocumentUpload';
 import ProcessingStatus from '@/components/finscribe/ProcessingStatus';
 import ResultsDisplay from '@/components/finscribe/ResultsDisplay';
 import ComparisonView from '@/components/finscribe/ComparisonView';
+import MultiDocumentComparison from '@/components/finscribe/MultiDocumentComparison';
+import DualDocumentUpload from '@/components/finscribe/DualDocumentUpload';
 import ModelInfo from '@/components/finscribe/ModelInfo';
 import SemanticRegionVisualization from '@/components/finscribe/SemanticRegionVisualization';
 import PerformanceMetrics from '@/components/finscribe/PerformanceMetrics';
 import APIPlayground from '@/components/finscribe/APIPlayground';
 import AppSidebar from '@/components/finscribe/AppSidebar';
-import { analyzeDocument, compareWithBaseline, APIError, NetworkError, TimeoutError } from '@/services/api';
+import { analyzeDocument, compareWithBaseline, compareDocuments, APIError, NetworkError, TimeoutError } from '@/services/api';
 
 const FinScribe = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [file, setFile] = useState<File | null>(null);
+  const [file1, setFile1] = useState<File | null>(null);
+  const [file2, setFile2] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [processing, setProcessing] = useState(false);
   const [results, setResults] = useState<any>(null);
   const [comparisonResults, setComparisonResults] = useState<any>(null);
+  const [multiDocumentComparison, setMultiDocumentComparison] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -163,6 +169,63 @@ const FinScribe = () => {
       console.error('Comparison error:', err);
     } finally {
       setProcessing(false);
+    }
+  };
+
+  const handleCompareDocuments = async () => {
+    if (!file1 || !file2) {
+      setError('Please select both documents to compare');
+      return;
+    }
+
+    setProcessing(true);
+    setError(null);
+    
+    let progressInterval: NodeJS.Timeout | null = null;
+    
+    try {
+      progressInterval = setInterval(() => {
+        setUploadProgress(prev => {
+          if (prev >= 90) {
+            if (progressInterval) {
+              clearInterval(progressInterval);
+            }
+            return 90;
+          }
+          return prev + 10;
+        });
+      }, 200);
+
+      const response = await compareDocuments(file1, file2);
+      
+      if (progressInterval) {
+        clearInterval(progressInterval);
+      }
+      setUploadProgress(100);
+      
+      setMultiDocumentComparison(response);
+      navigate('/app/compare-documents');
+    } catch (err) {
+      if (progressInterval) {
+        clearInterval(progressInterval);
+      }
+      let errorMessage = 'An error occurred while comparing documents.';
+      
+      if (err instanceof APIError) {
+        errorMessage = err.message;
+      } else if (err instanceof NetworkError) {
+        errorMessage = 'Network error. Please check your internet connection and try again.';
+      } else if (err instanceof TimeoutError) {
+        errorMessage = 'Request timed out. The files may be too large or processing is taking longer than expected. Please try again.';
+      } else if (err instanceof Error) {
+        errorMessage = err.message;
+      }
+      
+      setError(errorMessage);
+      console.error('Document comparison error:', err);
+    } finally {
+      setProcessing(false);
+      setTimeout(() => setUploadProgress(0), 1000);
     }
   };
 
@@ -343,7 +406,7 @@ const FinScribe = () => {
     )
   );
 
-  // Component for Compare page
+  // Component for Compare page (model comparison)
   const ComparePage = () => (
     comparisonResults ? (
       <motion.div
@@ -361,6 +424,85 @@ const FinScribe = () => {
           Go to Upload
         </Button>
       </div>
+    )
+  );
+
+  // Component for Compare Documents page (multi-document comparison)
+  const CompareDocumentsPage = () => (
+    multiDocumentComparison ? (
+      <motion.div
+        key="compare-documents"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -20 }}
+      >
+        <MultiDocumentComparison data={multiDocumentComparison} />
+      </motion.div>
+    ) : (
+      <motion.div
+        key="compare-documents-upload"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -20 }}
+      >
+        <div className="text-center mb-8">
+          <h2 className="text-3xl md:text-4xl font-bold mb-3">
+            Compare <span className="text-gradient">Documents</span>
+          </h2>
+          <p className="text-muted-foreground max-w-lg mx-auto">
+            Upload two related documents (e.g., Quote & Invoice) to analyze differences using multimodal AI reasoning
+          </p>
+        </div>
+
+        <div className="max-w-4xl mx-auto space-y-6">
+          <DualDocumentUpload
+            onFile1Select={setFile1}
+            onFile2Select={setFile2}
+            file1={file1}
+            file2={file2}
+          />
+          
+          <AnimatePresence>
+            {(file1 || file2) && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+              >
+                <ProcessingStatus progress={uploadProgress} processing={processing} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <div className="flex flex-wrap gap-3 justify-center pt-4">
+            <Button
+              size="lg"
+              onClick={handleCompareDocuments}
+              disabled={!file1 || !file2 || processing}
+              className="shadow-btn min-w-[200px] group"
+            >
+              {processing ? (
+                <>
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                    className="mr-2"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                  </motion.div>
+                  Comparing...
+                </>
+              ) : (
+                <>
+                  <GitCompare className="w-4 h-4 mr-2" />
+                  Compare Documents
+                  <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      </motion.div>
     )
   );
 
@@ -468,6 +610,7 @@ const FinScribe = () => {
                     {[
                       { path: 'upload', label: 'Upload & Analyze', icon: CloudUpload },
                       { path: 'compare', label: 'Compare Models', icon: GitCompare },
+                      { path: 'compare-documents', label: 'Compare Documents', icon: FileText },
                       { path: 'features', label: 'Features Demo', icon: Sparkles },
                       { path: 'metrics', label: 'Performance', icon: CheckCircle },
                       { path: 'api', label: 'API Playground', icon: Zap }
@@ -576,6 +719,7 @@ const FinScribe = () => {
               <Route path="upload" element={<UploadPage />} />
               <Route path="results" element={<ResultsPage />} />
               <Route path="compare" element={<ComparePage />} />
+              <Route path="compare-documents" element={<CompareDocumentsPage />} />
               <Route path="features" element={<FeaturesPage />} />
               <Route path="metrics" element={<MetricsPage />} />
               <Route path="api" element={<APIPage />} />

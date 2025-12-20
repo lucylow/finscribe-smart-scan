@@ -1,0 +1,148 @@
+# Example Experiments Configuration for Hyperparameter Tuning
+# This file defines multiple experiments to run for A/B testing
+#
+# Usage:
+#   python run_experiments.py --baseline-config finetune_config.yaml --experiments experiments_example.yaml
+#
+# To run a single experiment:
+#   python run_experiments.py --baseline-config finetune_config.yaml --experiments experiments_example.yaml --name lr_1e5
+
+experiments:
+  # ============================================================================
+  # Experiment 1: Learning Rate Sweep
+  # ============================================================================
+  # Testing different learning rates to find optimal value
+  # Hypothesis: Lower LR = more stable but slower, Higher LR = faster but may be unstable
+  
+  - name: "lr_1e5"
+    description: "Learning rate = 1e-5 (lower end of recommended range)"
+    test_params:
+      - "learning_rate"
+    overrides:
+      training.learning_rate: 1.0e-5
+    expected_behavior: "Slower convergence but potentially more stable"
+  
+  - name: "lr_2e5"
+    description: "Learning rate = 2e-5 (baseline, middle of range)"
+    test_params:
+      - "learning_rate"
+    overrides:
+      training.learning_rate: 2.0e-5
+    expected_behavior: "Baseline - balanced approach"
+  
+  - name: "lr_5e5"
+    description: "Learning rate = 5e-5 (upper end of recommended range)"
+    test_params:
+      - "learning_rate"
+    overrides:
+      training.learning_rate: 5.0e-5
+    expected_behavior: "Faster convergence but watch for instability"
+  
+  # ============================================================================
+  # Experiment 2: Batch Size with Proportional LR Adjustment
+  # ============================================================================
+  # Testing different batch sizes, adjusting LR proportionally
+  # IMPORTANT: LR must be adjusted proportionally with batch size!
+  
+  - name: "batch4_lr1e5"
+    description: "Batch size = 4, LR = 1e-5 (halved LR for halved batch)"
+    test_params:
+      - "per_device_train_batch_size"
+      - "learning_rate"
+    overrides:
+      training.per_device_train_batch_size: 4
+      training.gradient_accumulation_steps: 4  # Keep effective batch = 16
+      training.learning_rate: 1.0e-5  # HALVED from 2e-5
+    expected_behavior: "Lower memory usage, smaller gradients"
+  
+  - name: "batch16_lr4e5"
+    description: "Batch size = 16, LR = 4e-5 (doubled LR for doubled batch)"
+    test_params:
+      - "per_device_train_batch_size"
+      - "learning_rate"
+    overrides:
+      training.per_device_train_batch_size: 16
+      training.gradient_accumulation_steps: 1  # No accumulation needed
+      training.learning_rate: 4.0e-5  # DOUBLED from 2e-5
+    expected_behavior: "Higher memory usage, more stable gradients (if GPU allows)"
+    notes: "Requires GPU with sufficient VRAM (>24GB recommended)"
+  
+  # ============================================================================
+  # Experiment 3: Warmup Ratio
+  # ============================================================================
+  # Testing different warmup schedules
+  # Usually less critical than LR/batch size, but worth testing if time permits
+  
+  - name: "warmup_005"
+    description: "Warmup ratio = 0.05 (5% of steps, shorter warmup)"
+    test_params:
+      - "warmup_ratio"
+    overrides:
+      training.warmup_ratio: 0.05
+    expected_behavior: "Faster start to full LR, may be less stable initially"
+  
+  - name: "warmup_015"
+    description: "Warmup ratio = 0.15 (15% of steps, longer warmup)"
+    test_params:
+      - "warmup_ratio"
+    overrides:
+      training.warmup_ratio: 0.15
+    expected_behavior: "More gradual LR increase, potentially more stable"
+  
+  # ============================================================================
+  # Experiment 4: Weight Decay
+  # ============================================================================
+  # Testing different regularization strengths
+  # Useful if you observe overfitting (large gap between train/val loss)
+  
+  - name: "weight_decay_005"
+    description: "Weight decay = 0.05 (higher regularization)"
+    test_params:
+      - "weight_decay"
+    overrides:
+      training.weight_decay: 0.05
+    expected_behavior: "More regularization, may help with generalization"
+  
+  - name: "weight_decay_01"
+    description: "Weight decay = 0.1 (even higher regularization)"
+    test_params:
+      - "weight_decay"
+    overrides:
+      training.weight_decay: 0.1
+    expected_behavior: "Strong regularization, may prevent overfitting but risk underfitting"
+  
+  # ============================================================================
+  # Experiment 5: Combined Optimal Configuration
+  # ============================================================================
+  # After finding optimal individual parameters, test them together
+  # This should only be run AFTER completing individual parameter sweeps
+  
+  # Uncomment and adjust values based on your Experiment 1-4 results:
+  # - name: "optimal_combined"
+  #   description: "Combined optimal hyperparameters from previous experiments"
+  #   test_params:
+  #     - "learning_rate"
+  #     - "per_device_train_batch_size"
+  #     - "warmup_ratio"
+  #     - "weight_decay"
+  #   overrides:
+  #     training.learning_rate: 3.0e-5  # Adjust based on Experiment 1 results
+  #     training.per_device_train_batch_size: 8  # Adjust based on Experiment 2
+  #     training.warmup_ratio: 0.1  # Adjust based on Experiment 3
+  #     training.weight_decay: 0.01  # Adjust based on Experiment 4
+  #   expected_behavior: "Should perform best overall"
+
+# ============================================================================
+# Notes on Experiment Order
+# ============================================================================
+# Recommended execution order:
+#   1. Run all learning rate experiments (lr_1e5, lr_2e5, lr_5e5)
+#   2. Run batch size experiments (batch4_lr1e5, batch16_lr4e5)
+#   3. If time permits, run warmup and weight decay experiments
+#   4. Finally, run optimal_combined with best individual parameters
+#
+# Each experiment typically takes 4-6 hours on a single GPU
+# Total time for all experiments: ~30-40 hours
+#
+# Consider running experiments in parallel on multiple GPUs if available!
+
