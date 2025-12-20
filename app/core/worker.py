@@ -1,6 +1,10 @@
+import asyncio
 import time
 import os
 from typing import Dict, Any
+
+from .document_processor import FinancialDocumentProcessor
+from ..config.settings import load_config
 
 # In-memory job store (would be Redis/DB in production)
 JOB_STATUS: Dict[str, Dict[str, Any]] = {}
@@ -8,52 +12,40 @@ JOB_STATUS: Dict[str, Dict[str, Any]] = {}
 # Model mode from environment
 MODEL_MODE = os.getenv("MODEL_MODE", "mock")
 
+# Initialize processor
+config = load_config()
+processor = FinancialDocumentProcessor(config)
+
+
 def process_job(job_id: str, file_content: bytes, filename: str, job_type: str):
     """
     Background worker that processes document analysis jobs.
-    Implements the job state machine: received → staging → preprocess → ocr → parse → postprocess → completed
+    Uses the new PaddleOCR-VL + ERNIE 4.5 pipeline.
     """
     try:
-        # Update to processing state
-        _update_job(job_id, "processing", 5, "staging")
+        # Run async processing in sync context
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
         
-        # Step 1: Staging - save file temporarily
-        time.sleep(0.3)
-        _update_job(job_id, "processing", 15, "preprocess")
-        
-        # Step 2: Preprocessing
-        time.sleep(0.3)
-        _update_job(job_id, "processing", 30, "ocr")
-        
-        # Step 3: OCR Processing
-        time.sleep(0.5)
-        ocr_result = _run_ocr(file_content, filename)
-        _update_job(job_id, "processing", 55, "parse")
-        
-        # Step 4: Semantic Parsing (VLM)
-        time.sleep(0.4)
-        parsed_data = _run_vlm_parse(ocr_result)
-        _update_job(job_id, "processing", 80, "postprocess")
-        
-        # Step 5: Postprocessing & Validation
-        time.sleep(0.3)
-        validated_result = _validate_result(parsed_data)
-        _update_job(job_id, "processing", 95, "finalizing")
-        
-        # Build final result
-        if job_type == "compare":
-            result = _build_comparison_result(job_id, validated_result, ocr_result)
-        else:
-            result = _build_analysis_result(job_id, validated_result, ocr_result)
-        
-        # Mark completed
-        time.sleep(0.2)
-        JOB_STATUS[job_id]["status"] = "completed"
-        JOB_STATUS[job_id]["progress"] = 100
-        JOB_STATUS[job_id]["stage"] = "completed"
-        JOB_STATUS[job_id]["result"] = result
-        
-        print(f"Job {job_id}: Completed successfully")
+        try:
+            # Update to processing state
+            _update_job(job_id, "processing", 5, "staging")
+            
+            if job_type == "compare":
+                result = loop.run_until_complete(_process_comparison(job_id, file_content, filename))
+            else:
+                result = loop.run_until_complete(_process_analysis(job_id, file_content, filename))
+            
+            # Mark completed
+            JOB_STATUS[job_id]["status"] = "completed"
+            JOB_STATUS[job_id]["progress"] = 100
+            JOB_STATUS[job_id]["stage"] = "completed"
+            JOB_STATUS[job_id]["result"] = result
+            
+            print(f"Job {job_id}: Completed successfully")
+            
+        finally:
+            loop.close()
         
     except Exception as e:
         # Mark failed
@@ -61,6 +53,47 @@ def process_job(job_id: str, file_content: bytes, filename: str, job_type: str):
         JOB_STATUS[job_id]["error"] = str(e)
         JOB_STATUS[job_id]["stage"] = "failed"
         print(f"Job {job_id}: Failed - {e}")
+
+
+async def _process_analysis(job_id: str, file_content: bytes, filename: str) -> Dict[str, Any]:
+    """Process document through the AI pipeline."""
+    _update_job(job_id, "processing", 15, "ocr")
+    
+    # Run the full pipeline
+    _update_job(job_id, "processing", 30, "ocr")
+    result = await processor.process_document(file_content, filename, model_type="fine_tuned")
+    
+    _update_job(job_id, "processing", 70, "parse")
+    await asyncio.sleep(0.1)  # Small delay for UI feedback
+    
+    _update_job(job_id, "processing", 90, "postprocess")
+    
+    # Build result in expected format
+    return {
+        "document_id": result.get("document_id", job_id),
+        "status": result.get("status", "completed"),
+        "data": result.get("structured_output", {}),
+        "extracted_data": result.get("extracted_data", []),
+        "validation": result.get("validation", {"is_valid": True}),
+        "raw_ocr_output": result.get("raw_ocr_output", {}),
+        "metadata": result.get("metadata", {}),
+        "active_learning_ready": result.get("active_learning_ready", False)
+    }
+
+
+async def _process_comparison(job_id: str, file_content: bytes, filename: str) -> Dict[str, Any]:
+    """Process document with both models for comparison."""
+    _update_job(job_id, "processing", 15, "ocr_fine_tuned")
+    
+    # Run comparison
+    result = await processor.compare_models(file_content, filename)
+    
+    _update_job(job_id, "processing", 70, "ocr_baseline")
+    await asyncio.sleep(0.1)
+    
+    _update_job(job_id, "processing", 90, "comparison")
+    
+    return result
 
 def _update_job(job_id: str, status: str, progress: int, stage: str):
     """Update job status with progress tracking."""
