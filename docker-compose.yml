@@ -10,24 +10,59 @@ services:
     environment:
       - MODEL_MODE=mock
       - MAX_UPLOAD_MB=50
-      - REDIS_URL=redis://redis:6379
+      - REDIS_URL=redis://redis:6379/0
       - DATABASE_URL=postgresql://finscribe:finscribe@postgres:5432/finscribe
       - MINIO_ENDPOINT=minio:9000
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin
+      - STORAGE_BUCKET=finscribe
     volumes:
       - ./active_learning.jsonl:/app/active_learning.jsonl
       - upload_staging:/tmp/finscribe_uploads
+      - ./logs:/app/logs
     depends_on:
       redis:
         condition: service_healthy
       postgres:
+        condition: service_healthy
+      minio:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
       interval: 10s
       timeout: 5s
       retries: 5
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A app.core.celery_app worker --loglevel=info --queues=cpu,gpu
+    environment:
+      - MODEL_MODE=mock
+      - MAX_UPLOAD_MB=50
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql://finscribe:finscribe@postgres:5432/finscribe
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - STORAGE_BUCKET=finscribe
+    volumes:
+      - ./active_learning.jsonl:/app/active_learning.jsonl
+      - upload_staging:/tmp/finscribe_uploads
+      - ./logs:/app/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "celery", "-A", "app.core.celery_app", "inspect", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   redis:
     image: redis:7-alpine
@@ -74,8 +109,36 @@ services:
     volumes:
       - minio_data:/data
 
+  # Optional: Prometheus for metrics
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    profiles:
+      - monitoring
+
+  # Optional: Grafana for dashboards
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+    profiles:
+      - monitoring
+
 volumes:
   redis_data:
   postgres_data:
   minio_data:
   upload_staging:
+  prometheus_data:
+  grafana_data:
