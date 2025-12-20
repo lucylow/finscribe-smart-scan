@@ -255,21 +255,43 @@ Return a JSON object with this exact structure:
                                     try:
                                         parsed = json.loads(content)
                                         parsed["status"] = "success"
-                                        parsed["model_version"] = "ERNIE-4.5-VL-28B-A3B-Thinking"
+                                        parsed["model_version"] = self.model_name
+                                        parsed["model_family"] = self.model_version
                                         parsed["latency_ms"] = latency_ms
                                         parsed["token_usage"] = {
                                             "input": usage.get("prompt_tokens", 0),
-                                            "output": usage.get("completion_tokens", 0)
+                                            "output": usage.get("completion_tokens", 0),
+                                            "total": usage.get("total_tokens", 0)
                                         }
                                         return parsed
                                     except json.JSONDecodeError as e:
                                         logger.warning(f"Failed to parse ERNIE response as JSON: {str(e)}")
-                                        # Return partial result
+                                        # Try to extract JSON from markdown code blocks if present
+                                        import re
+                                        json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', content, re.DOTALL)
+                                        if json_match:
+                                            try:
+                                                parsed = json.loads(json_match.group(1))
+                                                parsed["status"] = "success"
+                                                parsed["model_version"] = self.model_name
+                                                parsed["model_family"] = self.model_version
+                                                parsed["latency_ms"] = latency_ms
+                                                parsed["token_usage"] = {
+                                                    "input": usage.get("prompt_tokens", 0),
+                                                    "output": usage.get("completion_tokens", 0),
+                                                    "total": usage.get("total_tokens", 0)
+                                                }
+                                                return parsed
+                                            except json.JSONDecodeError:
+                                                pass
+                                        
+                                        # Return partial result if JSON extraction fails
                                         return {
                                             "status": "partial",
                                             "raw_output": content,
                                             "latency_ms": latency_ms,
-                                            "model_version": "ERNIE-4.5-VL-28B-A3B-Thinking",
+                                            "model_version": self.model_name,
+                                            "model_family": self.model_version,
                                             "warning": "Response could not be parsed as JSON"
                                         }
                                 except (KeyError, IndexError) as e:

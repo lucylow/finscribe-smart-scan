@@ -1,39 +1,127 @@
 # FinScribe AI — Intelligent Financial Document Parser
 
+<div align="center">
 
-> End-to-end production design and developer guide for a financial-document intelligence stack built on a fine-tuned **PaddleOCR-VL** VLM, supervised fine-tuning (SFT) + LoRA adapters, deterministic business validation, and a production-ready backend/inference pipeline.
+> **Production-ready AI system for extracting structured data from financial documents using fine-tuned Vision-Language Models**
+
+[![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green.svg)](https://fastapi.tiangolo.com/)
+[![React](https://img.shields.io/badge/React-18.3+-61dafb.svg)](https://reactjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.8+-3178c6.svg)](https://www.typescriptlang.org/)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+**Convert invoices, receipts, and financial statements into validated, structured JSON with 94%+ field extraction accuracy**
+
+[Features](#key-capabilities) • [Quick Start](#-quick-start) • [Documentation](#-documentation) • [API Reference](#-api--contract) • [Contributing](#-contributing)
+
+</div>
 
 ---
 
-## Table of contents
+## 🚀 Quick Start
 
-1. [Executive summary](#executive-summary)
-2. [Key capabilities](#key-capabilities)
-3. [System overview — diagrams (4)](#system-overview----diagrams-4)
+### Prerequisites
 
-   * High-level end-to-end flow (flowchart)
-   * Model & training pipeline (flowchart)
-   * Inference / request sequence (sequence diagram)
-   * Deployment & scaling architecture (flowchart)
-4. [Technical implementation (detailed)](#technical-implementation-detailed)
+- **Docker & Docker Compose** (recommended)
+- **Python 3.11+** (for local development)
+- **Node.js 18+** (for frontend development)
+- **PostgreSQL 15+** (or use Docker Compose)
+- **Redis** (or use Docker Compose)
 
-   * Ingestion & ETL adapters
-   * Preprocessing & page-level pipeline
-   * OCR & VLM orchestration (model client abstraction)
-   * Semantic parser & table recovery
-   * Business validator and active-learning hook
-   * Storage, schema & lineage (DB + object store)
-   * Background workers, idempotency & retries
-5. [API & contract (OpenAPI / Pydantic examples)](#api--contract-openapi--pydantic-examples)
-6. [Training, SFT & LoRA details](#training-sft--lora-details)
-7. [Operationalization & deployment](#operationalization--deployment)
+### Quick Installation with Docker
 
-   * Docker / docker-compose example
-   * Monitoring & alerts
-   * Security / privacy controls
-8. [Performance & evaluation metrics](#performance--evaluation-metrics)
-9. [Project layout & useful scripts](#project-layout--useful-scripts)
-10. [Appendix: configs / snippets / schemas](#appendix-configs--snippets--schemas)
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/finscribe-smart-scan.git
+cd finscribe-smart-scan
+
+# Start all services
+docker-compose up --build
+
+# Access the application
+# Frontend: http://localhost:5173
+# Backend API: http://localhost:8000
+# API Docs: http://localhost:8000/docs
+# MinIO Console: http://localhost:9001 (minioadmin/minioadmin)
+```
+
+### Local Development Setup
+
+#### Backend Setup
+
+```bash
+# Create virtual environment
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Set up environment variables
+cp .env.example .env  # Edit .env with your configuration
+
+# Run database migrations
+alembic upgrade head
+
+# Start backend server
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+#### Frontend Setup
+
+```bash
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+
+# Build for production
+npm run build
+```
+
+### Verify Installation
+
+```bash
+# Check backend health
+curl http://localhost:8000/api/v1/health
+
+# Expected response: {"status": "ok", "message": "FinScribe AI Backend is running."}
+```
+
+---
+
+## 📋 Table of Contents
+
+1. [Executive Summary](#-executive-summary)
+2. [Key Capabilities](#-key-capabilities)
+3. [Tech Stack](#-tech-stack)
+4. [System Overview & Architecture](#-system-overview--architecture)
+   - [High-level End-to-end Flow](#1-high-level-end-to-end-flow)
+   - [Model & Training Pipeline](#2-model--training-pipeline)
+   - [Inference & Request Sequence](#3-inference--validation-sequence)
+   - [Deployment Architecture](#4-deployment--scaling-architecture)
+5. [Technical Implementation](#-technical-implementation)
+6. [API Reference](#-api--contract)
+7. [Training & Fine-tuning](#-training-sft--lora-details)
+8. [Deployment Guide](#-operationalization--deployment)
+9. [Performance Metrics](#-performance--evaluation-metrics)
+10. [Project Structure](#-project-structure)
+11. [Contributing](#-contributing)
+
+---
+
+## 📖 Executive Summary
+
+**FinScribe AI** is an end-to-end production system that converts raw financial documents (invoices, receipts, statements) into **validated, structured JSON** ready for ERP and accounting workflows. 
+
+**Core Innovation:**
+- Fine-tuned **PaddleOCR-VL** Vision-Language Model for layout-aware semantic extraction
+- Supervised Fine-Tuning (SFT) with LoRA adapters for efficient model adaptation
+- Deterministic business validation with arithmetic and logic checks
+- Active learning loop for continuous accuracy improvement
+
+**Performance:** Achieves **94.2% field extraction accuracy** and **91.7% table structure accuracy (TEDS)** on financial documents.
 
 ---
 
