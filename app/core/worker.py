@@ -1,10 +1,13 @@
 import asyncio
 import time
 import os
+import logging
 from typing import Dict, Any
 
 from .document_processor import FinancialDocumentProcessor
 from ..config.settings import load_config
+
+logger = logging.getLogger(__name__)
 
 # In-memory job store (would be Redis/DB in production)
 JOB_STATUS: Dict[str, Dict[str, Any]] = {}
@@ -13,8 +16,12 @@ JOB_STATUS: Dict[str, Dict[str, Any]] = {}
 MODEL_MODE = os.getenv("MODEL_MODE", "mock")
 
 # Initialize processor
-config = load_config()
-processor = FinancialDocumentProcessor(config)
+try:
+    config = load_config()
+    processor = FinancialDocumentProcessor(config)
+except Exception as e:
+    logger.error(f"Failed to initialize processor: {str(e)}", exc_info=True)
+    raise
 
 
 def process_job(job_id: str, file_content: bytes, filename: str, job_type: str):
@@ -22,19 +29,55 @@ def process_job(job_id: str, file_content: bytes, filename: str, job_type: str):
     Background worker that processes document analysis jobs.
     Uses the new PaddleOCR-VL + ERNIE 4.5 pipeline.
     """
+    # Validate inputs
+    if not job_id or job_id not in JOB_STATUS:
+        logger.error(f"Invalid job_id: {job_id}")
+        return
+    
+    if not file_content or len(file_content) == 0:
+        error_msg = "File content is empty"
+        logger.error(f"{error_msg} for job {job_id}")
+        _update_job_error(job_id, error_msg)
+        return
+    
+    if job_type not in ["analyze", "compare"]:
+        error_msg = f"Invalid job_type: {job_type}"
+        logger.error(f"{error_msg} for job {job_id}")
+        _update_job_error(job_id, error_msg)
+        return
+    
+    loop = None
     try:
         # Run async processing in sync context
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         
+        # Set a timeout for the entire processing (5 minutes)
+        timeout_seconds = 300
+        
         try:
             # Update to processing state
             _update_job(job_id, "processing", 5, "staging")
             
+            # Run with timeout
             if job_type == "compare":
-                result = loop.run_until_complete(_process_comparison(job_id, file_content, filename))
+                result = loop.run_until_complete(
+                    asyncio.wait_for(
+                        _process_comparison(job_id, file_content, filename),
+                        timeout=timeout_seconds
+                    )
+                )
             else:
-                result = loop.run_until_complete(_process_analysis(job_id, file_content, filename))
+                result = loop.run_until_complete(
+                    asyncio.wait_for(
+                        _process_analysis(job_id, file_content, filename),
+                        timeout=timeout_seconds
+                    )
+                )
+            
+            # Validate result
+            if not result or not isinstance(result, dict):
+                raise ValueError("Processing returned invalid result")
             
             # Mark completed
             JOB_STATUS[job_id]["status"] = "completed"
@@ -42,66 +85,135 @@ def process_job(job_id: str, file_content: bytes, filename: str, job_type: str):
             JOB_STATUS[job_id]["stage"] = "completed"
             JOB_STATUS[job_id]["result"] = result
             
-            print(f"Job {job_id}: Completed successfully")
+            logger.info(f"Job {job_id}: Completed successfully")
             
+        except asyncio.TimeoutError:
+            error_msg = f"Processing timeout after {timeout_seconds} seconds"
+            logger.error(f"Job {job_id}: {error_msg}")
+            _update_job_error(job_id, error_msg)
+        except Exception as e:
+            error_msg = str(e)
+            logger.error(f"Job {job_id}: Processing failed - {error_msg}", exc_info=True)
+            _update_job_error(job_id, error_msg)
         finally:
-            loop.close()
+            if loop:
+                try:
+                    # Cancel any remaining tasks
+                    pending = asyncio.all_tasks(loop)
+                    for task in pending:
+                        task.cancel()
+                    # Give tasks time to cancel
+                    if pending:
+                        loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+                except Exception as cleanup_error:
+                    logger.warning(f"Error during cleanup for job {job_id}: {str(cleanup_error)}")
+                finally:
+                    loop.close()
         
     except Exception as e:
-        # Mark failed
-        JOB_STATUS[job_id]["status"] = "failed"
-        JOB_STATUS[job_id]["error"] = str(e)
-        JOB_STATUS[job_id]["stage"] = "failed"
-        print(f"Job {job_id}: Failed - {e}")
+        error_msg = f"Critical error in worker: {str(e)}"
+        logger.error(f"Job {job_id}: {error_msg}", exc_info=True)
+        _update_job_error(job_id, error_msg)
 
 
 async def _process_analysis(job_id: str, file_content: bytes, filename: str) -> Dict[str, Any]:
     """Process document through the AI pipeline."""
-    _update_job(job_id, "processing", 15, "ocr")
-    
-    # Run the full pipeline
-    _update_job(job_id, "processing", 30, "ocr")
-    result = await processor.process_document(file_content, filename, model_type="fine_tuned")
-    
-    _update_job(job_id, "processing", 70, "parse")
-    await asyncio.sleep(0.1)  # Small delay for UI feedback
-    
-    _update_job(job_id, "processing", 90, "postprocess")
-    
-    # Build result in expected format
-    return {
-        "document_id": result.get("document_id", job_id),
-        "status": result.get("status", "completed"),
-        "data": result.get("structured_output", {}),
-        "extracted_data": result.get("extracted_data", []),
-        "validation": result.get("validation", {"is_valid": True}),
-        "raw_ocr_output": result.get("raw_ocr_output", {}),
-        "metadata": result.get("metadata", {}),
-        "active_learning_ready": result.get("active_learning_ready", False)
-    }
+    try:
+        _update_job(job_id, "processing", 15, "ocr")
+        
+        # Run the full pipeline
+        _update_job(job_id, "processing", 30, "ocr")
+        
+        try:
+            result = await processor.process_document(file_content, filename, model_type="fine_tuned")
+        except Exception as proc_error:
+            logger.error(f"Error in processor.process_document for job {job_id}: {str(proc_error)}", exc_info=True)
+            raise Exception(f"Document processing failed: {str(proc_error)}")
+        
+        # Validate result
+        if not result:
+            raise ValueError("Processor returned None result")
+        
+        if not result.get("success", False):
+            error_msg = result.get("error", "Unknown processing error")
+            raise Exception(f"Processing failed: {error_msg}")
+        
+        _update_job(job_id, "processing", 70, "parse")
+        await asyncio.sleep(0.1)  # Small delay for UI feedback
+        
+        _update_job(job_id, "processing", 90, "postprocess")
+        
+        # Build result in expected format
+        try:
+            return {
+                "document_id": result.get("document_id", job_id),
+                "status": result.get("status", "completed"),
+                "data": result.get("structured_output", {}),
+                "extracted_data": result.get("extracted_data", []),
+                "validation": result.get("validation", {"is_valid": True}),
+                "raw_ocr_output": result.get("raw_ocr_output", {}),
+                "metadata": result.get("metadata", {}),
+                "active_learning_ready": result.get("active_learning_ready", False)
+            }
+        except Exception as build_error:
+            logger.error(f"Error building result for job {job_id}: {str(build_error)}", exc_info=True)
+            raise Exception(f"Failed to build result: {str(build_error)}")
+    except Exception as e:
+        logger.error(f"Error in _process_analysis for job {job_id}: {str(e)}", exc_info=True)
+        raise
 
 
 async def _process_comparison(job_id: str, file_content: bytes, filename: str) -> Dict[str, Any]:
     """Process document with both models for comparison."""
-    _update_job(job_id, "processing", 15, "ocr_fine_tuned")
-    
-    # Run comparison
-    result = await processor.compare_models(file_content, filename)
-    
-    _update_job(job_id, "processing", 70, "ocr_baseline")
-    await asyncio.sleep(0.1)
-    
-    _update_job(job_id, "processing", 90, "comparison")
-    
-    return result
+    try:
+        _update_job(job_id, "processing", 15, "ocr_fine_tuned")
+        
+        # Run comparison
+        try:
+            result = await processor.compare_models(file_content, filename)
+        except Exception as comp_error:
+            logger.error(f"Error in processor.compare_models for job {job_id}: {str(comp_error)}", exc_info=True)
+            raise Exception(f"Model comparison failed: {str(comp_error)}")
+        
+        # Validate result
+        if not result:
+            raise ValueError("Comparison returned None result")
+        
+        _update_job(job_id, "processing", 70, "ocr_baseline")
+        await asyncio.sleep(0.1)
+        
+        _update_job(job_id, "processing", 90, "comparison")
+        
+        return result
+    except Exception as e:
+        logger.error(f"Error in _process_comparison for job {job_id}: {str(e)}", exc_info=True)
+        raise
 
 def _update_job(job_id: str, status: str, progress: int, stage: str):
     """Update job status with progress tracking."""
-    if job_id in JOB_STATUS:
-        JOB_STATUS[job_id]["status"] = status
-        JOB_STATUS[job_id]["progress"] = progress
-        JOB_STATUS[job_id]["stage"] = stage
-        print(f"Job {job_id}: {stage} ({progress}%)")
+    try:
+        if job_id in JOB_STATUS:
+            JOB_STATUS[job_id]["status"] = status
+            JOB_STATUS[job_id]["progress"] = progress
+            JOB_STATUS[job_id]["stage"] = stage
+            logger.debug(f"Job {job_id}: {stage} ({progress}%)")
+        else:
+            logger.warning(f"Attempted to update non-existent job: {job_id}")
+    except Exception as e:
+        logger.error(f"Error updating job status for {job_id}: {str(e)}", exc_info=True)
+
+def _update_job_error(job_id: str, error: str):
+    """Update job status with error information."""
+    try:
+        if job_id in JOB_STATUS:
+            JOB_STATUS[job_id]["status"] = "failed"
+            JOB_STATUS[job_id]["error"] = error
+            JOB_STATUS[job_id]["stage"] = "failed"
+            logger.error(f"Job {job_id}: Failed - {error}")
+        else:
+            logger.warning(f"Attempted to update error for non-existent job: {job_id}")
+    except Exception as e:
+        logger.error(f"Error updating job error for {job_id}: {str(e)}", exc_info=True)
 
 def _run_ocr(file_content: bytes, filename: str) -> Dict[str, Any]:
     """Run OCR on document - mock or real based on MODEL_MODE."""

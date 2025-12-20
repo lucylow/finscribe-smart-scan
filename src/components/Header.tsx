@@ -2,11 +2,14 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Sparkles, Menu, X, Zap } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
+import { NavLink } from "@/components/NavLink";
 
 const Header = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const location = useLocation();
+  const isAppPage = location.pathname.startsWith('/app');
 
   useEffect(() => {
     const handleScroll = () => {
@@ -16,7 +19,8 @@ const Header = () => {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  const navLinks = [
+  // Only show landing page navigation when on home page
+  const navLinks = isAppPage ? [] : [
     { href: "#home", label: "Home" },
     { href: "#demo", label: "How It Works" },
     { href: "#features", label: "Features" },
@@ -72,21 +76,40 @@ const Header = () => {
                 <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-0.5 bg-primary transition-all duration-300 group-hover:w-3/4 rounded-full" />
               </motion.a>
             ))}
+            {isAppPage && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="ml-4"
+              >
+                <NavLink
+                  to="/"
+                  className="relative px-4 py-2 font-medium text-foreground/70 hover:text-foreground transition-colors"
+                  activeClassName="text-foreground"
+                >
+                  Back to Home
+                </NavLink>
+              </motion.div>
+            )}
             <motion.div
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.5 }}
+              transition={{ delay: isAppPage ? 0 : 0.5 }}
               className="ml-4"
             >
-              <Button asChild size="sm" variant="outline" className="mr-2">
-                <Link to="/auth">Login</Link>
-              </Button>
-              <Button asChild size="sm" className="shadow-btn group">
-                <Link to="/app">
-                  <Zap className="w-4 h-4 mr-1 group-hover:animate-pulse" />
-                  Try Free
-                </Link>
-              </Button>
+              {!isAppPage && (
+                <>
+                  <Button asChild size="sm" variant="outline" className="mr-2">
+                    <Link to="/auth">Login</Link>
+                  </Button>
+                  <Button asChild size="sm" className="shadow-btn group">
+                    <Link to="/app/upload">
+                      <Zap className="w-4 h-4 mr-1 group-hover:animate-pulse" />
+                      Try Free
+                    </Link>
+                  </Button>
+                </>
+              )}
             </motion.div>
           </nav>
 
@@ -142,15 +165,28 @@ const Header = () => {
                   {link.label}
                 </motion.a>
               ))}
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-              >
-                <Button asChild className="w-full mt-2">
-                  <Link to="/app">Start Free Trial</Link>
-                </Button>
-              </motion.div>
+              {!isAppPage && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                >
+                  <Button asChild className="w-full mt-2">
+                    <Link to="/app/upload">Start Free Trial</Link>
+                  </Button>
+                </motion.div>
+              )}
+              {isAppPage && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                >
+                  <Button asChild variant="outline" className="w-full mt-2">
+                    <Link to="/">Back to Home</Link>
+                  </Button>
+                </motion.div>
+              )}
             </motion.nav>
           )}
         </AnimatePresence>

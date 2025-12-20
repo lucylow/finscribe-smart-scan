@@ -74,14 +74,19 @@ class MockOCRClient(OCRClientBase):
 class PaddleOCRVLClient(OCRClientBase):
     """Real PaddleOCR-VL client using vLLM server."""
     
-    def __init__(self, server_url: str, timeout: int = 30):
+    def __init__(self, server_url: str, timeout: int = 30, max_retries: int = 3):
         self.server_url = server_url
         self.timeout = timeout
+        self.max_retries = max_retries
     
     async def analyze_image(self, image_bytes: bytes) -> Dict[str, Any]:
         """Send image to PaddleOCR-VL via vLLM and return structured output."""
         import time
-        start_time = time.time()
+        import asyncio
+        
+        # Validate input
+        if not image_bytes or len(image_bytes) == 0:
+            raise ValueError("Image bytes cannot be empty")
         
         image_data = base64.b64encode(image_bytes).decode('utf-8')
         
@@ -108,41 +113,98 @@ class PaddleOCRVLClient(OCRClientBase):
             "max_tokens": 4096
         }
         
-        async with aiohttp.ClientSession() as session:
+        # Retry logic
+        last_exception = None
+        for attempt in range(self.max_retries):
             try:
-                async with session.post(
-                    f"{self.server_url}/chat/completions",
-                    json=payload,
-                    headers={"Content-Type": "application/json"},
-                    timeout=aiohttp.ClientTimeout(total=self.timeout)
-                ) as response:
-                    latency_ms = (time.time() - start_time) * 1000
-                    
-                    if response.status == 200:
-                        result = await response.json()
-                        content = result['choices'][0]['message']['content']
-                        
-                        try:
-                            parsed = json.loads(content)
-                            parsed["latency_ms"] = latency_ms
-                            parsed["models_used"] = ["PaddleOCR-VL-0.9B"]
-                            return parsed
-                        except json.JSONDecodeError:
-                            return {
-                                "status": "success",
-                                "raw_output": content,
-                                "format": "text",
-                                "latency_ms": latency_ms,
-                                "models_used": ["PaddleOCR-VL-0.9B"]
-                            }
-                    else:
-                        error_text = await response.text()
-                        logger.error(f"PaddleOCR-VL error: {response.status} - {error_text}")
-                        raise Exception(f"vLLM error: {error_text}")
-                        
+                start_time = time.time()
+                async with aiohttp.ClientSession() as session:
+                    try:
+                        async with session.post(
+                            f"{self.server_url}/chat/completions",
+                            json=payload,
+                            headers={"Content-Type": "application/json"},
+                            timeout=aiohttp.ClientTimeout(total=self.timeout)
+                        ) as response:
+                            latency_ms = (time.time() - start_time) * 1000
+                            
+                            if response.status == 200:
+                                try:
+                                    result = await response.json()
+                                    
+                                    # Validate response structure
+                                    if 'choices' not in result or not result['choices']:
+                                        raise ValueError("Invalid response format: missing 'choices'")
+                                    
+                                    content = result['choices'][0]['message']['content']
+                                    
+                                    # Try to parse as JSON
+                                    try:
+                                        parsed = json.loads(content)
+                                        parsed["latency_ms"] = latency_ms
+                                        parsed["models_used"] = ["PaddleOCR-VL-0.9B"]
+                                        parsed["status"] = "success"
+                                        return parsed
+                                    except json.JSONDecodeError as e:
+                                        logger.warning(f"PaddleOCR-VL returned non-JSON response: {str(e)}")
+                                        # Return partial result with raw output
+                                        return {
+                                            "status": "partial",
+                                            "raw_output": content,
+                                            "format": "text",
+                                            "latency_ms": latency_ms,
+                                            "models_used": ["PaddleOCR-VL-0.9B"],
+                                            "warning": "Response could not be parsed as JSON"
+                                        }
+                                except (KeyError, IndexError) as e:
+                                    logger.error(f"Invalid response structure: {str(e)}")
+                                    raise ValueError(f"Invalid response structure: {str(e)}")
+                            elif response.status == 429:
+                                # Rate limit - retry with exponential backoff
+                                wait_time = 2 ** attempt
+                                logger.warning(f"Rate limited, waiting {wait_time}s before retry {attempt + 1}/{self.max_retries}")
+                                await asyncio.sleep(wait_time)
+                                last_exception = Exception(f"Rate limit exceeded (HTTP 429)")
+                                continue
+                            elif response.status >= 500:
+                                # Server error - retry
+                                error_text = await response.text()
+                                logger.warning(f"Server error {response.status}: {error_text}. Retry {attempt + 1}/{self.max_retries}")
+                                if attempt < self.max_retries - 1:
+                                    await asyncio.sleep(2 ** attempt)
+                                    last_exception = Exception(f"Server error {response.status}: {error_text}")
+                                    continue
+                                else:
+                                    raise Exception(f"Server error after {self.max_retries} retries: {response.status} - {error_text}")
+                            else:
+                                # Client error - don't retry
+                                error_text = await response.text()
+                                logger.error(f"PaddleOCR-VL client error: {response.status} - {error_text}")
+                                raise Exception(f"Client error {response.status}: {error_text}")
+                                
+                    except asyncio.TimeoutError:
+                        logger.warning(f"Request timeout (attempt {attempt + 1}/{self.max_retries})")
+                        if attempt < self.max_retries - 1:
+                            await asyncio.sleep(2 ** attempt)
+                            last_exception = asyncio.TimeoutError(f"Request timeout after {self.timeout}s")
+                            continue
+                        else:
+                            raise Exception(f"Request timeout after {self.max_retries} retries")
+                            
             except aiohttp.ClientError as e:
-                logger.error(f"Failed to call PaddleOCR-VL: {str(e)}")
-                raise
+                logger.warning(f"Network error calling PaddleOCR-VL (attempt {attempt + 1}/{self.max_retries}): {str(e)}")
+                if attempt < self.max_retries - 1:
+                    await asyncio.sleep(2 ** attempt)
+                    last_exception = e
+                    continue
+                else:
+                    raise Exception(f"Network error after {self.max_retries} retries: {str(e)}")
+        
+        # If we get here, all retries failed
+        if last_exception:
+            raise Exception(f"Failed to call PaddleOCR-VL after {self.max_retries} attempts: {str(last_exception)}")
+        else:
+            raise Exception(f"Failed to call PaddleOCR-VL after {self.max_retries} attempts")
 
 
 class PaddleOCRVLService:
@@ -158,10 +220,27 @@ class PaddleOCRVLService:
             ocr_config = config.get("paddleocr_vl", {})
             self.client = PaddleOCRVLClient(
                 server_url=ocr_config.get("vllm_server_url", "http://localhost:8001/v1"),
-                timeout=ocr_config.get("timeout", 30)
+                timeout=ocr_config.get("timeout", 30),
+                max_retries=ocr_config.get("max_retries", 3)
             )
     
     async def parse_document(self, image_bytes: bytes) -> Dict[str, Any]:
         """Parse document using configured OCR client."""
-        logger.info(f"Running OCR with mode: {self.model_mode}")
-        return await self.client.analyze_image(image_bytes)
+        try:
+            if not image_bytes or len(image_bytes) == 0:
+                raise ValueError("Image bytes cannot be empty")
+            
+            logger.info(f"Running OCR with mode: {self.model_mode}")
+            result = await self.client.analyze_image(image_bytes)
+            
+            # Validate result structure
+            if not isinstance(result, dict):
+                raise ValueError("OCR service returned invalid result type")
+            
+            if "status" not in result:
+                result["status"] = "success"
+            
+            return result
+        except Exception as e:
+            logger.error(f"Error in OCR parse_document: {str(e)}", exc_info=True)
+            raise

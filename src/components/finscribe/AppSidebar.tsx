@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
@@ -23,7 +23,6 @@ import { cn } from '@/lib/utils';
 
 interface AppSidebarProps {
   activeMode: string;
-  onModeChange: (mode: string) => void;
 }
 
 const navigationItems = [
@@ -41,7 +40,10 @@ const quickStats = [
   { label: 'Success', value: '98.5%', change: '+1.2%', icon: TrendingUp },
 ];
 
-function AppSidebar({ activeMode, onModeChange }: AppSidebarProps) {
+function AppSidebar({ activeMode }: AppSidebarProps) {
+  const navigate = useNavigate();
+  const location = useLocation();
+
   return (
     <motion.aside
       initial={{ x: -20, opacity: 0 }}
@@ -69,34 +71,37 @@ function AppSidebar({ activeMode, onModeChange }: AppSidebarProps) {
       {/* Navigation */}
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
         <p className="text-xs font-medium text-muted-foreground px-3 py-2">Navigation</p>
-        {navigationItems.map((item) => (
-          <motion.button
-            key={item.id}
-            onClick={() => onModeChange(item.id)}
-            whileHover={{ x: 2 }}
-            whileTap={{ scale: 0.98 }}
-            className={cn(
-              "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors",
-              activeMode === item.id
-                ? "bg-primary/10 text-primary border border-primary/20"
-                : "hover:bg-muted text-muted-foreground hover:text-foreground"
-            )}
-          >
-            <item.icon className={cn(
-              "w-4 h-4 flex-shrink-0",
-              activeMode === item.id ? "text-primary" : ""
-            )} />
-            <div className="min-w-0">
-              <p className={cn(
-                "text-sm font-medium truncate",
-                activeMode === item.id ? "text-primary" : ""
-              )}>
-                {item.label}
-              </p>
-              <p className="text-xs text-muted-foreground truncate">{item.description}</p>
-            </div>
-          </motion.button>
-        ))}
+        {navigationItems.map((item) => {
+          const isActive = activeMode === item.id;
+          return (
+            <motion.button
+              key={item.id}
+              onClick={() => navigate(`/app/${item.id}`)}
+              whileHover={{ x: 2 }}
+              whileTap={{ scale: 0.98 }}
+              className={cn(
+                "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors",
+                isActive
+                  ? "bg-primary/10 text-primary border border-primary/20"
+                  : "hover:bg-muted text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <item.icon className={cn(
+                "w-4 h-4 flex-shrink-0",
+                isActive ? "text-primary" : ""
+              )} />
+              <div className="min-w-0">
+                <p className={cn(
+                  "text-sm font-medium truncate",
+                  isActive ? "text-primary" : ""
+                )}>
+                  {item.label}
+                </p>
+                <p className="text-xs text-muted-foreground truncate">{item.description}</p>
+              </div>
+            </motion.button>
+          );
+        })}
 
         <Separator className="my-4" />
 
