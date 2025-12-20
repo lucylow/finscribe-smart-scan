@@ -1,0 +1,120 @@
+# Phase 2: Fine-Tuning Configuration for PaddleOCR-VL
+# This configuration uses LoRA for efficient fine-tuning
+
+# Model Configuration
+model_name_or_path: "PaddlePaddle/PaddleOCR-VL"  # Start from pre-trained weights
+dataset_path: "./paddleocr_finetune_data.jsonl"  # Your prepared instruction-response pairs
+
+# LoRA Configuration for Efficient Fine-Tuning
+# LoRA (Low-Rank Adaptation) allows fine-tuning with minimal parameters
+lora:
+  enabled: true
+  r: 16                    # LoRA rank (higher = more capacity, but more parameters)
+  lora_alpha: 32           # LoRA scaling parameter (typically 2 * r)
+  target_modules:          # Which modules to apply LoRA to
+    - "q_proj"
+    - "v_proj"
+    - "k_proj"
+    - "o_proj"
+  dropout: 0.05            # Dropout for LoRA layers
+  bias: "none"             # Bias treatment: "none", "all", or "lora_only"
+
+# Training Hyperparameters
+training:
+  num_train_epochs: 5
+  per_device_train_batch_size: 4      # Adjust based on GPU memory (16GB+ VRAM recommended)
+  gradient_accumulation_steps: 2      # Effective batch size = per_device_batch_size * gradient_accumulation_steps * num_gpus
+  learning_rate: 2.0e-4
+  warmup_steps: 100
+  warmup_ratio: 0.1                   # Alternative to warmup_steps (ratio of total steps)
+  weight_decay: 0.01
+  max_grad_norm: 1.0                   # Gradient clipping
+  lr_scheduler_type: "cosine"         # Learning rate scheduler: "linear", "cosine", "cosine_with_restarts", etc.
+  
+  # Logging and Saving
+  logging_steps: 10
+  save_steps: 500
+  save_total_limit: 3                  # Keep only last N checkpoints
+  eval_steps: 250
+  evaluation_strategy: "steps"         # "no", "steps", or "epoch"
+  
+  # Mixed Precision Training (reduces memory usage and speeds up training)
+  fp16: true                            # Use FP16 for faster training (requires compatible GPU)
+  # fp16_opt_level: "O1"                # Optional: optimization level for FP16
+  
+  # Dataloader Settings
+  dataloader_num_workers: 4
+  dataloader_pin_memory: true
+  
+  # Other Settings
+  remove_unused_columns: false
+  report_to: ["tensorboard"]            # Logging backends: "tensorboard", "wandb", etc.
+  
+  # Seed for reproducibility
+  seed: 42
+
+# Data Augmentation Configuration
+# These augmentations are applied during training to simulate real-world scanned documents
+vision_processor:
+  train:
+    size: [224, 224]                    # Input image size
+    # Additional transforms to apply during training
+    # Note: These may need to be implemented in the training script
+    additional_transforms:
+      - name: "RandomRotation"
+        degrees: [-5, 5]                # Small rotations to simulate scanning misalignment
+      - name: "RandomGaussianNoise"
+        std: [0.01, 0.05]               # Add noise to simulate scan artifacts
+      - name: "GaussianBlur"
+        kernel_size: [3, 5]             # Slight blur for lower-quality scans
+      - name: "RandomBrightness"
+        factor: [0.9, 1.1]              # Brightness variation
+      - name: "RandomContrast"
+        factor: [0.9, 1.1]              # Contrast variation
+
+# Loss Weighting Configuration
+# Special handling for table cells vs regular text
+# This requires custom implementation in the training script
+loss:
+  weighted: true
+  weights:
+    table_cell_token: 2.0               # Higher weight for table cell tokens (description, quantity, price, total)
+    regular_token: 1.0                  # Standard weight for regular text
+  # Field-specific weights (optional, more advanced)
+  field_weights:
+    line_item_table: 2.5                # Very important - table structure accuracy
+    financial_summary: 2.0               # Important - numerical accuracy critical
+    vendor_block: 1.0
+    client_invoice_info: 1.0
+
+# Output Configuration
+output_dir: "./finetuned_paddleocr_invoice_model"
+run_name: "paddleocr-vl-invoice-finetune"  # For logging/tracking
+
+# Evaluation Configuration
+evaluation:
+  metrics:
+    - "field_extraction_accuracy"       # Per-region field extraction accuracy
+    - "table_structure_accuracy"        # TEDS (Table Structure Accuracy)
+    - "numerical_validation"            # Mathematical consistency (subtotal + tax - discount = grand_total)
+  
+  # Region-specific evaluation thresholds
+  thresholds:
+    vendor_block: 0.95
+    client_invoice_info: 0.95
+    line_item_table: 0.90
+    financial_summary: 0.95
+
+# Data Splitting (if not pre-split)
+data:
+  train_split: 0.9                      # 90% for training
+  val_split: 0.05                       # 5% for validation
+  test_split: 0.05                      # 5% for testing
+
+# Early Stopping (optional)
+early_stopping:
+  enabled: true
+  patience: 3                           # Number of evaluations without improvement
+  metric: "eval_loss"                   # Metric to monitor
+  mode: "min"                           # "min" or "max"
+

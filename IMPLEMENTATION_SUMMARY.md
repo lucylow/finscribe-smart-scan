@@ -1,330 +1,209 @@
 # Implementation Summary
 
-This document summarizes the comprehensive implementation of the FinScribe Smart Scan API according to Prompts 3-8.
+This document summarizes the implementation of requirements from PROMPTS 9-15.
 
-## Overview
+## ✅ PROMPT 9 - Storage & Database Design
 
-The implementation includes:
-- **API Contracts** with strict Pydantic schemas
-- **Job Lifecycle Management** with deterministic state machine
-- **Streaming Support** (SSE and WebSocket)
-- **ETL Adapter Architecture** for pluggable data sources
-- **Result Storage** with schema versioning and lineage
-- **Enhanced Compare Endpoint** supporting files or result_ids
+### Database
+- **SQLAlchemy models** created in `app/db/models.py`:
+  - `Job`: Tracks document processing jobs
+  - `Result`: Stores processed document results
+  - `Model`: Tracks AI models and versions
+  - `ActiveLearning`: Stores active learning records
+- **Database initialization** in `app/db/__init__.py` with support for:
+  - PostgreSQL (production)
+  - SQLite (development)
+- **Alembic migrations** configured for schema versioning
+- Database session management with FastAPI dependency injection
 
-## Files Created/Modified
+### Object Storage
+- **S3/MinIO integration** in `app/storage/storage_service.py`:
+  - Upload raw files, processed images, OCR results, and final results
+  - Generate signed URLs for secure frontend access
+  - TTL cleanup for staging objects
+  - Archival policies for old results
+  - Automatic bucket creation
 
-### New Files
+## ✅ PROMPT 10 - Background Workers & Scaling
 
-1. **`app/api/v1/schemas.py`**
-   - Comprehensive Pydantic schemas for all API contracts
-   - Job lifecycle models (JobStage, JobStatus, StageInfo, JobProgress)
-   - Request/Response models (AnalyzeRequest, CompareRequest, etc.)
-   - Result schema with versioning (ResultResponse, FieldExtraction, Provenance)
-   - Streaming event models
+### Celery Configuration
+- **Celery app** configured in `app/core/celery_app.py`
+- **Task routing** for CPU/GPU separation:
+  - CPU queue: ingest, preprocess, postprocess, validate, index
+  - GPU queue: ocr, vlm_parse
 
-2. **`app/core/job_manager.py`**
-   - Job lifecycle management with deterministic state machine
-   - Stages: received → staging → preprocess → ocr_layout → ocr_recognize → semantic_parse → postprocess → validate → store → completed | failed
-   - Progress tracking, logging, retry logic with exponential backoff
-   - Stage timestamps and artifact storage
+### Tasks Implemented
+All tasks in `app/core/tasks.py`:
+1. **ingest_task**: Store raw file and create job record
+2. **preprocess_task**: Extract pages from PDF, convert to images
+3. **ocr_task**: Run OCR on single page (map-reduce ready)
+4. **vlm_parse_task**: Parse OCR results using VLM
+5. **postprocess_task**: Clean and normalize parsed data
+6. **validate_task**: Validate using FinancialValidator
+7. **index_task**: Store final result in database and storage
 
-3. **`app/core/etl/base.py`**
-   - Base ETL adapter interface
-   - StagedFile dataclass with metadata
+### Idempotency
+- Redis-based locks using idempotency keys (`job_id:stage`)
+- Task retries with exponential backoff (max 3 retries)
+- Map-reduce support for multi-page OCR (each page processed independently)
 
-4. **`app/core/etl/adapters.py`**
-   - MultipartAdapter: For multipart file uploads
-   - S3Adapter: For S3/MinIO bucket watch
-   - IMAPAdapter: For email attachment ingestion
-   - LocalFolderAdapter: For local folder watch (batch mode)
-   - ETLAdapterFactory: Factory pattern for creating adapters
+## ✅ PROMPT 11 - Observability & Metrics
 
-5. **`app/core/preprocessing.py`**
-   - DocumentPreprocessor: PDF to PNG conversion
-   - Image enhancement (deskew, denoise, normalize DPI)
-   - Multi-page PDF support with per-page processing
-   - Staging storage at `staging/{job_id}/{page}.png`
+### Metrics Collection
+- **Prometheus metrics** in `app/metrics/metrics.py`:
+  - Job metrics: submitted, completed, failed
+  - Latency metrics: OCR, VLM, task latency
+  - Accuracy metrics: field extraction accuracy
+  - Active learning metrics: volume, exports
+  - Queue metrics: queue size
+  - Storage metrics: uploads, deletions
 
-6. **`app/core/result_storage.py`**
-   - ResultStorage: Stores results with schema versioning
-   - Builds canonical ResultResponse with provenance
-   - Supports field-level confidence and lineage tracking
+### Logging
+- **Structured JSON logging** in `app/metrics/logging.py`:
+  - JSON format with timestamp, level, logger, message
+  - Job ID and stage context included
+  - Configurable log levels
 
-7. **`app/api/v1/endpoints_enhanced.py`**
-   - Enhanced API endpoints implementing full contract
-   - POST /api/v1/analyze: Supports files[], mode, metadata, callback_url
-   - GET /api/v1/jobs/{job_id}: Returns progress, logs, stages
-   - GET /api/v1/results/{result_id}: Structured JSON with schema_version
-   - POST /api/v1/compare: Supports two files or two result_ids
-   - GET /api/v1/stream/jobs/{job_id}: SSE streaming
-   - WS /api/v1/ws/jobs/{job_id}: WebSocket streaming
-   - GET /health: Health check
-   - GET /openapi.json: OpenAPI schema (auto-generated by FastAPI)
+### Prometheus Endpoint
+- Metrics endpoint at `/api/v1/metrics`
+- Prometheus configuration file for scraping
+- Optional Grafana dashboard (via docker-compose profile)
 
-### Modified Files
+## ✅ PROMPT 12 - Tests & CI
 
-1. **`app/main.py`**
-   - Added optional import for enhanced endpoints
-   - Graceful fallback if enhanced endpoints unavailable
+### Tests
+- **Unit tests**:
+  - `tests/unit/test_validation.py`: FinancialValidator tests
+  - `tests/unit/test_file_validation.py`: File validation tests
+- **Integration tests**:
+  - `tests/integration/test_api_flow.py`: Upload → result flow
+- **Test fixtures** in `tests/conftest.py`:
+  - Database session fixture
+  - Sample data fixtures
 
-2. **`requirements.txt`**
-   - Added `sse-starlette==1.8.2` for SSE streaming support
+### CI/CD
+- **GitHub Actions workflow** in `.github/workflows/ci.yml`:
+  - Runs unit and integration tests
+  - Linting with flake8
+  - Type checking with mypy
+  - Docker build verification
+  - Smoke tests with docker-compose
 
-## API Endpoints
+## ✅ PROMPT 13 - Security & Privacy
 
-### POST /api/v1/analyze
+### Security Features
+- **File validation** in `app/security/file_validation.py`:
+  - File size limits (configurable via MAX_UPLOAD_MB)
+  - File extension validation
+  - MIME type validation using python-magic
+  - Checksum computation (SHA256)
 
-**Request:**
-- `files[]`: List of files (multipart)
-- `mode`: "sync" | "async" (default: "async")
-- `metadata`: Optional JSON metadata
-- `callback_url`: Optional callback URL
-- `tags`: Optional list of tags
-- `pii_redaction`: Boolean flag
+- **PII redaction** in `app/security/pii_redaction.py`:
+  - Email, phone, SSN, credit card pattern matching
+  - Configurable redaction via PII_REDACTION_ENABLED env var
+  - Dictionary and text redaction utilities
 
-**Response (202 for async, 200 for sync):**
-- `job_id`: Job identifier
-- `status`: "queued" or "completed"
-- `poll_url`: URL to poll job status
-- `stream_url`: URL for SSE streaming
-- `result_id`: (sync mode only) Result identifier
-- `data`: (sync mode only) Extracted data
-- `downloads`: (sync mode only) Download URLs
+- **Signed URLs**: Implemented in storage service for secure object access
 
-### GET /api/v1/jobs/{job_id}
+- **Secrets management**: All sensitive values via environment variables
 
-**Response:**
-```json
-{
-  "job_id": "uuid",
-  "status": "queued" | "processing" | "completed" | "failed",
-  "progress": 0-100,
-  "current_step": "received" | "staging" | ...,
-  "logs": ["log entry 1", "log entry 2"],
-  "result_id": "uuid" | null,
-  "error": {
-    "code": "ERROR_CODE",
-    "message": "Error message",
-    "retriable": true | false
-  } | null
-}
+- **Optional RBAC** in `app/security/rbac.py`:
+  - Role-based access control (admin, user, viewer, api)
+  - Permission-based decorators
+  - Configurable via RBAC_ENABLED env var
+
+- **Audit logging** in `app/security/audit_log.py`:
+  - Structured audit logs to file
+  - Event types: file_upload, job_access, result_access, data_export, security events
+  - Configurable via AUDIT_LOG_FILE env var
+
+- **Retention policies**: Implemented in storage service (cleanup_staging, archive_results)
+
+## ✅ PROMPT 14 - Docker & Runbook
+
+### Docker Compose
+- **Services configured**:
+  - `backend`: FastAPI application
+  - `worker`: Celery worker
+  - `redis`: Message broker
+  - `postgres`: Database
+  - `minio`: Object storage
+  - `prometheus`: Metrics (optional, via profile)
+  - `grafana`: Dashboards (optional, via profile)
+
+- **Health checks** for all services
+- **Volume persistence** for data
+- **Environment variables** configured
+
+### Runbook
+- **Comprehensive runbook** in `RUNBOOK.md`:
+  - Quick start instructions
+  - Upload and polling examples
+  - Database operations
+  - Monitoring and metrics
+  - Troubleshooting guide
+  - Production deployment considerations
+
+## File Structure
+
+```
+app/
+├── api/v1/
+│   ├── endpoints.py          # Main API endpoints
+│   └── metrics.py            # Prometheus metrics endpoint
+├── config/
+│   └── settings.py           # Configuration management
+├── core/
+│   ├── celery_app.py         # Celery configuration
+│   ├── tasks.py              # Background tasks
+│   ├── document_processor.py # Document processing pipeline
+│   ├── models/               # AI model services
+│   └── validation/           # Validation logic
+├── db/
+│   ├── __init__.py           # Database initialization
+│   └── models.py             # SQLAlchemy models
+├── metrics/
+│   ├── metrics.py            # Prometheus metrics
+│   └── logging.py            # Structured logging
+├── security/
+│   ├── file_validation.py    # File validation
+│   ├── pii_redaction.py      # PII redaction
+│   ├── audit_log.py          # Audit logging
+│   └── rbac.py               # Role-based access control
+└── storage/
+    └── storage_service.py    # S3/MinIO storage service
+
+alembic/                       # Database migrations
+tests/                         # Test suite
+├── unit/                     # Unit tests
+└── integration/              # Integration tests
 ```
 
-### GET /api/v1/results/{result_id}
+## Environment Variables
 
-**Response:**
-```json
-{
-  "schema_version": "1.0",
-  "result_id": "uuid",
-  "job_id": "uuid",
-  "document_metadata": {},
-  "extracted_fields": [
-    {
-      "field_name": "invoice_number",
-      "value": "INV-001",
-      "confidence": 0.98,
-      "source_model": "ERNIE-4.5-VL",
-      "lineage_id": "uuid",
-      "bbox": [100, 200, 300, 400],
-      "page": 1
-    }
-  ],
-  "financial_summary": {
-    "subtotal": 1000.00,
-    "tax": 100.00,
-    "total": 1100.00,
-    "currency": "USD"
-  },
-  "validation_results": {
-    "is_valid": true,
-    "math_ok": true,
-    "field_confidences": {}
-  },
-  "models_used": [
-    {
-      "name": "PaddleOCR-VL",
-      "version": "0.9B",
-      "confidence": 0.96
-    }
-  ],
-  "provenance": {
-    "source_type": "multipart",
-    "filename": "invoice.pdf",
-    "checksum": "sha256...",
-    "ingest_time": "2025-01-01T00:00:00Z"
-  },
-  "created_at": "2025-01-01T00:00:00Z"
-}
-```
-
-### POST /api/v1/compare
-
-**Request:**
-- `file1`: Optional UploadFile
-- `file2`: Optional UploadFile
-- `file1_id`: Optional result_id or job_id
-- `file2_id`: Optional result_id or job_id
-- `metadata`: Optional JSON
-
-**Response:**
-```json
-{
-  "comparison_id": "uuid",
-  "summary": "Comparison summary",
-  "detailed": {
-    "fine_tuned_confidence": 0.96,
-    "baseline_confidence": 0.81,
-    "differences": []
-  }
-}
-```
-
-### GET /api/v1/stream/jobs/{job_id}
-
-Server-Sent Events (SSE) stream of job progress updates.
-
-### WS /api/v1/ws/jobs/{job_id}
-
-WebSocket connection for real-time job progress updates.
-
-## Job Lifecycle
-
-The job state machine follows this deterministic flow:
-
-1. **received**: Job created
-2. **staging**: Files staged
-3. **preprocess**: PDF → PNG conversion, image enhancement
-4. **ocr_layout**: OCR layout analysis
-5. **ocr_recognize**: OCR text recognition
-6. **semantic_parse**: LLM semantic parsing
-7. **postprocess**: Post-processing
-8. **validate**: Business rule validation
-9. **store**: Store results
-10. **completed**: Job completed
-11. **failed**: Job failed (terminal state)
-
-Each stage tracks:
-- Start/end timestamps
-- Progress percentage
-- Log entries
-- Retry count
-- Error information
-
-## ETL Adapters
-
-### MultipartAdapter
-- Handles multipart file uploads
-- Supports multiple files in single request
-
-### S3Adapter
-- Watches S3/MinIO buckets
-- Supports prefix filtering
-- Downloads and stages objects
-
-### IMAPAdapter
-- Ingests email attachments
-- Supports search criteria
-- Extracts metadata (subject, from, date)
-
-### LocalFolderAdapter
-- Watches local folders
-- Supports glob patterns
-- Recursive or non-recursive scanning
-
-## Preprocessing
-
-- **PDF Conversion**: Converts PDF to per-page PNG images
-- **DPI Normalization**: Normalizes to 300 DPI
-- **Image Enhancement**: Deskew and denoise (placeholders for full implementation)
-- **Staging**: Stores at `staging/{job_id}/{page}.png`
-
-## Result Storage
-
-- Stores results with schema versioning
-- Tracks full provenance (source, checksum, timestamps)
-- Field-level confidence and lineage
-- Model version tracking
-- Financial summary extraction
-- Validation results
-
-## Retry Logic
-
-- Maximum 3 retries per stage
-- Exponential backoff: 1s, 2s, 5s
-- Retriable vs non-retriable errors
-- Idempotent task execution
-
-## Streaming
-
-### SSE (Server-Sent Events)
-- Endpoint: `/api/v1/stream/jobs/{job_id}`
-- Emits events on progress changes
-- Events: `progress`, `complete`, `error`
-
-### WebSocket
-- Endpoint: `/ws/jobs/{job_id}`
-- Real-time bidirectional communication
-- JSON message format
-
-## Dependencies
-
-New dependencies added:
-- `sse-starlette==1.8.2`: For SSE streaming support
-
-Optional dependencies (for full ETL support):
-- `boto3`: Already in requirements.txt for S3 adapter
-- `imaplib`: Standard library for IMAP adapter
-
-## Usage Example
-
-```python
-# Async analysis
-response = requests.post(
-    "http://localhost:8000/api/v1/analyze",
-    files=[("files", open("invoice.pdf", "rb"))],
-    data={
-        "mode": "async",
-        "metadata": '{"customer_id": "123"}',
-        "tags": '["urgent", "invoice"]'
-    }
-)
-job_id = response.json()["job_id"]
-
-# Poll status
-status = requests.get(f"http://localhost:8000/api/v1/jobs/{job_id}")
-print(status.json()["progress"])  # 0-100
-
-# Stream progress
-import sseclient
-messages = sseclient.SSEClient(f"http://localhost:8000/api/v1/stream/jobs/{job_id}")
-for msg in messages:
-    print(msg.data)
-
-# Get result
-result = requests.get(f"http://localhost:8000/api/v1/results/{result_id}")
-print(result.json()["extracted_fields"])
-```
-
-## Notes
-
-- The enhanced endpoints are in `endpoints_enhanced.py` and are optionally loaded
-- Original endpoints in `endpoints.py` remain for backward compatibility
-- Job manager uses in-memory storage (should use Redis/DB in production)
-- Result storage uses file system (should use database in production)
-- Some preprocessing features (deskew, denoise) are placeholders for full implementation
-- IMAP adapter requires proper email server configuration
-- S3 adapter requires AWS credentials or MinIO configuration
+Key environment variables documented in runbook:
+- `DATABASE_URL`: Database connection string
+- `REDIS_URL`: Redis connection string
+- `MODEL_MODE`: mock|local|remote
+- `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`: Object storage
+- `MAX_UPLOAD_MB`: File size limit
+- `RBAC_ENABLED`: Enable/disable RBAC
+- `PII_REDACTION_ENABLED`: Enable/disable PII redaction
+- `AUDIT_LOG_FILE`: Audit log file path
 
 ## Next Steps
 
-1. Integrate with database for job and result persistence
-2. Implement full deskew and denoise algorithms
-3. Add PII redaction before storage
-4. Implement callback URL notifications
-5. Add result download endpoints (JSON/CSV)
-6. Enhance comparison logic for result_id inputs
-7. Add migration helpers for schema versioning
-8. Implement hard-sample mining for active learning
+1. **Run initial migration**: `alembic revision --autogenerate -m "Initial schema"` then `alembic upgrade head`
+2. **Test the stack**: Follow runbook instructions
+3. **Configure monitoring**: Enable Prometheus/Grafana profiles if needed
+4. **Set up CI/CD**: Push to GitHub to trigger CI pipeline
+5. **Production deployment**: Follow production considerations in runbook
 
+## Notes
+
+- All tasks are idempotent using Redis locks
+- Database models support both PostgreSQL and SQLite
+- Storage service works with both S3 and MinIO
+- Security features are optional and can be enabled via env vars
+- Metrics and logging are production-ready
+- Test coverage includes unit and integration tests

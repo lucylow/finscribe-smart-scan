@@ -28,7 +28,11 @@ class StorageService:
             endpoint = endpoint.split("://", 1)[1]
         
         # Determine if using MinIO (local development)
-        is_minio = "localhost" in endpoint or "minio" in endpoint or int(endpoint.split(":")[-1]) < 10000
+        try:
+            port = int(endpoint.split(":")[-1]) if ":" in endpoint else 9000
+            is_minio = "localhost" in endpoint or "minio" in endpoint or port < 10000
+        except (ValueError, IndexError):
+            is_minio = True  # Default to MinIO if parsing fails
         
         self.bucket_name = os.getenv("STORAGE_BUCKET", "finscribe")
         self.signed_url_ttl = int(os.getenv("SIGNED_URL_TTL_SECONDS", "3600"))  # 1 hour default
