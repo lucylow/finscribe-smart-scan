@@ -78,6 +78,9 @@ const Header = () => {
               transition={{ delay: 0.5 }}
               className="ml-4"
             >
+              <Button asChild size="sm" variant="outline" className="mr-2">
+                <Link to="/auth">Login</Link>
+              </Button>
               <Button asChild size="sm" className="shadow-btn group">
                 <Link to="/app">
                   <Zap className="w-4 h-4 mr-1 group-hover:animate-pulse" />
