@@ -3,32 +3,93 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { toast } from "sonner";
 import Index from "./pages/Index";
 import FinScribe from "./pages/FinScribe";
 import Auth from "./pages/Auth";
 import PricingPage from "./pages/PricingPage";
 import NotFound from "./pages/NotFound";
+import ErrorBoundary from "./components/ErrorBoundary";
 
-const queryClient = new QueryClient();
+// Configure QueryClient with error handling
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: (failureCount, error: any) => {
+        // Don't retry on 4xx errors (client errors)
+        if (error?.statusCode && error.statusCode >= 400 && error.statusCode < 500) {
+          return false;
+        }
+        // Retry up to 2 times for other errors
+        return failureCount < 2;
+      },
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      refetchOnWindowFocus: false,
+      onError: (error: any) => {
+        console.error('Query error:', error);
+        const errorMessage = error?.message || 'An error occurred while fetching data';
+        toast.error(errorMessage, {
+          description: 'Please try again or contact support if the problem persists.',
+        });
+      },
+    },
+    mutations: {
+      onError: (error: any) => {
+        console.error('Mutation error:', error);
+        const errorMessage = error?.message || 'An error occurred while processing your request';
+        toast.error(errorMessage, {
+          description: 'Please try again or contact support if the problem persists.',
+        });
+      },
+    },
+  },
+});
+
+// Global error handlers
+if (typeof window !== 'undefined') {
+  // Handle unhandled promise rejections
+  window.addEventListener('unhandledrejection', (event) => {
+    console.error('Unhandled promise rejection:', event.reason);
+    toast.error('An unexpected error occurred', {
+      description: event.reason?.message || 'Please refresh the page and try again.',
+    });
+    // Prevent default browser error handling
+    event.preventDefault();
+  });
+
+  // Handle general JavaScript errors
+  window.addEventListener('error', (event) => {
+    console.error('Global error:', event.error);
+    // ErrorBoundary will handle React errors, this is for non-React errors
+    if (!event.error?.componentStack) {
+      toast.error('An unexpected error occurred', {
+        description: 'Please refresh the page and try again.',
+      });
+    }
+  });
+}
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/auth" element={<Auth />} />
-          <Route path="/pricing" element={<PricingPage />} />
-          <Route path="/app" element={<Navigate to="/app/upload" replace />} />
-          <Route path="/app/*" element={<FinScribe />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route path="/auth" element={<Auth />} />
+            <Route path="/pricing" element={<PricingPage />} />
+            <Route path="/app" element={<Navigate to="/app/upload" replace />} />
+            <Route path="/app/*" element={<FinScribe />} />
+            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;

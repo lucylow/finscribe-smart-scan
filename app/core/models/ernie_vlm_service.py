@@ -1,7 +1,8 @@
 import aiohttp
 import base64
 import json
-from typing import Dict, Any
+import re
+from typing import Dict, Any, Optional
 from abc import ABC, abstractmethod
 import logging
 
@@ -346,7 +347,7 @@ Return a JSON object with this exact structure:
 
 
 class ErnieVLMService:
-    """Service factory for ERNIE 4.5 VLM with model mode switching."""
+    """Service factory for ERNIE VLM with model mode switching and version support."""
     
     def __init__(self, config: Dict[str, Any]):
         self.config = config
@@ -356,10 +357,40 @@ class ErnieVLMService:
             self.client = MockVLMClient()
         else:
             ernie_config = config.get("ernie_vl", {})
+            
+            # Support for model version selection
+            model_name = ernie_config.get("model_name")
+            model_version = ernie_config.get("model_version", "auto")  # auto, ernie-5, ernie-4.5-vl, ernie-4.5
+            
+            # Auto-detect model version if not specified
+            if model_version == "auto" and model_name:
+                if "ernie-5" in model_name.lower() or "ERNIE-5" in model_name:
+                    model_version = "ernie-5"
+                elif "ernie-4.5" in model_name.lower() or "ERNIE-4.5" in model_name:
+                    if "vl" in model_name.lower():
+                        model_version = "ernie-4.5-vl"
+                    else:
+                        model_version = "ernie-4.5"
+            
+            # If no model_name specified, use version to determine default
+            if not model_name:
+                if model_version == "ernie-5":
+                    model_name = "baidu/ERNIE-5"
+                elif model_version == "ernie-4.5-vl":
+                    model_name = "baidu/ERNIE-4.5-VL-28B-A3B-Thinking"
+                elif model_version == "ernie-4.5":
+                    model_name = "baidu/ERNIE-4.5-8B"
+                else:
+                    # Default to ERNIE 5, fallback to ERNIE 4.5 VL
+                    model_name = "baidu/ERNIE-5"
+                    logger.info("No model specified, defaulting to ERNIE 5")
+            
             self.client = ErnieVLMClient(
                 server_url=ernie_config.get("vllm_server_url", "http://localhost:8002/v1"),
+                model_name=model_name,
                 timeout=ernie_config.get("timeout", 60),
-                max_retries=ernie_config.get("max_retries", 3)
+                max_retries=ernie_config.get("max_retries", 3),
+                enable_thinking=ernie_config.get("enable_thinking", True)
             )
     
     async def enrich_financial_data(self, ocr_payload: Dict[str, Any], image_bytes: bytes) -> Dict[str, Any]:

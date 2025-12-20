@@ -137,22 +137,52 @@ Goals for this doc:
 
 ---
 
-## Key capabilities
+## ✨ Key Capabilities
 
-* **Layout-aware semantic extraction** (Vendor, Client, Line Items, Tax, Totals).
-* **High-quality table recovery** (table segmentation → row/column reconstruction → numeric normalization).
-* **Business validation** (arithmetic checks, date logic, duplicate detection).
-* **Active learning export** (user corrections → JSONL for SFT/LoRA).
-* **Multiple ingestion sources** (multipart upload, S3/MinIO, IMAP, local watch).
-* **Production-ready backend** (FastAPI, Celery/RQ workers, Postgres, S3 object storage, SSE/WebSockets for job progress).
+- **🎯 Layout-Aware Semantic Extraction** — Automatically identifies and extracts vendor info, client details, line items, tax, and totals with high precision
+- **📊 High-Quality Table Recovery** — Advanced table segmentation, row/column reconstruction, and numeric normalization
+- **✅ Business Validation** — Comprehensive arithmetic checks, date logic validation, and duplicate detection
+- **🧠 Active Learning Pipeline** — User corrections automatically exported to JSONL format for continuous model improvement via SFT/LoRA
+- **📥 Multiple Ingestion Sources** — Support for multipart uploads, S3/MinIO, IMAP email attachments, and local file watching
+- **🚀 Production-Ready Infrastructure** — FastAPI backend, Celery workers, PostgreSQL, S3-compatible storage, and real-time job progress via SSE/WebSockets
+- **💳 Monetization Ready** — Built-in Stripe integration, subscription management, usage tracking, and billing system
 
 ---
 
-## System overview — diagrams (4)
+## 🛠 Tech Stack
 
-> These diagrams are intended for inclusion directly in Markdown-capable viewers that support Mermaid. Each diagram is canonical for engineering and architecture review.
+### Backend
+- **Framework:** FastAPI (Python 3.11+)
+- **Database:** PostgreSQL 15+ with SQLAlchemy ORM
+- **Task Queue:** Celery with Redis broker
+- **Storage:** S3-compatible (MinIO/AWS S3) via boto3
+- **AI Models:** PaddleOCR-VL, Custom LLM with LoRA adapters
+- **Monitoring:** Prometheus metrics, structured logging
 
-### 1) High-level end-to-end flow
+### Frontend
+- **Framework:** React 18+ with TypeScript
+- **Build Tool:** Vite
+- **UI Components:** shadcn/ui (Radix UI primitives)
+- **Styling:** Tailwind CSS
+- **State Management:** TanStack Query (React Query)
+- **Routing:** React Router v6
+- **Authentication:** Supabase Auth
+- **Payments:** Stripe integration
+
+### Infrastructure
+- **Containerization:** Docker & Docker Compose
+- **Database Migrations:** Alembic
+- **API Documentation:** OpenAPI/Swagger (auto-generated)
+- **Background Jobs:** Celery workers with Redis
+- **Object Storage:** MinIO (dev) / AWS S3 (prod)
+
+---
+
+## 🏗 System Overview & Architecture
+
+> All diagrams use [Mermaid](https://mermaid.js.org/) syntax and render in GitHub and most Markdown viewers. These provide canonical engineering and architecture documentation.
+
+### 1. High-level End-to-end Flow
 
 ```mermaid
 flowchart TB
