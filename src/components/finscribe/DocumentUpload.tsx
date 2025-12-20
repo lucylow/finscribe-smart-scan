@@ -1,9 +1,12 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDropzone } from 'react-dropzone';
-import { CloudUpload, FileText, X, Image, FileCheck, Sparkles } from 'lucide-react';
+import { CloudUpload, FileText, X, Image, FileCheck, Sparkles, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
+import { ErrorHandler } from '@/lib/errorHandler';
+import { toast } from 'sonner';
 
 interface DocumentUploadProps {
   onFileSelect: (file: File | null) => void;
@@ -11,9 +14,62 @@ interface DocumentUploadProps {
 }
 
 function DocumentUpload({ onFileSelect, file }: DocumentUploadProps) {
-  const onDrop = useCallback((acceptedFiles: File[]) => {
+  const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+  const [validationError, setValidationError] = useState<string | null>(null);
+
+  const onDrop = useCallback((acceptedFiles: File[], rejectedFiles: any[]) => {
+    // Clear previous validation errors
+    setValidationError(null);
+
+    // Handle rejected files
+    if (rejectedFiles.length > 0) {
+      const rejection = rejectedFiles[0];
+      let errorMessage = 'File rejected. ';
+      
+      if (rejection.errors) {
+        const error = rejection.errors[0];
+        if (error.code === 'file-too-large') {
+          errorMessage = `File is too large. Maximum size is ${MAX_FILE_SIZE / (1024 * 1024)}MB.`;
+        } else if (error.code === 'file-invalid-type') {
+          errorMessage = 'File type not supported. Please use PDF, PNG, JPG, or GIF.';
+        } else {
+          errorMessage = error.message || 'Invalid file.';
+        }
+      }
+      
+      setValidationError(errorMessage);
+      ErrorHandler.handleError(new Error(errorMessage), {
+        showToast: true,
+        logToConsole: true,
+      });
+      return;
+    }
+
     if (acceptedFiles.length > 0) {
-      onFileSelect(acceptedFiles[0]);
+      const selectedFile = acceptedFiles[0];
+      
+      // Use centralized validation
+      const validation = ErrorHandler.validateFile(selectedFile, {
+        maxSizeMB: MAX_FILE_SIZE / (1024 * 1024),
+      });
+      
+      if (!validation.valid) {
+        const errorMsg = validation.error || 'Invalid file';
+        setValidationError(errorMsg);
+        ErrorHandler.handleError(new Error(errorMsg), {
+          showToast: true,
+          logToConsole: true,
+        });
+        return;
+      }
+
+      // File is valid
+      setValidationError(null);
+      onFileSelect(selectedFile);
+      toast.success('File selected', {
+        description: `${selectedFile.name} is ready for analysis.`,
+        duration: 2000,
+      });
     }
   }, [onFileSelect]);
 
@@ -24,6 +80,7 @@ function DocumentUpload({ onFileSelect, file }: DocumentUploadProps) {
       'application/pdf': ['.pdf']
     },
     maxFiles: 1,
+    maxSize: MAX_FILE_SIZE,
   });
 
   const formatFileSize = (bytes: number) => {
@@ -44,18 +101,31 @@ function DocumentUpload({ onFileSelect, file }: DocumentUploadProps) {
   
   return (
     <div className="space-y-4">
+      <AnimatePresence>
+        {validationError && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden"
+          >
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>{validationError}</AlertDescription>
+            </Alert>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      
       <motion.div
-        onClick={dropzoneProps.onClick}
-        onKeyDown={dropzoneProps.onKeyDown}
-        onFocus={dropzoneProps.onFocus}
-        onBlur={dropzoneProps.onBlur}
-        tabIndex={dropzoneProps.tabIndex}
-        role={dropzoneProps.role}
+        {...dropzoneProps}
+        aria-label="Document upload area"
+        aria-describedby="upload-instructions"
         whileHover={{ scale: 1.01 }}
         whileTap={{ scale: 0.99 }}
         className={cn(
           "relative p-12 text-center cursor-pointer rounded-xl transition-all duration-300 overflow-hidden",
-          "border-2 border-dashed",
+          "border-2 border-dashed focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-2",
           isDragActive 
             ? "border-primary bg-primary/5 shadow-lg shadow-primary/10" 
             : file 
@@ -63,7 +133,10 @@ function DocumentUpload({ onFileSelect, file }: DocumentUploadProps) {
               : "border-muted-foreground/30 hover:border-primary hover:bg-accent/30"
         )}
       >
-        <input {...getInputProps()} />
+        <input {...getInputProps()} aria-label="File input" />
+        <span id="upload-instructions" className="sr-only">
+          Drag and drop a document here, or click to browse. Supported formats: PDF, PNG, JPG, JPEG. Maximum file size: 50MB.
+        </span>
         
         {/* Animated background pattern */}
         <div className="absolute inset-0 opacity-30">
@@ -163,6 +236,7 @@ function DocumentUpload({ onFileSelect, file }: DocumentUploadProps) {
                 className="flex-shrink-0 hover:bg-destructive/10 hover:text-destructive"
                 onClick={(e) => {
                   e.stopPropagation();
+                  setValidationError(null);
                   onFileSelect(null);
                 }}
               >

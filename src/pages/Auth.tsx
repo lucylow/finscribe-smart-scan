@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Mail, Lock, User, Github, Chrome } from "lucide-react";
+import { Mail, Lock, User, Github, Chrome, Sparkles } from "lucide-react";
 
 const Auth = () => {
   const [email, setEmail] = useState("");
@@ -82,10 +82,13 @@ const Auth = () => {
 
   return (
     <div className="min-h-screen gradient-hero gradient-mesh flex items-center justify-center p-4">
-      <Card className="w-full max-w-md glass-card">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold text-gradient">FinScribe</CardTitle>
-          <CardDescription>Sign in to access your documents</CardDescription>
+      <Card className="w-full max-w-md glass-card shadow-2xl border-2">
+        <CardHeader className="text-center pb-6">
+          <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-primary to-secondary rounded-2xl flex items-center justify-center shadow-lg">
+            <Sparkles className="w-8 h-8 text-white" />
+          </div>
+          <CardTitle className="text-3xl font-bold text-gradient mb-2">FinScribe</CardTitle>
+          <CardDescription className="text-base">Sign in to access your documents</CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="login" className="w-full">
@@ -124,7 +127,7 @@ const Auth = () => {
                     />
                   </div>
                 </div>
-                <Button type="submit" className="w-full" disabled={loading}>
+                <Button type="submit" className="w-full font-semibold shadow-btn" disabled={loading}>
                   {loading ? "Signing in..." : "Sign In"}
                 </Button>
               </form>
@@ -174,7 +177,7 @@ const Auth = () => {
                     />
                   </div>
                 </div>
-                <Button type="submit" className="w-full" disabled={loading}>
+                <Button type="submit" className="w-full font-semibold shadow-btn" disabled={loading}>
                   {loading ? "Creating account..." : "Create Account"}
                 </Button>
               </form>
@@ -190,11 +193,11 @@ const Auth = () => {
                 <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
               </div>
             </div>
-            <div className="mt-4 flex gap-2">
-              <Button variant="outline" className="flex-1" onClick={() => handleSocialLogin("google")}>
+            <div className="mt-4 flex gap-3">
+              <Button variant="outline" className="flex-1 font-semibold border-2 hover:bg-muted/50" onClick={() => handleSocialLogin("google")}>
                 <Chrome className="h-4 w-4 mr-2" /> Google
               </Button>
-              <Button variant="outline" className="flex-1" onClick={() => handleSocialLogin("github")}>
+              <Button variant="outline" className="flex-1 font-semibold border-2 hover:bg-muted/50" onClick={() => handleSocialLogin("github")}>
                 <Github className="h-4 w-4 mr-2" /> GitHub
               </Button>
             </div>

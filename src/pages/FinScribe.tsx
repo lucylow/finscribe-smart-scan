@@ -1,18 +1,10 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate, useLocation, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import {
-  Breadcrumb,
-  BreadcrumbList,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from '@/components/ui/breadcrumb';
+import { toast } from 'sonner';
 import { 
   CloudUpload, 
   GitCompare, 
@@ -27,46 +19,28 @@ import {
   CheckCircle,
   Menu,
   PanelLeftClose,
-  PanelLeft,
-  AlertTriangle
+  PanelLeft
 } from 'lucide-react';
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from '@/components/ui/sheet';
 import DocumentUpload from '@/components/finscribe/DocumentUpload';
 import ProcessingStatus from '@/components/finscribe/ProcessingStatus';
 import ResultsDisplay from '@/components/finscribe/ResultsDisplay';
 import ComparisonView from '@/components/finscribe/ComparisonView';
-import MultiDocumentComparison from '@/components/finscribe/MultiDocumentComparison';
-import DualDocumentUpload from '@/components/finscribe/DualDocumentUpload';
 import ModelInfo from '@/components/finscribe/ModelInfo';
 import SemanticRegionVisualization from '@/components/finscribe/SemanticRegionVisualization';
 import PerformanceMetrics from '@/components/finscribe/PerformanceMetrics';
 import APIPlayground from '@/components/finscribe/APIPlayground';
 import AppSidebar from '@/components/finscribe/AppSidebar';
-import { analyzeDocument, compareWithBaseline, compareDocuments, APIError, NetworkError, TimeoutError } from '@/services/api';
+import { analyzeDocument, compareWithBaseline } from '@/services/api';
 
 const FinScribe = () => {
-  const navigate = useNavigate();
-  const location = useLocation();
+  const [activeMode, setActiveMode] = useState('upload');
   const [file, setFile] = useState<File | null>(null);
-  const [file1, setFile1] = useState<File | null>(null);
-  const [file2, setFile2] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [processing, setProcessing] = useState(false);
   const [results, setResults] = useState<any>(null);
   const [comparisonResults, setComparisonResults] = useState<any>(null);
-  const [multiDocumentComparison, setMultiDocumentComparison] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  // Extract active mode from URL
-  const activeMode = location.pathname.split('/').pop() || 'upload';
 
   const handleFileSelect = useCallback((selectedFile: File | null) => {
     setFile(selectedFile);
@@ -84,15 +58,11 @@ const FinScribe = () => {
     setProcessing(true);
     setError(null);
     
-    let progressInterval: NodeJS.Timeout | null = null;
-    
     try {
-      progressInterval = setInterval(() => {
+      const progressInterval = setInterval(() => {
         setUploadProgress(prev => {
           if (prev >= 90) {
-            if (progressInterval) {
-              clearInterval(progressInterval);
-            }
+            clearInterval(progressInterval);
             return 90;
           }
           return prev + 10;
@@ -104,31 +74,17 @@ const FinScribe = () => {
 
       const response = await analyzeDocument(formData);
       
-      if (progressInterval) {
-        clearInterval(progressInterval);
-      }
+      clearInterval(progressInterval);
       setUploadProgress(100);
       
       setResults(response);
-      navigate('/app/results');
+      setActiveMode('results');
     } catch (err) {
-      if (progressInterval) {
-        clearInterval(progressInterval);
-      }
-      let errorMessage = 'An error occurred while processing your document.';
-      
-      if (err instanceof APIError) {
-        errorMessage = err.message;
-      } else if (err instanceof NetworkError) {
-        errorMessage = 'Network error. Please check your internet connection and try again.';
-      } else if (err instanceof TimeoutError) {
-        errorMessage = 'Request timed out. The file may be too large or processing is taking longer than expected. Please try again.';
-      } else if (err instanceof Error) {
-        errorMessage = err.message;
-      }
-      
+      const errorMessage = ErrorHandler.handleError(err, {
+        showToast: false, // We'll show it in the UI instead
+        logToConsole: true,
+      });
       setError(errorMessage);
-      console.error('Analysis error:', err);
     } finally {
       setProcessing(false);
       setTimeout(() => setUploadProgress(0), 1000);
@@ -151,408 +107,300 @@ const FinScribe = () => {
       const response = await compareWithBaseline(formData);
       
       setComparisonResults(response);
-      navigate('/app/compare');
+      setActiveMode('compare');
     } catch (err) {
-      let errorMessage = 'An error occurred while comparing models.';
-      
-      if (err instanceof APIError) {
-        errorMessage = err.message;
-      } else if (err instanceof NetworkError) {
-        errorMessage = 'Network error. Please check your internet connection and try again.';
-      } else if (err instanceof TimeoutError) {
-        errorMessage = 'Request timed out. The file may be too large or processing is taking longer than expected. Please try again.';
-      } else if (err instanceof Error) {
-        errorMessage = err.message;
-      }
-      
+      const errorMessage = ErrorHandler.handleError(err, {
+        showToast: false, // We'll show it in the UI instead
+        logToConsole: true,
+      });
       setError(errorMessage);
-      console.error('Comparison error:', err);
     } finally {
       setProcessing(false);
-    }
-  };
-
-  const handleCompareDocuments = async () => {
-    if (!file1 || !file2) {
-      setError('Please select both documents to compare');
-      return;
-    }
-
-    setProcessing(true);
-    setError(null);
-    
-    let progressInterval: NodeJS.Timeout | null = null;
-    
-    try {
-      progressInterval = setInterval(() => {
-        setUploadProgress(prev => {
-          if (prev >= 90) {
-            if (progressInterval) {
-              clearInterval(progressInterval);
-            }
-            return 90;
-          }
-          return prev + 10;
-        });
-      }, 200);
-
-      const response = await compareDocuments(file1, file2);
-      
-      if (progressInterval) {
-        clearInterval(progressInterval);
-      }
-      setUploadProgress(100);
-      
-      setMultiDocumentComparison(response);
-      navigate('/app/compare-documents');
-    } catch (err) {
-      if (progressInterval) {
-        clearInterval(progressInterval);
-      }
-      let errorMessage = 'An error occurred while comparing documents.';
-      
-      if (err instanceof APIError) {
-        errorMessage = err.message;
-      } else if (err instanceof NetworkError) {
-        errorMessage = 'Network error. Please check your internet connection and try again.';
-      } else if (err instanceof TimeoutError) {
-        errorMessage = 'Request timed out. The files may be too large or processing is taking longer than expected. Please try again.';
-      } else if (err instanceof Error) {
-        errorMessage = err.message;
-      }
-      
-      setError(errorMessage);
-      console.error('Document comparison error:', err);
-    } finally {
-      setProcessing(false);
-      setTimeout(() => setUploadProgress(0), 1000);
     }
   };
 
   const handleDownloadResults = (format: 'json' | 'csv' = 'json') => {
-    if (!results) return;
-    
-    let dataStr: string;
-    let mimeType: string;
-    let extension: string;
-
-    if (format === 'csv') {
-      const headers = ['Field', 'Value'];
-      const rows = Object.entries(results.data || {}).map(([key, value]) => 
-        [key, typeof value === 'object' ? JSON.stringify(value) : String(value)]
-      );
-      dataStr = [headers, ...rows].map(row => row.join(',')).join('\n');
-      mimeType = 'text/csv';
-      extension = 'csv';
-    } else {
-      dataStr = JSON.stringify(results.data, null, 2);
-      mimeType = 'application/json';
-      extension = 'json';
+    if (!results) {
+      ErrorHandler.handleError(new Error('No results available to download'), {
+        showToast: true,
+        logToConsole: true,
+      });
+      return;
     }
     
-    const dataUri = `data:${mimeType};charset=utf-8,${encodeURIComponent(dataStr)}`;
-    const exportFileDefaultName = `finscribe-analysis-${Date.now()}.${extension}`;
-    
-    const linkElement = document.createElement('a');
-    linkElement.setAttribute('href', dataUri);
-    linkElement.setAttribute('download', exportFileDefaultName);
-    linkElement.click();
+    try {
+      let dataStr: string;
+      let mimeType: string;
+      let extension: string;
+
+      if (format === 'csv') {
+        const headers = ['Field', 'Value'];
+        const rows = Object.entries(results.data || {}).map(([key, value]) => 
+          [key, typeof value === 'object' ? JSON.stringify(value) : String(value)]
+        );
+        dataStr = [headers, ...rows].map(row => row.join(',')).join('\n');
+        mimeType = 'text/csv';
+        extension = 'csv';
+      } else {
+        if (!results.data) {
+          throw new Error('Results data is missing');
+        }
+        dataStr = JSON.stringify(results.data, null, 2);
+        mimeType = 'application/json';
+        extension = 'json';
+      }
+      
+      const dataUri = `data:${mimeType};charset=utf-8,${encodeURIComponent(dataStr)}`;
+      const exportFileDefaultName = `finscribe-analysis-${Date.now()}.${extension}`;
+      
+      const linkElement = document.createElement('a');
+      linkElement.setAttribute('href', dataUri);
+      linkElement.setAttribute('download', exportFileDefaultName);
+      document.body.appendChild(linkElement);
+      linkElement.click();
+      document.body.removeChild(linkElement);
+      
+      toast.success('Download started', {
+        description: `Your ${format.toUpperCase()} file is downloading.`,
+        duration: 2000,
+      });
+    } catch (error) {
+      ErrorHandler.handleError(error, {
+        showToast: true,
+        logToConsole: true,
+        customMessage: 'Failed to download results. Please try again.',
+      });
+    }
   };
 
-  // Component for Upload page
-  const UploadPage = () => (
-    <motion.div
-      key="upload"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-    >
-      <div className="text-center mb-8">
-        <h2 className="text-3xl md:text-4xl font-bold mb-3">
-          Upload & <span className="text-gradient">Analyze</span>
-        </h2>
-        <p className="text-muted-foreground max-w-lg mx-auto">
-          Upload invoices, receipts, or statements to extract perfect structured data with AI
-        </p>
-      </div>
+  const renderContent = () => {
+    switch (activeMode) {
+      case 'upload':
+        return (
+          <motion.div
+            key="upload"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+          >
+            <div className="text-center mb-8">
+              <h2 className="text-3xl md:text-4xl font-bold mb-3">
+                Upload & <span className="text-gradient">Analyze</span>
+              </h2>
+              <p className="text-muted-foreground max-w-lg mx-auto">
+                Upload invoices, receipts, or statements to extract perfect structured data with AI
+              </p>
+            </div>
 
-      <div className="grid lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-4">
-          <DocumentUpload onFileSelect={handleFileSelect} file={file} />
-          
-          <AnimatePresence>
-            {file && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-              >
-                <ProcessingStatus progress={uploadProgress} processing={processing} />
-              </motion.div>
-            )}
-          </AnimatePresence>
+            <div className="grid lg:grid-cols-3 gap-8">
+              <div className="lg:col-span-2 space-y-4">
+                <DocumentUpload onFileSelect={handleFileSelect} file={file} />
+                
+                <AnimatePresence>
+                  {file && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                    >
+                      <ProcessingStatus progress={uploadProgress} processing={processing} />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
-          <div className="flex flex-wrap gap-3 justify-center pt-4">
-            <Button
-              size="lg"
-              onClick={handleAnalyze}
-              disabled={!file || processing}
-              className="shadow-btn min-w-[180px] group"
-            >
-              {processing ? (
-                <>
-                  <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                    className="mr-2"
+                <div className="flex flex-wrap gap-3 justify-center pt-4">
+                  <Button
+                    size="lg"
+                    onClick={handleAnalyze}
+                    disabled={!file || processing}
+                    className="shadow-btn min-w-[180px] group"
                   >
-                    <Sparkles className="w-4 h-4" />
-                  </motion.div>
-                  Processing...
-                </>
-              ) : (
-                <>
-                  <CloudUpload className="w-4 h-4 mr-2" />
-                  Analyze with AI
-                  <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
-                </>
-              )}
-            </Button>
-            
-            <Button
-              variant="outline"
-              size="lg"
-              onClick={handleCompare}
-              disabled={!file || processing}
-              className="min-w-[160px]"
-            >
-              <GitCompare className="w-4 h-4 mr-2" />
-              Compare Models
-            </Button>
-          </div>
-        </div>
-
-        <div>
-          <Card className="h-full bg-gradient-to-br from-muted/50 to-muted/30 border-muted">
-            <CardContent className="pt-6">
-              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <Zap className="w-5 h-5 text-primary" />
-                Supported Documents
-              </h3>
-              <ul className="space-y-3 mb-6">
-                {[
-                  'Invoices & Bills (Multi-currency)',
-                  'Receipts & Expense Reports',
-                  'Purchase Orders',
-                  'Bank Statements',
-                  'Financial Statements'
-                ].map((item, i) => (
-                  <motion.li 
-                    key={item} 
-                    className="flex items-center text-sm gap-2"
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.1 }}
+                    {processing ? (
+                      <>
+                        <motion.div
+                          animate={{ rotate: 360 }}
+                          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                          className="mr-2"
+                        >
+                          <Sparkles className="w-4 h-4" />
+                        </motion.div>
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <CloudUpload className="w-4 h-4 mr-2" />
+                        Analyze with AI
+                        <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                      </>
+                    )}
+                  </Button>
+                  
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    onClick={handleCompare}
+                    disabled={!file || processing}
+                    className="min-w-[160px]"
                   >
-                    <CheckCircle className="w-4 h-4 text-success flex-shrink-0" />
-                    <span>{item}</span>
-                  </motion.li>
-                ))}
-              </ul>
-              
-              <div className="p-4 rounded-xl bg-primary/5 border border-primary/10">
-                <p className="text-xs text-muted-foreground">
-                  <strong className="text-foreground">Pro Tip:</strong> For best results, use clear images or PDFs with minimal skew.
-                </p>
+                    <GitCompare className="w-4 h-4 mr-2" />
+                    Compare Models
+                  </Button>
+                </div>
               </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    </motion.div>
-  );
 
-  // Component for Results page
-  const ResultsPage = () => (
-    results ? (
-      <motion.div
-        key="results"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -20 }}
-      >
-        <div className="flex flex-wrap justify-between items-center mb-6 gap-4">
-          <h2 className="text-2xl font-bold">Analysis Results</h2>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => handleDownloadResults('json')}>
-              <FileJson className="w-4 h-4 mr-2" />
-              JSON
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => handleDownloadResults('csv')}>
-              <FileSpreadsheet className="w-4 h-4 mr-2" />
-              CSV
-            </Button>
-          </div>
-        </div>
-        <ResultsDisplay results={results} />
-      </motion.div>
-    ) : (
-      <div className="text-center py-12">
-        <p className="text-muted-foreground">No results yet. Upload and analyze a document first.</p>
-        <Button className="mt-4" onClick={() => navigate('/app/upload')}>
-          Go to Upload
-        </Button>
-      </div>
-    )
-  );
+              <div>
+                <Card className="h-full bg-gradient-to-br from-muted/50 to-muted/30 border-muted">
+                  <CardContent className="pt-6">
+                    <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                      <Zap className="w-5 h-5 text-primary" />
+                      Supported Documents
+                    </h3>
+                    <ul className="space-y-3 mb-6">
+                      {[
+                        'Invoices & Bills (Multi-currency)',
+                        'Receipts & Expense Reports',
+                        'Purchase Orders',
+                        'Bank Statements',
+                        'Financial Statements'
+                      ].map((item, i) => (
+                        <motion.li 
+                          key={item} 
+                          className="flex items-center text-sm gap-2"
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: i * 0.1 }}
+                        >
+                          <CheckCircle className="w-4 h-4 text-success flex-shrink-0" />
+                          <span>{item}</span>
+                        </motion.li>
+                      ))}
+                    </ul>
+                    
+                    <div className="p-4 rounded-xl bg-primary/5 border border-primary/10">
+                      <p className="text-xs text-muted-foreground">
+                        <strong className="text-foreground">Pro Tip:</strong> For best results, use clear images or PDFs with minimal skew.
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          </motion.div>
+        );
 
-  // Component for Compare page (model comparison)
-  const ComparePage = () => (
-    comparisonResults ? (
-      <motion.div
-        key="compare"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -20 }}
-      >
-        <ComparisonView data={comparisonResults} />
-      </motion.div>
-    ) : (
-      <div className="text-center py-12">
-        <p className="text-muted-foreground">No comparison yet. Upload a document and click "Compare Models".</p>
-        <Button className="mt-4" onClick={() => navigate('/app/upload')}>
-          Go to Upload
-        </Button>
-      </div>
-    )
-  );
+      case 'results':
+        return results ? (
+          <motion.div
+            key="results"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+          >
+            <div className="flex flex-wrap justify-between items-center mb-6 gap-4">
+              <h2 className="text-2xl font-bold">Analysis Results</h2>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => handleDownloadResults('json')}>
+                  <FileJson className="w-4 h-4 mr-2" />
+                  JSON
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => handleDownloadResults('csv')}>
+                  <FileSpreadsheet className="w-4 h-4 mr-2" />
+                  CSV
+                </Button>
+              </div>
+            </div>
+            <ResultsDisplay results={results} />
+          </motion.div>
+        ) : (
+          <motion.div 
+            className="text-center py-12"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <div className="max-w-md mx-auto">
+              <FileText className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-50" />
+              <h3 className="text-lg font-semibold mb-2">No results yet</h3>
+              <p className="text-muted-foreground mb-6">
+                Upload and analyze a document to see detailed extraction results here.
+              </p>
+              <Button className="mt-4" onClick={() => setActiveMode('upload')}>
+                Go to Upload
+              </Button>
+            </div>
+          </motion.div>
+        );
 
-  // Component for Compare Documents page (multi-document comparison)
-  const CompareDocumentsPage = () => (
-    multiDocumentComparison ? (
-      <motion.div
-        key="compare-documents"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -20 }}
-      >
-        <MultiDocumentComparison data={multiDocumentComparison} />
-      </motion.div>
-    ) : (
-      <motion.div
-        key="compare-documents-upload"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -20 }}
-      >
-        <div className="text-center mb-8">
-          <h2 className="text-3xl md:text-4xl font-bold mb-3">
-            Compare <span className="text-gradient">Documents</span>
-          </h2>
-          <p className="text-muted-foreground max-w-lg mx-auto">
-            Upload two related documents (e.g., Quote & Invoice) to analyze differences using multimodal AI reasoning
-          </p>
-        </div>
-
-        <div className="max-w-4xl mx-auto space-y-6">
-          <DualDocumentUpload
-            onFile1Select={setFile1}
-            onFile2Select={setFile2}
-            file1={file1}
-            file2={file2}
-          />
-          
-          <AnimatePresence>
-            {(file1 || file2) && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-              >
-                <ProcessingStatus progress={uploadProgress} processing={processing} />
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          <div className="flex flex-wrap gap-3 justify-center pt-4">
-            <Button
-              size="lg"
-              onClick={handleCompareDocuments}
-              disabled={!file1 || !file2 || processing}
-              className="shadow-btn min-w-[200px] group"
-            >
-              {processing ? (
-                <>
-                  <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                    className="mr-2"
-                  >
-                    <Sparkles className="w-4 h-4" />
-                  </motion.div>
-                  Comparing...
-                </>
-              ) : (
-                <>
-                  <GitCompare className="w-4 h-4 mr-2" />
-                  Compare Documents
-                  <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
-                </>
-              )}
+      case 'compare':
+        return comparisonResults ? (
+          <motion.div
+            key="compare"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+          >
+            <ComparisonView data={comparisonResults} />
+          </motion.div>
+        ) : (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">No comparison yet. Upload a document and click "Compare Models".</p>
+            <Button className="mt-4" onClick={() => setActiveMode('upload')}>
+              Go to Upload
             </Button>
           </div>
-        </div>
-      </motion.div>
-    )
-  );
+        );
 
-  // Component for Features page
-  const FeaturesPage = () => (
-    <motion.div
-      key="features"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      className="space-y-8"
-    >
-      <div className="text-center mb-8">
-        <h2 className="text-2xl md:text-3xl font-bold mb-2">
-          Interactive <span className="text-gradient">Features Demo</span>
-        </h2>
-        <p className="text-muted-foreground">Explore the AI-powered document parsing capabilities</p>
-      </div>
-      
-      <SemanticRegionVisualization />
-      
-      <div className="mt-8">
-        <ModelInfo />
-      </div>
-    </motion.div>
-  );
+      case 'features':
+        return (
+          <motion.div
+            key="features"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="space-y-8"
+          >
+            <div className="text-center mb-8">
+              <h2 className="text-2xl md:text-3xl font-bold mb-2">
+                Interactive <span className="text-gradient">Features Demo</span>
+              </h2>
+              <p className="text-muted-foreground">Explore the AI-powered document parsing capabilities</p>
+            </div>
+            
+            <SemanticRegionVisualization />
+            
+            <div className="mt-8">
+              <ModelInfo />
+            </div>
+          </motion.div>
+        );
 
-  // Component for Metrics page
-  const MetricsPage = () => (
-    <motion.div
-      key="metrics"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-    >
-      <PerformanceMetrics />
-    </motion.div>
-  );
+      case 'metrics':
+        return (
+          <motion.div
+            key="metrics"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+          >
+            <PerformanceMetrics />
+          </motion.div>
+        );
 
-  // Component for API page
-  const APIPage = () => (
-    <motion.div
-      key="api"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-    >
-      <APIPlayground />
-    </motion.div>
-  );
+      case 'api':
+        return (
+          <motion.div
+            key="api"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+          >
+            <APIPlayground />
+          </motion.div>
+        );
+
+      default:
+        return null;
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -566,7 +414,7 @@ const FinScribe = () => {
             transition={{ duration: 0.2 }}
             className="hidden lg:block flex-shrink-0 overflow-hidden"
           >
-            <AppSidebar activeMode={activeMode} />
+            <AppSidebar activeMode={activeMode} onModeChange={setActiveMode} />
           </motion.div>
         )}
       </AnimatePresence>
@@ -574,13 +422,13 @@ const FinScribe = () => {
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Bar */}
-        <header className="sticky top-0 z-40 bg-card/95 backdrop-blur-md border-b px-4 py-3 flex items-center justify-between">
+        <header className="sticky top-0 z-40 bg-card/95 backdrop-blur-xl border-b border-border/50 shadow-sm px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Button 
               variant="ghost" 
               size="icon"
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="hidden lg:flex"
+              className="hidden lg:flex hover:bg-muted/80 rounded-lg"
             >
               {sidebarOpen ? (
                 <PanelLeftClose className="w-5 h-5" />
@@ -589,61 +437,8 @@ const FinScribe = () => {
               )}
             </Button>
 
-            {/* Mobile Logo and Menu */}
-            <div className="lg:hidden flex items-center gap-3">
-              <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-                <SheetTrigger asChild>
-                  <Button variant="ghost" size="icon">
-                    <Menu className="w-5 h-5" />
-                  </Button>
-                </SheetTrigger>
-                <SheetContent side="left" className="w-64 p-0">
-                  <SheetHeader className="p-4 border-b">
-                    <SheetTitle className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                        <Sparkles className="w-4 h-4 text-primary-foreground" />
-                      </div>
-                      <span className="font-bold">FinScribe</span>
-                    </SheetTitle>
-                  </SheetHeader>
-                  <div className="p-3 space-y-1">
-                    {[
-                      { path: 'upload', label: 'Upload & Analyze', icon: CloudUpload },
-                      { path: 'compare', label: 'Compare Models', icon: GitCompare },
-                      { path: 'compare-documents', label: 'Compare Documents', icon: FileText },
-                      { path: 'features', label: 'Features Demo', icon: Sparkles },
-                      { path: 'metrics', label: 'Performance', icon: CheckCircle },
-                      { path: 'api', label: 'API Playground', icon: Zap }
-                    ].map(({ path, label, icon: Icon }) => (
-                      <Button
-                        key={path}
-                        variant={activeMode === path ? 'default' : 'ghost'}
-                        className="w-full justify-start"
-                        onClick={() => {
-                          navigate(`/app/${path}`);
-                          setMobileMenuOpen(false);
-                        }}
-                      >
-                        <Icon className="w-4 h-4 mr-2" />
-                        {label}
-                      </Button>
-                    ))}
-                    <div className="pt-4 mt-4 border-t">
-                      <Button
-                        variant="outline"
-                        className="w-full justify-start"
-                        onClick={() => {
-                          navigate('/');
-                          setMobileMenuOpen(false);
-                        }}
-                      >
-                        <Sparkles className="w-4 h-4 mr-2" />
-                        Back to Home
-                      </Button>
-                    </div>
-                  </div>
-                </SheetContent>
-              </Sheet>
+            {/* Mobile Logo */}
+            <div className="lg:hidden flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
                 <Sparkles className="w-4 h-4 text-primary-foreground" />
               </div>
@@ -656,38 +451,29 @@ const FinScribe = () => {
             </Badge>
           </div>
 
-          {/* Desktop Badge */}
-          <Badge variant="outline" className="hidden sm:flex">Privacy-First</Badge>
+          {/* Mobile Navigation */}
+          <div className="flex lg:hidden gap-2 overflow-x-auto">
+            {['upload', 'compare', 'features', 'metrics', 'api'].map((mode) => (
+              <Button
+                key={mode}
+                variant={activeMode === mode ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setActiveMode(mode)}
+                className="capitalize whitespace-nowrap"
+              >
+                {mode === 'upload' ? 'Upload' : 
+                 mode === 'compare' ? 'Compare' :
+                 mode === 'features' ? 'Demo' :
+                 mode === 'metrics' ? 'Metrics' : 'API'}
+              </Button>
+            ))}
+          </div>
 
+          <Badge variant="outline" className="hidden sm:flex">Privacy-First</Badge>
         </header>
 
         {/* Content Area */}
         <main className="flex-1 p-6 overflow-auto">
-          {/* Breadcrumb Navigation */}
-          <Breadcrumb className="mb-4">
-            <BreadcrumbList>
-              <BreadcrumbItem>
-                <BreadcrumbLink asChild>
-                  <Link to="/">Home</Link>
-                </BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbLink asChild>
-                  <Link to="/app/upload">App</Link>
-                </BreadcrumbLink>
-              </BreadcrumbItem>
-              {activeMode !== 'upload' && (
-                <>
-                  <BreadcrumbSeparator />
-                  <BreadcrumbItem>
-                    <BreadcrumbPage className="capitalize">{activeMode}</BreadcrumbPage>
-                  </BreadcrumbItem>
-                </>
-              )}
-            </BreadcrumbList>
-          </Breadcrumb>
-
           <AnimatePresence mode="wait">
             {error && (
               <motion.div
@@ -695,19 +481,39 @@ const FinScribe = () => {
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
                 className="mb-6"
+                role="alert"
+                aria-live="assertive"
               >
                 <Alert variant="destructive">
-                  <AlertTriangle className="h-4 w-4" />
                   <AlertDescription className="flex items-center justify-between gap-4">
                     <span className="flex-1">{error}</span>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      onClick={() => setError(null)}
-                      className="flex-shrink-0"
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
+                    <div className="flex gap-2 flex-shrink-0">
+                      {(error.includes('Network') || error.includes('timeout') || error.includes('connection')) && (
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => {
+                            setError(null);
+                            if (activeMode === 'upload' && file) {
+                              handleAnalyze();
+                            } else if (activeMode === 'compare' && file) {
+                              handleCompare();
+                            }
+                          }}
+                          className="text-xs"
+                        >
+                          Retry
+                        </Button>
+                      )}
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => setError(null)}
+                        aria-label="Dismiss error"
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </AlertDescription>
                 </Alert>
               </motion.div>
@@ -715,16 +521,7 @@ const FinScribe = () => {
           </AnimatePresence>
 
           <AnimatePresence mode="wait">
-            <Routes>
-              <Route path="upload" element={<UploadPage />} />
-              <Route path="results" element={<ResultsPage />} />
-              <Route path="compare" element={<ComparePage />} />
-              <Route path="compare-documents" element={<CompareDocumentsPage />} />
-              <Route path="features" element={<FeaturesPage />} />
-              <Route path="metrics" element={<MetricsPage />} />
-              <Route path="api" element={<APIPage />} />
-              <Route path="*" element={<Navigate to="/app/upload" replace />} />
-            </Routes>
+            {renderContent()}
           </AnimatePresence>
         </main>
 
@@ -733,7 +530,7 @@ const FinScribe = () => {
           <div className="flex flex-wrap justify-between items-center gap-4 text-sm text-muted-foreground">
             <div className="flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-primary" />
-              <span>FinScribe AI - PaddleOCR-VL + ERNIE 5</span>
+              <span>FinScribe AI - PaddleOCR-VL + ERNIE 4.5</span>
             </div>
             <div className="flex items-center gap-4">
               <span>ERNIE AI Developer Challenge</span>

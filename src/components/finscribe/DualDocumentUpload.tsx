@@ -5,6 +5,7 @@ import { CloudUpload, FileText, X, Image, FileCheck, Sparkles, ArrowRight } from
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 interface DualDocumentUploadProps {
   onFile1Select: (file: File | null) => void;
@@ -14,6 +15,8 @@ interface DualDocumentUploadProps {
 }
 
 function DualDocumentUpload({ onFile1Select, onFile2Select, file1, file2 }: DualDocumentUploadProps) {
+  const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
@@ -39,9 +42,47 @@ function DualDocumentUpload({ onFile1Select, onFile2Select, file1, file2 }: Dual
     label: string;
     acceptFiles?: (files: File[]) => void;
   }) => {
-    const onDrop = useCallback((acceptedFiles: File[]) => {
+    const onDrop = useCallback((acceptedFiles: File[], rejectedFiles: any[]) => {
+      // Handle rejected files
+      if (rejectedFiles.length > 0) {
+        const rejection = rejectedFiles[0];
+        if (rejection.errors) {
+          const error = rejection.errors[0];
+          if (error.code === 'file-too-large') {
+            toast.error('File too large', {
+              description: `Please select a file smaller than ${MAX_FILE_SIZE / (1024 * 1024)}MB.`,
+            });
+            return;
+          }
+          if (error.code === 'file-invalid-type') {
+            toast.error('Invalid file type', {
+              description: 'Please select a PDF or image file (PNG, JPG, JPEG).',
+            });
+            return;
+          }
+          toast.error('File rejected', {
+            description: error.message || 'Please try a different file.',
+          });
+          return;
+        }
+      }
+
       if (acceptedFiles.length > 0) {
-        onFileSelect(acceptedFiles[0]);
+        const selectedFile = acceptedFiles[0];
+        
+        // Additional validation
+        if (selectedFile.size > MAX_FILE_SIZE) {
+          toast.error('File too large', {
+            description: `Please select a file smaller than ${MAX_FILE_SIZE / (1024 * 1024)}MB.`,
+          });
+          return;
+        }
+
+        onFileSelect(selectedFile);
+        toast.success('File selected', {
+          description: `${selectedFile.name} is ready.`,
+          duration: 2000,
+        });
       }
     }, [onFileSelect]);
 
@@ -52,6 +93,7 @@ function DualDocumentUpload({ onFile1Select, onFile2Select, file1, file2 }: Dual
         'application/pdf': ['.pdf']
       },
       maxFiles: 1,
+      maxSize: MAX_FILE_SIZE,
     });
 
     const dropzoneProps = getRootProps();
@@ -66,11 +108,13 @@ function DualDocumentUpload({ onFile1Select, onFile2Select, file1, file2 }: Dual
           onBlur={dropzoneProps.onBlur}
           tabIndex={dropzoneProps.tabIndex}
           role={dropzoneProps.role}
+          aria-label={`${label} upload area`}
+          aria-describedby={`${label.toLowerCase().replace(/\s+/g, '-')}-instructions`}
           whileHover={{ scale: 1.01 }}
           whileTap={{ scale: 0.99 }}
           className={cn(
             "relative p-8 text-center cursor-pointer rounded-xl transition-all duration-300 overflow-hidden",
-            "border-2 border-dashed",
+            "border-2 border-dashed focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-2",
             isDragActive 
               ? "border-primary bg-primary/5 shadow-lg shadow-primary/10" 
               : file 
@@ -78,7 +122,10 @@ function DualDocumentUpload({ onFile1Select, onFile2Select, file1, file2 }: Dual
                 : "border-muted-foreground/30 hover:border-primary hover:bg-accent/30"
           )}
         >
-          <input {...getInputProps()} />
+          <input {...getInputProps()} aria-label={`${label} file input`} />
+          <span id={`${label.toLowerCase().replace(/\s+/g, '-')}-instructions`} className="sr-only">
+            Drag and drop a document here, or click to browse. Supported formats: PDF, PNG, JPG, JPEG. Maximum file size: 50MB.
+          </span>
           
           <div className="relative z-10">
             <motion.div

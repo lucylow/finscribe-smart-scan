@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Sparkles, Menu, X, Zap } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { NavLink } from "@/components/NavLink";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const Header = () => {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -35,26 +36,27 @@ const Header = () => {
       transition={{ duration: 0.5, ease: "easeOut" }}
       className={`fixed top-0 w-full z-50 transition-all duration-500 ${
         isScrolled 
-          ? "bg-background/80 backdrop-blur-xl shadow-lg border-b border-border/50" 
+          ? "bg-background/95 backdrop-blur-xl shadow-lg border-b border-border/50" 
           : "bg-transparent"
       }`}
     >
       <div className="container-custom py-4">
         <div className="flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2 group">
+          <Link to="/" className="flex items-center gap-3 group">
             <motion.div 
-              className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg"
+              className="w-11 h-11 rounded-xl bg-gradient-to-br from-primary via-primary to-secondary flex items-center justify-center shadow-lg shadow-primary/30"
               whileHover={{ scale: 1.1, rotate: 5 }}
               whileTap={{ scale: 0.95 }}
+              transition={{ type: "spring", stiffness: 400 }}
             >
-              <Sparkles className="w-5 h-5 text-white" />
+              <Sparkles className="w-6 h-6 text-white" />
             </motion.div>
             <div className="flex flex-col">
-              <span className="text-xl font-extrabold leading-tight">
+              <span className="text-xl font-extrabold leading-tight tracking-tight">
                 <span className="text-secondary">Fin</span>Scribe
                 <span className="text-primary">AI</span>
               </span>
-              <span className="text-[10px] text-muted-foreground tracking-wider hidden sm:block">
+              <span className="text-[10px] text-muted-foreground tracking-wider hidden sm:block font-medium">
                 From Paper to Perfect Data
               </span>
             </div>
@@ -66,14 +68,14 @@ const Header = () => {
               <motion.a
                 key={link.href}
                 href={link.href}
-                className="relative px-4 py-2 font-medium text-foreground/70 hover:text-foreground transition-colors group"
+                className="relative px-5 py-2.5 font-semibold text-sm text-foreground/70 hover:text-foreground transition-all group rounded-lg hover:bg-muted/50"
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1 }}
                 whileHover={{ y: -2 }}
               >
                 {link.label}
-                <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-0.5 bg-primary transition-all duration-300 group-hover:w-3/4 rounded-full" />
+                <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-0.5 bg-gradient-to-r from-primary to-secondary transition-all duration-300 group-hover:w-3/4 rounded-full" />
               </motion.a>
             ))}
             {isAppPage && (
@@ -95,16 +97,17 @@ const Header = () => {
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: isAppPage ? 0 : 0.5 }}
-              className="ml-4"
+              className="ml-4 flex items-center gap-2"
             >
+              <ThemeToggle />
               {!isAppPage && (
                 <>
-                  <Button asChild size="sm" variant="outline" className="mr-2">
+                  <Button asChild size="sm" variant="outline" className="mr-2 font-semibold border-2 hover:bg-muted/50">
                     <Link to="/auth">Login</Link>
                   </Button>
-                  <Button asChild size="sm" className="shadow-btn group">
+                  <Button asChild size="sm" className="shadow-btn group font-semibold px-5">
                     <Link to="/app/upload">
-                      <Zap className="w-4 h-4 mr-1 group-hover:animate-pulse" />
+                      <Zap className="w-4 h-4 mr-1.5 group-hover:animate-pulse" />
                       Try Free
                     </Link>
                   </Button>

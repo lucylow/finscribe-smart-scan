@@ -16,6 +16,8 @@ import {
   Globe
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { ErrorHandler } from '@/lib/errorHandler';
+import { getHealthStatus, APIError, NetworkError, TimeoutError } from '@/services/api';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -109,25 +111,61 @@ function APIPlayground() {
   const [apiKey, setApiKey] = useState('sk_demo_1234567890abcdef');
   const [testResult, setTestResult] = useState<string | null>(null);
 
-  const handleCopy = (text: string, id: string) => {
-    navigator.clipboard.writeText(text);
-    setCopied(id);
-    toast({
-      title: "Copied to clipboard",
-      description: "Code snippet copied successfully",
-    });
-    setTimeout(() => setCopied(null), 2000);
+  const handleCopy = async (text: string, id: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(id);
+      toast({
+        title: "Copied to clipboard",
+        description: "Code snippet copied successfully",
+      });
+      setTimeout(() => setCopied(null), 2000);
+    } catch (error) {
+      ErrorHandler.handleError(error, {
+        showToast: true,
+        logToConsole: true,
+        customMessage: 'Failed to copy to clipboard. Please try again.',
+      });
+    }
   };
 
-  const handleTestConnection = () => {
+  const handleTestConnection = async () => {
     setTestResult('connecting');
-    setTimeout(() => {
-      setTestResult('success');
-      toast({
-        title: "Connection successful!",
-        description: "API is responding normally (Demo Mode)",
+    
+    try {
+      // Actually test the API connection
+      const healthStatus = await getHealthStatus();
+      
+      if (healthStatus.status === 'healthy') {
+        setTestResult('success');
+        toast({
+          title: "Connection successful!",
+          description: "API is responding normally",
+        });
+      } else {
+        throw new Error('API health check failed');
+      }
+    } catch (error) {
+      setTestResult(null);
+      
+      let errorMessage = 'Failed to connect to API.';
+      
+      if (error instanceof APIError) {
+        errorMessage = `API Error: ${error.message}`;
+      } else if (error instanceof NetworkError) {
+        errorMessage = 'Network error. Please check your connection.';
+      } else if (error instanceof TimeoutError) {
+        errorMessage = 'Connection timeout. The API may be slow or unavailable.';
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
+      ErrorHandler.handleError(error, {
+        showToast: true,
+        logToConsole: true,
+        customMessage: errorMessage,
       });
-    }, 1500);
+    }
   };
 
   return (

@@ -74,10 +74,10 @@ const Features = () => {
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
         >
-          <h2 className="text-3xl md:text-4xl font-bold text-center mb-4">
-            Why Choose FinScribe AI
+          <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-center mb-4 tracking-tight">
+            Why Choose <span className="text-gradient bg-gradient-to-r from-primary via-primary to-secondary bg-clip-text text-transparent">FinScribe AI</span>
           </h2>
-          <p className="text-center text-muted-foreground mb-16 max-w-2xl mx-auto">
+          <p className="text-center text-muted-foreground mb-16 max-w-2xl mx-auto text-lg leading-relaxed">
             Powerful features designed to streamline your financial document processing workflow.
           </p>
         </motion.div>
@@ -97,7 +97,7 @@ const Features = () => {
               whileHover={{ y: -10, scale: 1.02 }}
               onHoverStart={() => setHoveredFeature(index)}
               onHoverEnd={() => setHoveredFeature(null)}
-              className="bg-card p-8 rounded-2xl shadow-card hover:shadow-card-hover transition-all duration-300 text-center cursor-pointer"
+              className="bg-card p-8 rounded-2xl shadow-card hover:shadow-card-hover transition-all duration-300 text-center cursor-pointer border-2 border-transparent hover:border-primary/20"
             >
               <motion.div
                 className="w-16 h-16 mx-auto mb-6 text-primary bg-primary/10 rounded-2xl flex items-center justify-center"
@@ -122,7 +122,7 @@ const Features = () => {
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
         >
-          <h3 className="text-2xl font-bold text-center mb-8">
+          <h3 className="text-2xl md:text-3xl font-bold text-center mb-8 tracking-tight">
             FinScribe AI vs. Traditional OCR
           </h3>
           <div className="overflow-x-auto">

@@ -62,7 +62,7 @@ const Hero = () => {
             </motion.div>
             
             <motion.h1
-              className="text-4xl md:text-5xl lg:text-6xl font-extrabold leading-[1.1] mb-6"
+              className="text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-extrabold leading-[1.1] mb-6 tracking-tight"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 }}
@@ -70,7 +70,9 @@ const Hero = () => {
               Transform Financial
               <br />
               Documents with{" "}
-              <span className="text-gradient">AI Magic</span>
+              <span className="text-gradient bg-gradient-to-r from-primary via-primary to-secondary bg-clip-text text-transparent">
+                AI Magic
+              </span>
             </motion.h1>
             
             <motion.p
@@ -83,13 +85,13 @@ const Hero = () => {
             </motion.p>
             
             <motion.p
-              className="text-lg text-foreground/60 mb-8 max-w-xl mx-auto lg:mx-0"
+              className="text-lg md:text-xl text-foreground/70 mb-8 max-w-2xl mx-auto lg:mx-0 leading-relaxed"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.5 }}
             >
               Extract structured data from invoices, receipts, and statements 
-              with 99%+ accuracy in seconds—not hours.
+              with <span className="font-semibold text-primary">99%+ accuracy</span> in seconds—not hours.
             </motion.p>
             
             <motion.div
@@ -99,15 +101,15 @@ const Hero = () => {
               transition={{ delay: 0.6 }}
             >
               <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                <Button asChild size="lg" className="shadow-btn group">
+                <Button asChild size="lg" className="shadow-btn group px-8 py-6 text-base font-semibold">
                   <Link to="/app">
                     Start Free Trial
-                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                    <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
                   </Link>
                 </Button>
               </motion.div>
               <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                <Button variant="outline" size="lg" asChild className="group">
+                <Button variant="outline" size="lg" asChild className="group px-8 py-6 text-base border-2 hover:bg-muted/50">
                   <a href="#demo">
                     <Play className="w-4 h-4 mr-2 group-hover:scale-110 transition-transform" />
                     See How It Works
@@ -145,62 +147,65 @@ const Hero = () => {
             <div className="relative w-full max-w-lg">
               {/* Main image with glass effect */}
               <motion.div
-                className="relative rounded-2xl overflow-hidden shadow-2xl border border-white/10"
-                whileHover={{ scale: 1.02 }}
+                className="relative rounded-3xl overflow-hidden shadow-2xl border-2 border-white/20 backdrop-blur-glass"
+                whileHover={{ scale: 1.02, rotate: 0.5 }}
                 transition={{ duration: 0.4 }}
               >
-                <div className="absolute inset-0 bg-gradient-to-tr from-primary/20 to-secondary/20 mix-blend-overlay z-10" />
+                <div className="absolute inset-0 bg-gradient-to-tr from-primary/10 via-transparent to-secondary/10 z-10 pointer-events-none" />
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(0,212,170,0.1),transparent_70%)] z-10 pointer-events-none" />
                 <img
                   src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80"
                   alt="FinScribe AI Dashboard"
-                  className="w-full h-auto"
+                  className="w-full h-auto relative z-0"
                 />
               </motion.div>
               
               {/* Stats cards */}
               <motion.div
-                className="absolute -bottom-6 -left-6 glass-card p-4 rounded-xl shadow-card flex items-center gap-3"
+                className="absolute -bottom-6 -left-6 glass-card p-5 rounded-2xl shadow-xl border border-white/20 backdrop-blur-glass flex items-center gap-4 min-w-[180px]"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.9 }}
-                whileHover={{ scale: 1.05, y: -5 }}
+                whileHover={{ scale: 1.05, y: -5, boxShadow: "0 20px 40px rgba(0,0,0,0.15)" }}
               >
-                <div className="w-12 h-12 bg-gradient-to-br from-secondary to-secondary/70 rounded-xl flex items-center justify-center">
-                  <TrendingUp className="w-6 h-6 text-white" />
+                <div className="w-14 h-14 bg-gradient-to-br from-secondary to-secondary/70 rounded-xl flex items-center justify-center shadow-lg">
+                  <TrendingUp className="w-7 h-7 text-white" />
                 </div>
                 <div>
-                  <p className="font-bold text-lg">99.2%</p>
-                  <p className="text-xs text-muted-foreground">Accuracy Rate</p>
+                  <p className="font-bold text-xl">99.2%</p>
+                  <p className="text-xs text-muted-foreground font-medium">Accuracy Rate</p>
                 </div>
               </motion.div>
 
               <motion.div
-                className="absolute -top-4 -right-4 glass-card px-4 py-3 rounded-xl shadow-card"
+                className="absolute -top-4 -right-4 glass-card px-5 py-3 rounded-2xl shadow-xl border border-white/20 backdrop-blur-glass"
                 initial={{ opacity: 0, scale: 0 }}
                 animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 1, type: "spring" }}
-                whileHover={{ scale: 1.05 }}
+                transition={{ delay: 1, type: "spring", stiffness: 200 }}
+                whileHover={{ scale: 1.05, y: -2 }}
               >
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2.5">
                   <motion.div 
-                    className="w-2.5 h-2.5 bg-secondary rounded-full"
-                    animate={{ scale: [1, 1.2, 1] }}
+                    className="w-3 h-3 bg-secondary rounded-full shadow-lg shadow-secondary/50"
+                    animate={{ scale: [1, 1.3, 1], opacity: [1, 0.7, 1] }}
                     transition={{ duration: 1.5, repeat: Infinity }}
                   />
-                  <span className="text-sm font-medium">AI Processing Live</span>
+                  <span className="text-sm font-semibold">AI Processing Live</span>
                 </div>
               </motion.div>
 
               <motion.div
-                className="absolute top-1/2 -right-8 glass-card p-3 rounded-xl shadow-card"
+                className="absolute top-1/2 -right-8 glass-card p-4 rounded-2xl shadow-xl border border-white/20 backdrop-blur-glass"
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 1.1 }}
-                whileHover={{ scale: 1.05, x: 5 }}
+                whileHover={{ scale: 1.05, x: 5, boxShadow: "0 20px 40px rgba(0,0,0,0.15)" }}
               >
-                <div className="flex items-center gap-2">
-                  <Shield className="w-5 h-5 text-primary" />
-                  <span className="text-xs font-medium">Bank-Level<br/>Security</span>
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                    <Shield className="w-5 h-5 text-primary" />
+                  </div>
+                  <span className="text-xs font-semibold leading-tight">Bank-Level<br/>Security</span>
                 </div>
               </motion.div>
             </div>
@@ -217,12 +222,15 @@ const Hero = () => {
           {stats.map((stat, i) => (
             <motion.div
               key={stat.label}
-              className="text-center p-4 rounded-xl bg-card/50 backdrop-blur-sm border border-border/50"
-              whileHover={{ y: -5, backgroundColor: "hsl(var(--card))" }}
+              className="text-center p-6 rounded-2xl bg-card/70 backdrop-blur-glass border border-border/50 card-hover"
+              whileHover={{ y: -8, scale: 1.02, backgroundColor: "hsl(var(--card))" }}
+              transition={{ duration: 0.3 }}
             >
-              <stat.icon className="w-5 h-5 mx-auto mb-2 text-primary" />
-              <p className="text-2xl font-bold">{stat.value}</p>
-              <p className="text-xs text-muted-foreground">{stat.label}</p>
+              <div className="w-12 h-12 mx-auto mb-3 bg-primary/10 rounded-xl flex items-center justify-center">
+                <stat.icon className="w-6 h-6 text-primary" />
+              </div>
+              <p className="text-3xl font-bold mb-1">{stat.value}</p>
+              <p className="text-sm text-muted-foreground font-medium">{stat.label}</p>
             </motion.div>
           ))}
         </motion.div>

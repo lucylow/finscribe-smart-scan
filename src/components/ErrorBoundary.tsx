@@ -26,6 +26,20 @@ const ErrorFallback: React.FC<ErrorFallbackProps> = ({ error, errorInfo, onReset
     window.location.href = '/';
   };
 
+  const handleReload = () => {
+    window.location.reload();
+  };
+
+  const handleCopyError = async () => {
+    const errorText = `Error: ${error?.toString()}\n\nStack Trace:\n${errorInfo?.componentStack || 'N/A'}`;
+    try {
+      await navigator.clipboard.writeText(errorText);
+      // You could show a toast here if needed
+    } catch (err) {
+      console.error('Failed to copy error:', err);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-background">
       <Card className="w-full max-w-2xl">
@@ -69,6 +83,14 @@ const ErrorFallback: React.FC<ErrorFallbackProps> = ({ error, errorInfo, onReset
             </Button>
             <Button
               variant="outline"
+              onClick={handleReload}
+              className="flex-1 min-w-[120px]"
+            >
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Reload Page
+            </Button>
+            <Button
+              variant="outline"
               onClick={handleGoHome}
               className="flex-1 min-w-[120px]"
             >
@@ -76,6 +98,19 @@ const ErrorFallback: React.FC<ErrorFallbackProps> = ({ error, errorInfo, onReset
               Go Home
             </Button>
           </div>
+          
+          {process.env.NODE_ENV === 'development' && (
+            <div className="pt-4 border-t">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleCopyError}
+                className="w-full"
+              >
+                Copy Error Details
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
@@ -107,7 +142,20 @@ class ErrorBoundaryClass extends Component<Props, State> {
     });
 
     // Log to error reporting service (e.g., Sentry, LogRocket, etc.)
-    // Example: logErrorToService(error, errorInfo);
+    if (process.env.NODE_ENV === 'production') {
+      // Example: logErrorToService(error, errorInfo);
+      // You can integrate with services like:
+      // - Sentry.captureException(error, { contexts: { react: errorInfo } });
+      // - LogRocket.captureException(error);
+      // - Your custom error logging service
+    }
+
+    // Try to recover from certain errors
+    const errorMessage = error.message.toLowerCase();
+    if (errorMessage.includes('chunk') || errorMessage.includes('loading')) {
+      // This might be a code splitting issue, suggest refresh
+      console.warn('Possible code splitting error detected. User may need to refresh.');
+    }
   }
 
   handleReset = () => {

@@ -80,8 +80,10 @@ function AppSidebar({ activeMode }: AppSidebarProps) {
               onClick={() => navigate(`/app/${item.id}`)}
               whileHover={{ x: 2 }}
               whileTap={{ scale: 0.98 }}
+              aria-label={`Navigate to ${item.label}`}
+              aria-current={isActive ? "page" : undefined}
               className={cn(
-                "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors",
+                "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
                 isActive
                   ? "bg-primary/10 text-primary border border-primary/20"
                   : "hover:bg-muted text-muted-foreground hover:text-foreground"

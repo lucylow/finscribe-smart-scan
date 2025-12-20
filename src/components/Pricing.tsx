@@ -140,10 +140,10 @@ const Pricing = () => {
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
         >
-          <h2 className="text-3xl md:text-4xl font-bold text-center mb-4">
-            Simple, Transparent Pricing
+          <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-center mb-4 tracking-tight">
+            Simple, Transparent <span className="text-gradient bg-gradient-to-r from-primary via-primary to-secondary bg-clip-text text-transparent">Pricing</span>
           </h2>
-          <p className="text-center text-muted-foreground mb-16 max-w-2xl mx-auto">
+          <p className="text-center text-muted-foreground mb-16 max-w-2xl mx-auto text-lg leading-relaxed">
             Choose the plan that fits your needs. All plans include our core AI extraction technology.
           </p>
         </motion.div>
@@ -165,10 +165,10 @@ const Pricing = () => {
               }}
               onHoverStart={() => setHoveredPlan(plan.name)}
               onHoverEnd={() => setHoveredPlan(null)}
-              className={`bg-card rounded-2xl p-6 shadow-card transition-all duration-300 relative ${
+              className={`bg-card rounded-2xl p-6 shadow-card transition-all duration-300 relative border-2 ${
                 plan.highlight
-                  ? "ring-2 ring-indigo-600 scale-105 z-10"
-                  : ""
+                  ? "ring-2 ring-primary scale-105 z-10 border-primary/30"
+                  : "border-transparent hover:border-primary/20"
               } ${hoveredPlan === plan.name ? "shadow-card-hover" : ""}`}
             >
               {plan.popular && (
@@ -224,8 +224,8 @@ const Pricing = () => {
               <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                 <Button
                   variant={plan.highlight ? "default" : "outline"}
-                  className={`w-full ${
-                    plan.highlight ? "bg-indigo-600 hover:bg-indigo-700" : ""
+                  className={`w-full font-semibold ${
+                    plan.highlight ? "shadow-btn" : "border-2 hover:bg-muted/50"
                   }`}
                   onClick={() => handleCheckout(plan.tier)}
                   disabled={loading === plan.tier}

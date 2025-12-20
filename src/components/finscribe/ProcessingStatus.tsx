@@ -26,22 +26,33 @@ function ProcessingStatus({ progress, processing }: ProcessingStatusProps) {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       className="w-full p-6 bg-card rounded-xl border shadow-sm"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
     >
       <div className="flex justify-between mb-3">
         <span className="text-sm font-medium text-foreground">
           {processing ? 'Processing your document...' : 'Upload complete'}
         </span>
-        <span className="text-sm font-mono text-primary font-semibold">
+        <span className="text-sm font-mono text-primary font-semibold" aria-label={`Progress: ${Math.round(progress)} percent`}>
           {Math.round(progress)}%
         </span>
       </div>
       
-      <div className="relative h-3 mb-6 bg-muted rounded-full overflow-hidden">
+      <div 
+        className="relative h-3 mb-6 bg-muted rounded-full overflow-hidden"
+        role="progressbar"
+        aria-valuenow={Math.round(progress)}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-label="Processing progress"
+      >
         <motion.div 
           className="absolute inset-y-0 left-0 bg-gradient-to-r from-primary to-secondary rounded-full"
           initial={{ width: 0 }}
           animate={{ width: `${progress}%` }}
           transition={{ duration: 0.3, ease: "easeOut" }}
+          aria-hidden="true"
         />
         <motion.div 
           className="absolute inset-y-0 left-0 bg-gradient-to-r from-primary-glow/50 to-secondary-glow/50 rounded-full animate-shimmer"
@@ -49,6 +60,7 @@ function ProcessingStatus({ progress, processing }: ProcessingStatusProps) {
             width: `${progress}%`,
             backgroundSize: '200% 100%'
           }}
+          aria-hidden="true"
         />
       </div>
 
