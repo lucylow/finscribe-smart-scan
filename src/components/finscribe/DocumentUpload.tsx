@@ -128,10 +128,10 @@ function DocumentUpload({ onFileSelect, file }: DocumentUploadProps) {
           "relative p-12 text-center cursor-pointer rounded-xl transition-all duration-300 overflow-hidden",
           "border-2 border-dashed focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-2",
           isDragActive 
-            ? "border-primary bg-primary/5 shadow-lg shadow-primary/10" 
+            ? "border-primary bg-primary/10 shadow-lg shadow-primary/20 border-solid" 
             : file 
-              ? "border-primary bg-primary/5"
-              : "border-muted-foreground/30 hover:border-primary hover:bg-accent/30"
+              ? "border-primary bg-primary/5 shadow-md"
+              : "border-muted-foreground/30 hover:border-primary/50 hover:bg-accent/30 hover:shadow-md"
         )}
       >
         <input {...getInputProps()} aria-label="File input" />
@@ -140,11 +140,52 @@ function DocumentUpload({ onFileSelect, file }: DocumentUploadProps) {
         </span>
         
         {/* Animated background pattern */}
-        <div className="absolute inset-0 opacity-30">
-          <div className="absolute top-4 left-8 w-16 h-16 border-2 border-primary/20 rounded-lg rotate-12 animate-float" />
-          <div className="absolute bottom-8 right-12 w-12 h-12 border-2 border-secondary/20 rounded-lg -rotate-6 animate-float-delayed" />
-          <div className="absolute top-1/2 right-8 w-8 h-8 border-2 border-accent/20 rounded-lg rotate-45 animate-float" />
+        <div className="absolute inset-0 opacity-20 group-hover:opacity-30 transition-opacity">
+          <motion.div 
+            className="absolute top-4 left-8 w-16 h-16 border-2 border-primary/20 rounded-lg rotate-12"
+            animate={{
+              y: [0, -10, 0],
+              rotate: [12, 15, 12],
+            }}
+            transition={{
+              duration: 4,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+          />
+          <motion.div 
+            className="absolute bottom-8 right-12 w-12 h-12 border-2 border-secondary/20 rounded-lg -rotate-6"
+            animate={{
+              y: [0, 10, 0],
+              rotate: [-6, -9, -6],
+            }}
+            transition={{
+              duration: 5,
+              repeat: Infinity,
+              ease: "easeInOut",
+              delay: 0.5,
+            }}
+          />
+          <motion.div 
+            className="absolute top-1/2 right-8 w-8 h-8 border-2 border-accent/20 rounded-lg rotate-45"
+            animate={{
+              y: [0, -8, 0],
+              rotate: [45, 50, 45],
+            }}
+            transition={{
+              duration: 3.5,
+              repeat: Infinity,
+              ease: "easeInOut",
+              delay: 1,
+            }}
+          />
         </div>
+        
+        {/* Gradient overlay on hover */}
+        <motion.div
+          className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-secondary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+          initial={false}
+        />
 
         <div className="relative z-10">
           <motion.div

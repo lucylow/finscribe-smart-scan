@@ -1,6 +1,6 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useLocation, Routes, Route, Navigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -53,7 +53,16 @@ interface ComparisonResult {
 }
 
 const FinScribe = () => {
-  const [activeMode, setActiveMode] = useState('upload');
+  const location = useLocation();
+  const navigate = useNavigate();
+  
+  // Extract active mode from URL path
+  const getActiveModeFromPath = () => {
+    const path = location.pathname.replace('/app/', '') || 'upload';
+    return path.split('/')[0] || 'upload';
+  };
+  
+  const [activeMode, setActiveMode] = useState(getActiveModeFromPath());
   const [file, setFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [processing, setProcessing] = useState(false);
@@ -61,6 +70,28 @@ const FinScribe = () => {
   const [comparisonResults, setComparisonResults] = useState<ComparisonResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  
+  // Sync active mode with URL
+  useEffect(() => {
+    const modeFromPath = getActiveModeFromPath();
+    if (modeFromPath !== activeMode) {
+      setActiveMode(modeFromPath);
+    }
+  }, [location.pathname]);
+  
+  // Update document title based on active mode
+  useEffect(() => {
+    const titles: Record<string, string> = {
+      upload: 'Upload & Analyze',
+      compare: 'Compare Models',
+      'compare-documents': 'Compare Documents',
+      features: 'Features Demo',
+      metrics: 'Performance Metrics',
+      api: 'API Playground',
+    };
+    const title = titles[activeMode] || 'FinScribe AI';
+    document.title = `${title} - FinScribe AI`;
+  }, [activeMode]);
 
   const handleFileSelect = useCallback((selectedFile: File | null) => {
     setFile(selectedFile);

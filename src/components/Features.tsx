@@ -94,23 +94,30 @@ const Features = () => {
             <motion.div
               key={feature.title}
               variants={itemVariants}
-              whileHover={{ y: -10, scale: 1.02 }}
+              whileHover={{ y: -12, scale: 1.03 }}
               onHoverStart={() => setHoveredFeature(index)}
               onHoverEnd={() => setHoveredFeature(null)}
-              className="bg-card p-8 rounded-2xl shadow-card hover:shadow-card-hover transition-all duration-300 text-center cursor-pointer border-2 border-transparent hover:border-primary/20"
+              className="bg-card p-8 rounded-2xl shadow-card hover:shadow-card-hover transition-all duration-300 text-center cursor-pointer border-2 border-transparent hover:border-primary/30 relative overflow-hidden group"
             >
+              {/* Animated background gradient on hover */}
               <motion.div
-                className="w-16 h-16 mx-auto mb-6 text-primary bg-primary/10 rounded-2xl flex items-center justify-center"
+                className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-secondary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+                initial={false}
+              />
+              
+              <motion.div
+                className="w-16 h-16 mx-auto mb-6 text-primary bg-gradient-to-br from-primary/10 to-primary/5 rounded-2xl flex items-center justify-center relative z-10 shadow-sm group-hover:shadow-md transition-shadow"
                 animate={hoveredFeature === index ? { 
                   rotate: [0, -10, 10, 0],
-                  scale: 1.1 
+                  scale: 1.15,
+                  boxShadow: "0 8px 24px hsl(var(--primary) / 0.3)"
                 } : {}}
                 transition={{ duration: 0.5 }}
               >
-                <feature.icon className="w-8 h-8" />
+                <feature.icon className="w-8 h-8 relative z-10" />
               </motion.div>
-              <h3 className="text-xl font-bold mb-4">{feature.title}</h3>
-              <p className="text-muted-foreground">{feature.description}</p>
+              <h3 className="text-xl font-bold mb-4 relative z-10 group-hover:text-primary transition-colors">{feature.title}</h3>
+              <p className="text-muted-foreground relative z-10 group-hover:text-foreground/80 transition-colors">{feature.description}</p>
             </motion.div>
           ))}
         </motion.div>

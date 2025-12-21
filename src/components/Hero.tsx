@@ -70,7 +70,18 @@ const Hero = () => {
               Transform Financial
               <br />
               Documents with{" "}
-              <span className="text-gradient bg-gradient-to-r from-primary via-primary to-secondary bg-clip-text text-transparent">
+              <span className="text-gradient bg-gradient-to-r from-primary via-primary to-secondary bg-clip-text text-transparent relative inline-block">
+                <motion.span
+                  className="absolute inset-0 bg-gradient-to-r from-primary via-primary to-secondary opacity-20 blur-2xl"
+                  animate={{
+                    opacity: [0.2, 0.4, 0.2],
+                  }}
+                  transition={{
+                    duration: 3,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                  }}
+                />
                 AI Magic
               </span>
             </motion.h1>
@@ -100,16 +111,35 @@ const Hero = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.6 }}
             >
-              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                <Button asChild size="lg" className="shadow-btn group px-8 py-6 text-base font-semibold">
+              <motion.div 
+                whileHover={{ scale: 1.05, y: -2 }} 
+                whileTap={{ scale: 0.95 }}
+                className="relative"
+              >
+                <motion.div
+                  className="absolute inset-0 bg-primary rounded-lg blur-xl opacity-50"
+                  animate={{
+                    opacity: [0.3, 0.6, 0.3],
+                    scale: [1, 1.1, 1],
+                  }}
+                  transition={{
+                    duration: 2,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                  }}
+                />
+                <Button asChild size="lg" className="shadow-btn group px-8 py-6 text-base font-semibold relative z-10">
                   <Link to="/app">
                     Start Free Trial
                     <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
                   </Link>
                 </Button>
               </motion.div>
-              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                <Button variant="outline" size="lg" asChild className="group px-8 py-6 text-base border-2 hover:bg-muted/50">
+              <motion.div 
+                whileHover={{ scale: 1.05, y: -2 }} 
+                whileTap={{ scale: 0.95 }}
+              >
+                <Button variant="outline" size="lg" asChild className="group px-8 py-6 text-base border-2 hover:bg-muted/50 hover:border-primary/50 transition-all">
                   <a href="#demo">
                     <Play className="w-4 h-4 mr-2 group-hover:scale-110 transition-transform" />
                     See How It Works
