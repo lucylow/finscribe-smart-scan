@@ -39,6 +39,7 @@ import ModelInfo from '@/components/finscribe/ModelInfo';
 import SemanticRegionVisualization from '@/components/finscribe/SemanticRegionVisualization';
 import PerformanceMetrics from '@/components/finscribe/PerformanceMetrics';
 import APIPlayground from '@/components/finscribe/APIPlayground';
+import MultiDocumentComparison from '@/components/finscribe/MultiDocumentComparison';
 import AppSidebar from '@/components/finscribe/AppSidebar';
 import { analyzeDocument, compareWithBaseline } from '@/services/api';
 import { ErrorHandler } from '@/lib/errorHandler';
@@ -535,6 +536,24 @@ const FinScribe = () => {
               Go to Upload
             </Button>
           </div>
+        );
+
+      case 'compare-documents':
+        return (
+          <motion.div
+            key="compare-documents"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+          >
+            <div className="text-center mb-8">
+              <h2 className="text-2xl md:text-3xl font-bold mb-2">
+                Compare <span className="text-gradient">Documents</span>
+              </h2>
+              <p className="text-muted-foreground">Compare quotes vs invoices, or any two documents</p>
+            </div>
+            <MultiDocumentComparison data={{ comparison: {} }} />
+          </motion.div>
         );
 
       case 'features':
