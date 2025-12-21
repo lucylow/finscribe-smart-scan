@@ -32,8 +32,12 @@ import {
   PanelLeft
 } from 'lucide-react';
 import DocumentUpload from '@/components/finscribe/DocumentUpload';
+import SmartDropzone, { QueuedFile } from '@/components/finscribe/SmartDropzone';
 import ProcessingStatus from '@/components/finscribe/ProcessingStatus';
 import ResultsDisplay from '@/components/finscribe/ResultsDisplay';
+import ImageViewer, { BoundingBox } from '@/components/finscribe/ImageViewer';
+import CorrectionsPanel, { CorrectionsData } from '@/components/finscribe/CorrectionsPanel';
+import { extractBoundingBoxes, dataToCorrections } from '@/lib/ocrUtils';
 import ComparisonView from '@/components/finscribe/ComparisonView';
 import ModelInfo from '@/components/finscribe/ModelInfo';
 import SemanticRegionVisualization from '@/components/finscribe/SemanticRegionVisualization';
@@ -74,6 +78,7 @@ const FinScribe = () => {
   
   const [activeMode, setActiveMode] = useState(getActiveModeFromPath());
   const [file, setFile] = useState<File | null>(null);
+  const [queuedFiles, setQueuedFiles] = useState<QueuedFile[]>([]);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [processing, setProcessing] = useState(false);
   const [results, setResults] = useState<AnalysisResult | null>(null);
@@ -81,7 +86,21 @@ const FinScribe = () => {
   const [error, setError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [boundingBoxes, setBoundingBoxes] = useState<BoundingBox[]>([]);
+  const [correctionsData, setCorrectionsData] = useState<CorrectionsData | null>(null);
+  const [selectedBoxId, setSelectedBoxId] = useState<string | null>(null);
+  const [highlightedFieldId, setHighlightedFieldId] = useState<string | null>(null);
   
+  // Cleanup object URL on unmount
+  useEffect(() => {
+    return () => {
+      if (imageUrl) {
+        URL.revokeObjectURL(imageUrl);
+      }
+    };
+  }, [imageUrl]);
+
   // Sync active mode with URL
   useEffect(() => {
     const modeFromPath = getActiveModeFromPath();
@@ -130,10 +149,36 @@ const FinScribe = () => {
   };
 
   const handleFileSelect = useCallback((selectedFile: File | null) => {
+    // Cleanup previous object URL
+    if (imageUrl) {
+      URL.revokeObjectURL(imageUrl);
+    }
+    
     setFile(selectedFile);
     setError(null);
     setResults(null);
     setComparisonResults(null);
+    setBoundingBoxes([]);
+    setCorrectionsData(null);
+    
+    // Create object URL for image preview
+    if (selectedFile && selectedFile.type.startsWith('image/')) {
+      const url = URL.createObjectURL(selectedFile);
+      setImageUrl(url);
+    } else {
+      setImageUrl(null);
+    }
+  }, [imageUrl]);
+
+  const handleFilesChange = useCallback((files: QueuedFile[]) => {
+    setQueuedFiles(files);
+    // Use the first completed file if available
+    const completedFile = files.find(f => f.status === 'completed');
+    if (completedFile && completedFile.file.type.startsWith('image/')) {
+      const url = URL.createObjectURL(completedFile.file);
+      setImageUrl(url);
+      setFile(completedFile.file);
+    }
   }, []);
 
   const handleAnalyze = async () => {
@@ -178,6 +223,19 @@ const FinScribe = () => {
       setUploadProgress(100);
       
       setResults(response);
+      
+      // Extract bounding boxes from OCR results
+      if (response.raw_ocr_output) {
+        const boxes = extractBoundingBoxes(response.raw_ocr_output);
+        setBoundingBoxes(boxes);
+      }
+      
+      // Convert data to corrections format
+      if (response.data) {
+        const corrections = dataToCorrections(response.data);
+        setCorrectionsData(corrections);
+      }
+      
       navigate('/app/results');
       
       toast.success('Analysis complete!', {
@@ -356,6 +414,41 @@ const FinScribe = () => {
                 </Button>
               </div>
             </div>
+            
+            {/* Enhanced Results View with Image Viewer and Corrections */}
+            {imageUrl && (boundingBoxes.length > 0 || correctionsData) ? (
+              <div className="grid lg:grid-cols-2 gap-6 mb-6">
+                <div className="space-y-4 order-2 lg:order-1">
+                  <ImageViewer
+                    imageUrl={imageUrl}
+                    boundingBoxes={boundingBoxes}
+                    selectedBoxId={selectedBoxId}
+                    onBoxClick={(box) => {
+                      setSelectedBoxId(box.id);
+                      if (box.fieldId) {
+                        setHighlightedFieldId(box.fieldId);
+                      }
+                    }}
+                    className="h-[400px] lg:h-[600px]"
+                  />
+                </div>
+                <div className="space-y-4 order-1 lg:order-2">
+                  {correctionsData && (
+                    <div className="sticky top-4">
+                      <CorrectionsPanel
+                        data={correctionsData}
+                        resultId={results?.job_id}
+                        onDataChange={setCorrectionsData}
+                        highlightedFieldId={highlightedFieldId}
+                        onFieldHighlight={setHighlightedFieldId}
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : null}
+            
+            {/* Original Results Display */}
             <ResultsDisplay results={results} />
           </motion.div>
         );
@@ -401,7 +494,16 @@ const FinScribe = () => {
 
             <div className="grid lg:grid-cols-3 gap-6 lg:gap-8">
               <div className="lg:col-span-2 space-y-4">
-                <DocumentUpload onFileSelect={handleFileSelect} file={file} />
+                {/* Use SmartDropzone for multi-file support, fallback to DocumentUpload for single file */}
+                {false ? (
+                  <SmartDropzone
+                    onFilesChange={handleFilesChange}
+                    maxFiles={5}
+                    maxSizeMB={10}
+                  />
+                ) : (
+                  <DocumentUpload onFileSelect={handleFileSelect} file={file} />
+                )}
                 
                 <AnimatePresence>
                   {(file || processing) && (
