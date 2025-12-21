@@ -18,17 +18,19 @@
 
 ### Additional Documentation
 
-All documentation files have been organized in the [`docs/`](docs/) directory:
+**Core Documentation:**
+- **[Training Guide](training/README.md)** — Complete fine-tuning instructions and hyperparameters ⭐
+- **[Prompt Engineering Guide](training/prompt_format.md)** — Detailed prompt design strategy
+- **[Dataset Documentation](data/README_data.md)** — Dataset format, generation, and validation
+- **[Evaluation Results](evaluation/results.md)** — Quantitative metrics and case studies
 
+**Additional Resources:**
 - **[Hackathon Submission Guide](docs/HACKATHON_SUBMISSION.md)** — Complete hackathon submission documentation
-- **[Hackathon Checklist](docs/HACKATHON_CHECKLIST.md)** — Pre-submission checklist ⭐
-- **[Resources Used](docs/HACKATHON_RESOURCES_USED.md)** — Repositories and tutorials used
+- **[Hackathon Checklist](docs/HACKATHON_CHECKLIST.md)** — Pre-submission checklist
 - **[API Documentation](http://localhost:8000/docs)** — Interactive OpenAPI/Swagger docs (when backend is running)
 - **[Backend Runbook](docs/FinScribe%20AI%20Backend%20Runbook.md)** — Detailed deployment and operation guide
-- **[Monetization Setup](docs/MONETIZATION_SETUP.md)** — Stripe integration and billing configuration
-- **[Implementation Summary](docs/IMPLEMENTATION_SUMMARY.md)** — Technical implementation details
 
-See the [`docs/`](docs/) directory for all documentation files.
+See the [`docs/`](docs/) directory for additional documentation files.
 
 ### 🏆 Hackathon Project
 
@@ -1059,6 +1061,34 @@ validation:
 
 ---
 
+## 🎯 Conclusion & Future Work
+
+### Key Achievements
+
+- ✅ **94.2% Field Extraction Accuracy** — Significant improvement over baseline (76.8%)
+- ✅ **91.7% Table Structure Accuracy** — Robust table reconstruction using TEDS metric
+- ✅ **96.8% Validation Pass Rate** — High-quality structured output ready for ERP integration
+- ✅ **Production-Ready System** — Complete application with web interface, API, and infrastructure
+- ✅ **Reproducible Training** — Well-documented training pipeline with clear hyperparameters
+
+### Technical Innovations
+
+1. **Completion-Only Training**: Preserves instruction-following while learning domain-specific patterns
+2. **Task-Specific Prompts**: Region-aware prompts for different document sections (vendor, line items, summary)
+3. **Synthetic Data Generation**: Scalable training data generation with perfect ground truth
+4. **Active Learning Pipeline**: Continuous improvement through user corrections
+
+### Future Work
+
+1. **Multi-Language Support**: Expand to Spanish, French, German, Chinese documents
+2. **Document Type Expansion**: Add support for purchase orders, bank statements, tax documents
+3. **Handwriting Recognition**: Integrate specialized models for handwritten annotations
+4. **Integration Connectors**: Build integrations with QuickBooks, Xero, Sage, and other accounting software
+5. **Performance Optimization**: GPU-backed model serving with Triton/TensorRT for higher throughput
+6. **Edge Cases**: Improve handling of extremely poor quality scans and non-standard layouts
+
+---
+
 ## 🤝 Contributing
 
 We welcome contributions! Here are areas where you can help:
@@ -1092,7 +1122,26 @@ We welcome contributions! Here are areas where you can help:
 
 ---
 
-## 📄 Citation
+---
+
+## 📜 License & Acknowledgments
+
+### License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+### Acknowledgments
+
+- **ERNIE AI Challenge** — For organizing the hackathon that inspired this project
+- **PaddleOCR Team** — For the excellent PaddleOCR-VL foundation and documentation
+- **PaddlePaddle** — For providing the open-source framework and models
+- **FastAPI** — For the modern Python web framework
+- **React & shadcn/ui** communities — For the amazing UI components
+- **Hugging Face** — For transformers, PEFT, and model hosting infrastructure
+- **Unsloth** — For efficient fine-tuning tools and optimizations
+- All contributors who have helped improve FinScribe AI
+
+### Citation
 
 If you use FinScribe AI in your research or projects:
 
@@ -1105,21 +1154,6 @@ If you use FinScribe AI in your research or projects:
   note = {Fine-tuned PaddleOCR-VL for semantic financial document parsing}
 }
 ```
-
----
-
-## 📜 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-## 🙏 Acknowledgments
-
-- **PaddleOCR** team for the excellent OCR foundation
-- **FastAPI** for the modern Python web framework
-- **React & shadcn/ui** communities for the amazing UI components
-- All contributors who have helped improve FinScribe AI
 
 ---
 

@@ -125,7 +125,7 @@ function DocumentUpload({ onFileSelect, file }: DocumentUploadProps) {
         whileHover={{ scale: 1.01 }}
         whileTap={{ scale: 0.99 }}
         className={cn(
-          "relative p-12 text-center cursor-pointer rounded-xl transition-all duration-300 overflow-hidden",
+          "relative p-12 text-center cursor-pointer rounded-xl transition-all duration-300 overflow-hidden group",
           "border-2 border-dashed focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-2",
           isDragActive 
             ? "border-primary bg-primary/10 shadow-lg shadow-primary/20 border-solid" 
@@ -189,12 +189,26 @@ function DocumentUpload({ onFileSelect, file }: DocumentUploadProps) {
 
         <div className="relative z-10">
           <motion.div
-            animate={isDragActive ? { scale: 1.1, y: -5 } : { scale: 1, y: 0 }}
-            transition={{ duration: 0.2 }}
+            animate={isDragActive ? { 
+              scale: 1.15, 
+              y: -8,
+              rotate: [0, 5, -5, 0]
+            } : file ? {
+              scale: 1,
+              rotate: 0
+            } : { 
+              scale: 1, 
+              y: 0,
+              rotate: 0
+            }}
+            transition={{ 
+              duration: isDragActive ? 0.3 : 0.2,
+              rotate: { duration: 0.5, repeat: isDragActive ? Infinity : 0, repeatDelay: 0.5 }
+            }}
             className={cn(
-              "w-20 h-20 rounded-xl mx-auto mb-6 flex items-center justify-center transition-all",
-              isDragActive ? "bg-primary text-primary-foreground shadow-lg shadow-primary/30" : 
-              file ? "bg-primary text-primary-foreground" :
+              "w-20 h-20 rounded-xl mx-auto mb-6 flex items-center justify-center transition-all relative",
+              isDragActive ? "bg-primary text-primary-foreground shadow-lg shadow-primary/30 pulse-glow" : 
+              file ? "bg-primary text-primary-foreground shadow-md" :
               "bg-muted text-muted-foreground"
             )}
           >
@@ -262,10 +276,20 @@ function DocumentUpload({ onFileSelect, file }: DocumentUploadProps) {
             exit={{ opacity: 0, height: 0 }}
             className="overflow-hidden"
           >
-            <div className="flex items-center p-4 bg-card rounded-xl border shadow-sm">
-              {React.createElement(getFileIcon(file.type), {
-                className: "w-12 h-12 text-primary mr-4 flex-shrink-0"
-              })}
+            <motion.div 
+              className="flex items-center p-4 bg-card rounded-xl border shadow-sm card-hover group"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+            >
+              <motion.div
+                animate={{ rotate: [0, 5, -5, 0] }}
+                transition={{ duration: 0.5, delay: 0.2 }}
+              >
+                {React.createElement(getFileIcon(file.type), {
+                  className: "w-12 h-12 text-primary mr-4 flex-shrink-0 group-hover:scale-110 transition-transform"
+                })}
+              </motion.div>
               <div className="flex-grow min-w-0">
                 <p className="font-medium truncate text-foreground">{file.name}</p>
                 <p className="text-sm text-muted-foreground">
@@ -275,16 +299,17 @@ function DocumentUpload({ onFileSelect, file }: DocumentUploadProps) {
               <Button 
                 variant="ghost" 
                 size="icon"
-                className="flex-shrink-0 hover:bg-destructive/10 hover:text-destructive"
+                className="flex-shrink-0 hover:bg-destructive/10 hover:text-destructive transition-all hover:scale-110"
                 onClick={(e) => {
                   e.stopPropagation();
                   setValidationError(null);
                   onFileSelect(null);
                 }}
+                aria-label="Remove file"
               >
                 <X className="w-5 h-5" />
               </Button>
-            </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

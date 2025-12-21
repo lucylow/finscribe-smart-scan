@@ -142,7 +142,7 @@ const FinScribe = () => {
       setUploadProgress(100);
       
       setResults(response);
-      setActiveMode('results');
+      navigate('/app/results');
       
       toast.success('Analysis complete!', {
         description: 'Your document has been successfully analyzed.',
@@ -207,7 +207,7 @@ const FinScribe = () => {
       setUploadProgress(100);
       
       setComparisonResults(response);
-      setActiveMode('compare');
+      navigate('/app/compare');
       
       toast.success('Comparison complete!', {
         description: 'Model comparison results are ready.',
@@ -451,7 +451,7 @@ const FinScribe = () => {
               <p className="text-muted-foreground mb-6">
                 Upload and analyze a document to see detailed extraction results here.
               </p>
-              <Button className="mt-4" onClick={() => setActiveMode('upload')}>
+              <Button className="mt-4" onClick={() => navigate('/app/upload')}>
                 Go to Upload
               </Button>
             </div>
@@ -471,7 +471,7 @@ const FinScribe = () => {
         ) : (
           <div className="text-center py-12">
             <p className="text-muted-foreground">No comparison yet. Upload a document and click "Compare Models".</p>
-            <Button className="mt-4" onClick={() => setActiveMode('upload')}>
+            <Button className="mt-4" onClick={() => navigate('/app/upload')}>
               Go to Upload
             </Button>
           </div>
@@ -542,7 +542,13 @@ const FinScribe = () => {
             transition={{ duration: 0.2 }}
             className="hidden lg:block flex-shrink-0 overflow-hidden"
           >
-            <AppSidebar activeMode={activeMode} onModeChange={setActiveMode} />
+            <AppSidebar 
+              activeMode={activeMode} 
+              onModeChange={(mode) => {
+                setActiveMode(mode);
+                navigate(`/app/${mode}`);
+              }} 
+            />
           </motion.div>
         )}
       </AnimatePresence>
@@ -588,7 +594,10 @@ const FinScribe = () => {
                 key={mode}
                 variant={activeMode === mode ? 'default' : 'ghost'}
                 size="sm"
-                onClick={() => setActiveMode(mode)}
+                onClick={() => {
+                  setActiveMode(mode);
+                  navigate(`/app/${mode}`);
+                }}
                 className="capitalize whitespace-nowrap text-xs sm:text-sm"
                 aria-label={`Switch to ${mode} mode`}
                 aria-current={activeMode === mode ? "page" : undefined}

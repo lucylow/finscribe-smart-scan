@@ -252,15 +252,28 @@ const Hero = () => {
           {stats.map((stat, i) => (
             <motion.div
               key={stat.label}
-              className="text-center p-6 rounded-2xl bg-card/70 backdrop-blur-glass border border-border/50 card-hover"
-              whileHover={{ y: -8, scale: 1.02, backgroundColor: "hsl(var(--card))" }}
-              transition={{ duration: 0.3 }}
+              className="text-center p-6 rounded-2xl bg-card/70 backdrop-blur-glass border border-border/50 card-hover group relative overflow-hidden"
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 1.2 + i * 0.1, duration: 0.5 }}
+              whileHover={{ y: -8, scale: 1.02 }}
+              transition={{ duration: 0.3, type: "spring", stiffness: 300 }}
             >
-              <div className="w-12 h-12 mx-auto mb-3 bg-primary/10 rounded-xl flex items-center justify-center">
-                <stat.icon className="w-6 h-6 text-primary" />
+              <motion.div
+                className="absolute inset-0 bg-gradient-to-br from-primary/5 to-secondary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                initial={false}
+              />
+              <div className="relative z-10">
+                <motion.div
+                  className="w-12 h-12 mx-auto mb-3 bg-primary/10 rounded-xl flex items-center justify-center group-hover:bg-primary/20 transition-colors"
+                  whileHover={{ rotate: 360 }}
+                  transition={{ duration: 0.6 }}
+                >
+                  <stat.icon className="w-6 h-6 text-primary" />
+                </motion.div>
+                <p className="text-3xl font-bold mb-1 bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">{stat.value}</p>
+                <p className="text-sm text-muted-foreground font-medium">{stat.label}</p>
               </div>
-              <p className="text-3xl font-bold mb-1">{stat.value}</p>
-              <p className="text-sm text-muted-foreground font-medium">{stat.label}</p>
             </motion.div>
           ))}
         </motion.div>
