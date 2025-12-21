@@ -160,7 +160,8 @@ const Pricing = () => {
               key={plan.name}
               variants={cardVariants}
               whileHover={{ 
-                y: -10,
+                y: -12,
+                scale: plan.highlight ? 1.05 : 1.02,
                 transition: { duration: 0.2 }
               }}
               onHoverStart={() => setHoveredPlan(plan.name)}

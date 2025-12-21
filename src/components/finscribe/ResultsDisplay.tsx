@@ -68,19 +68,32 @@ function ResultsDisplay({ results }: ResultsProps) {
     >
       {/* Overview Cards */}
       <motion.div variants={itemVariants} className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-6">
-        <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20">
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center">
-                <FileText className="w-5 h-5 text-primary" />
+        <motion.div
+          whileHover={{ y: -4, scale: 1.02 }}
+          transition={{ type: "spring", stiffness: 300 }}
+        >
+          <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20 card-hover group overflow-hidden relative">
+            <motion.div
+              className="absolute inset-0 bg-gradient-to-br from-primary/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+              initial={false}
+            />
+            <CardContent className="pt-4 pb-4 relative z-10">
+              <div className="flex items-center gap-3">
+                <motion.div 
+                  className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center group-hover:bg-primary/30 transition-colors"
+                  whileHover={{ rotate: 360 }}
+                  transition={{ duration: 0.6 }}
+                >
+                  <FileText className="w-5 h-5 text-primary" />
+                </motion.div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Document Type</p>
+                  <p className="font-semibold">{data.document_type || 'Invoice'}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Document Type</p>
-                <p className="font-semibold">{data.document_type || 'Invoice'}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </motion.div>
 
         <Card className="bg-gradient-to-br from-secondary/10 to-secondary/5 border-secondary/20">
           <CardContent className="pt-4 pb-4">

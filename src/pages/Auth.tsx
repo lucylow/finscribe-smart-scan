@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Mail, Lock, User, Github, Chrome, Sparkles } from "lucide-react";
+import { handleSupabaseError } from "@/integrations/supabase/utils";
 
 const Auth = () => {
   const [email, setEmail] = useState("");
@@ -15,23 +17,9 @@ const Auth = () => {
   const [fullName, setFullName] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
-
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session) {
-        navigate("/app");
-      }
-    });
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        navigate("/app");
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [navigate]);
+  const { signIn, signUp, signInWithOAuth } = useAuth();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,10 +28,27 @@ const Auth = () => {
       return;
     }
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
-    if (error) {
-      toast({ title: "Login failed", description: error.message, variant: "destructive" });
+    try {
+      const { error } = await signIn(email, password);
+      if (error) {
+        toast({ 
+          title: "Login failed", 
+          description: handleSupabaseError(error), 
+          variant: "destructive" 
+        });
+      } else {
+        // Redirect to the original destination or default to /app
+        const from = (location.state as { from?: Location })?.from;
+        navigate(from?.pathname || "/app", { replace: true });
+      }
+    } catch (error) {
+      toast({ 
+        title: "Error", 
+        description: handleSupabaseError(error), 
+        variant: "destructive" 
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -54,29 +59,51 @@ const Auth = () => {
       return;
     }
     setLoading(true);
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/app`,
-        data: { full_name: fullName }
+    try {
+      const { error } = await signUp(email, password, { fullName: fullName || undefined });
+      if (error) {
+        toast({ 
+          title: "Sign up failed", 
+          description: handleSupabaseError(error), 
+          variant: "destructive" 
+        });
+      } else {
+        toast({ 
+          title: "Success!", 
+          description: "Check your email to confirm your account",
+        });
       }
-    });
-    setLoading(false);
-    if (error) {
-      toast({ title: "Sign up failed", description: error.message, variant: "destructive" });
-    } else {
-      toast({ title: "Success!", description: "Check your email to confirm your account" });
+    } catch (error) {
+      toast({ 
+        title: "Error", 
+        description: handleSupabaseError(error), 
+        variant: "destructive" 
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleSocialLogin = async (provider: "google" | "github" | "twitter") => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider,
-      options: { redirectTo: `${window.location.origin}/app` }
-    });
-    if (error) {
-      toast({ title: "Login failed", description: error.message, variant: "destructive" });
+    setLoading(true);
+    try {
+      const { error } = await signInWithOAuth(provider);
+      if (error) {
+        toast({ 
+          title: "Login failed", 
+          description: handleSupabaseError(error), 
+          variant: "destructive" 
+        });
+        setLoading(false);
+      }
+      // Note: OAuth will redirect, so we don't set loading to false on success
+    } catch (error) {
+      toast({ 
+        title: "Error", 
+        description: handleSupabaseError(error), 
+        variant: "destructive" 
+      });
+      setLoading(false);
     }
   };
 
