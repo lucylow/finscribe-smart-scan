@@ -201,23 +201,6 @@ function SmartDropzone({
     });
   }, [updateFiles]);
 
-  const retryFile = useCallback(async (id: string) => {
-    const file = queuedFiles.find((f) => f.id === id);
-    if (!file) return;
-
-    // Reset status and retry
-    setQueuedFiles((prev) =>
-      prev.map((f) =>
-        f.id === id
-          ? { ...f, status: 'queued' as const, progress: 0, error: undefined }
-          : f
-      )
-    );
-
-    // Simulate upload (in real app, this would call the API)
-    await uploadFile(file);
-  }, [queuedFiles]);
-
   const uploadFile = useCallback(async (queuedFile: QueuedFile) => {
     const controller = new AbortController();
     abortControllersRef.current.set(queuedFile.id, controller);
@@ -308,6 +291,23 @@ function SmartDropzone({
       abortControllersRef.current.delete(queuedFile.id);
     }
   }, [maxSizeMB]);
+
+  const retryFile = useCallback(async (id: string) => {
+    const file = queuedFiles.find((f) => f.id === id);
+    if (!file) return;
+
+    // Reset status and retry
+    setQueuedFiles((prev) =>
+      prev.map((f) =>
+        f.id === id
+          ? { ...f, status: 'queued' as const, progress: 0, error: undefined }
+          : f
+      )
+    );
+
+    // Simulate upload (in real app, this would call the API)
+    await uploadFile(file);
+  }, [queuedFiles, uploadFile]);
 
   const onDrop = useCallback(
     async (acceptedFiles: File[], rejectedFiles: FileRejection[]) => {

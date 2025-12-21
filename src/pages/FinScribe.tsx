@@ -71,12 +71,15 @@ const FinScribe = () => {
   const navigate = useNavigate();
   
   // Extract active mode from URL path
-  const getActiveModeFromPath = () => {
+  const getActiveModeFromPath = useCallback(() => {
     const path = location.pathname.replace('/app/', '') || 'upload';
     return path.split('/')[0] || 'upload';
-  };
+  }, [location.pathname]);
   
-  const [activeMode, setActiveMode] = useState(getActiveModeFromPath());
+  const [activeMode, setActiveMode] = useState(() => {
+    const path = location.pathname.replace('/app/', '') || 'upload';
+    return path.split('/')[0] || 'upload';
+  });
   const [file, setFile] = useState<File | null>(null);
   const [queuedFiles, setQueuedFiles] = useState<QueuedFile[]>([]);
   const [uploadProgress, setUploadProgress] = useState(0);
