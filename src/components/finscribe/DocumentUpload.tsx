@@ -119,7 +119,17 @@ function DocumentUpload({ onFileSelect, file }: DocumentUploadProps) {
       </AnimatePresence>
       
       <motion.div
-        {...dropzoneProps}
+        onClick={dropzoneProps.onClick}
+        onKeyDown={dropzoneProps.onKeyDown}
+        onFocus={dropzoneProps.onFocus}
+        onBlur={dropzoneProps.onBlur}
+        onDragEnter={dropzoneProps.onDragEnter}
+        onDragLeave={dropzoneProps.onDragLeave}
+        onDragOver={dropzoneProps.onDragOver}
+        onDrop={dropzoneProps.onDrop}
+        ref={dropzoneProps.ref}
+        tabIndex={dropzoneProps.tabIndex}
+        role={dropzoneProps.role}
         aria-label="Document upload area"
         aria-describedby="upload-instructions"
         whileHover={{ scale: 1.01 }}

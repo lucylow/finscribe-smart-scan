@@ -2,8 +2,6 @@
  * CORS utilities for Supabase Edge Functions
  */
 
-import type { CorsHeaders } from "./types.ts";
-
 const DEFAULT_ALLOWED_ORIGINS = "*";
 const DEFAULT_ALLOWED_HEADERS = "authorization, x-client-info, apikey, content-type";
 const DEFAULT_ALLOWED_METHODS = "GET, POST, PUT, DELETE, OPTIONS";
@@ -15,7 +13,7 @@ export function getCorsHeaders(
   origin: string | null = DEFAULT_ALLOWED_ORIGINS,
   allowedHeaders: string = DEFAULT_ALLOWED_HEADERS,
   allowedMethods: string = DEFAULT_ALLOWED_METHODS
-): CorsHeaders {
+): Record<string, string> {
   return {
     "Access-Control-Allow-Origin": origin || DEFAULT_ALLOWED_ORIGINS,
     "Access-Control-Allow-Headers": allowedHeaders,
@@ -54,4 +52,3 @@ export function corsResponse(
     { status, headers }
   );
 }
-

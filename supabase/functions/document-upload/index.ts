@@ -6,7 +6,7 @@
  */
 
 // Deno.serve is the standard way to serve Supabase Edge Functions
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { handleCors } from "../_shared/cors.ts";
 import { handleError, successResponse, FunctionError } from "../_shared/errors.ts";
 import { requireAuth } from "../_shared/auth.ts";
@@ -51,7 +51,7 @@ async function uploadToStorage(
   file: File,
   userId: string,
   filename: string,
-  supabaseClient: ReturnType<typeof createClient>
+  supabaseClient: SupabaseClient
 ): Promise<string> {
   const fileExt = filename.split(".").pop();
   const filePath = `${userId}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
@@ -82,7 +82,7 @@ async function recordDocument(
   fileSize: number,
   mimeType: string,
   metadata: Record<string, unknown> | undefined,
-  supabaseClient: ReturnType<typeof createClient>
+  supabaseClient: SupabaseClient
 ): Promise<string> {
   // If you have a documents table, insert here
   // For now, we'll just return the file path
@@ -194,4 +194,3 @@ Deno.serve(async (request) => {
     return handleError(error, request);
   }
 });
-

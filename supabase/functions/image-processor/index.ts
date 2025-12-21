@@ -6,7 +6,7 @@
  */
 
 // Deno.serve is the standard way to serve Supabase Edge Functions
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { handleCors } from "../_shared/cors.ts";
 import { handleError, successResponse, FunctionError } from "../_shared/errors.ts";
 import { requireAuth } from "../_shared/auth.ts";
@@ -47,7 +47,7 @@ async function resizeImage(
 // Download file from Supabase Storage
 async function downloadFile(
   filePath: string,
-  supabaseClient: ReturnType<typeof createClient>
+  supabaseClient: SupabaseClient
 ): Promise<Uint8Array> {
   const { data, error } = await supabaseClient.storage
     .from("documents")
@@ -73,13 +73,13 @@ async function uploadProcessedFile(
   originalPath: string,
   processedData: Uint8Array,
   format: string,
-  supabaseClient: ReturnType<typeof createClient>
+  supabaseClient: SupabaseClient
 ): Promise<string> {
   const pathParts = originalPath.split(".");
   const basePath = pathParts.slice(0, -1).join(".");
   const newPath = `${basePath}_processed.${format}`;
 
-  const blob = new Blob([processedData]);
+  const blob = new Blob([new Uint8Array(processedData) as unknown as ArrayBuffer]);
   const { data, error } = await supabaseClient.storage
     .from("documents")
     .upload(newPath, blob, {
@@ -170,4 +170,3 @@ Deno.serve(async (request) => {
     return handleError(error, request);
   }
 });
-
