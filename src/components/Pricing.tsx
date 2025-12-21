@@ -186,7 +186,6 @@ const Pricing = () => {
                   }}
                 />
               )}
-            >
               {plan.popular && (
                 <motion.div
                   className="absolute -top-4 left-1/2 -translate-x-1/2 bg-secondary text-secondary-foreground px-4 py-1 rounded-full text-sm font-semibold flex items-center gap-1"
