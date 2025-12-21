@@ -85,7 +85,7 @@ export async function listFiles(
     sortBy?: { column: string; order?: 'asc' | 'desc' };
   }
 ) {
-  let query = supabase.storage.from(bucket).list(path || '', {
+  const query = supabase.storage.from(bucket).list(path || '', {
     limit: options?.limit || 100,
     offset: options?.offset || 0,
     sortBy: options?.sortBy || { column: 'name', order: 'asc' },
