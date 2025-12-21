@@ -1,4 +1,4 @@
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional, Union
 from decimal import Decimal, ROUND_HALF_UP
 from datetime import datetime
 import logging
@@ -118,7 +118,7 @@ class FinancialValidator:
         
         return {"is_valid": len(issues) == 0, "issues": issues}
     
-    def _parse_date(self, date_str: str) -> datetime | None:
+    def _parse_date(self, date_str: str) -> Optional[datetime]:
         """Try to parse date string in various formats."""
         formats = ["%Y-%m-%d", "%m/%d/%Y", "%d/%m/%Y", "%B %d, %Y", "%d %B %Y"]
         

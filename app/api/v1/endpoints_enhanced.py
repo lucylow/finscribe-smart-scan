@@ -27,7 +27,7 @@ from .schemas import (
     ResultResponse, CompareResponse, StreamEvent, JobStage
 )
 from ..core.job_manager import job_manager, JobState
-from ..core.worker import process_job
+from ...core.worker import process_job
 from ..core.etl.adapters import ETLAdapterFactory
 from ..core.preprocessing import DocumentPreprocessor
 from ..core.document_processor import FinancialDocumentProcessor

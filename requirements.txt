@@ -47,13 +47,19 @@ python-dateutil>=2.8.0
 opencv-python>=4.8.0
 numpy>=1.24.0
 pyyaml>=6.0
+# OCR backend dependencies (optional - install based on OCR_BACKEND choice)
+# For paddle_local backend:
+# paddleocr==2.6.1.0
+# paddlepaddle==2.5.0  # CPU version, or paddlepaddle-gpu for GPU
+# For paddle_hf backend: requests is already included above
 # Optional: for quantization
 # optimum[onnxruntime]>=1.14.0
 # Optional: for TEDS evaluation
 # teds>=1.0.0
-# CAMEL-AI integration
-camel-ai[all]>=0.2.5
-fastmcp
+# CAMEL-AI integration (requires Python 3.10+)
+# Note: camel-ai requires Python 3.10+. Install manually if needed:
+# pip install "camel-ai[all]>=0.2.5"  # Requires Python 3.10+
+# fastmcp  # Package not found on PyPI - may need to install from source or remove
 # Unsloth integration (install from GitHub: pip install "unsloth @ git+https://github.com/unslothai/unsloth.git")
 # trl>=0.7.0  # For SFTTrainer (uncomment if using Unsloth training)
 # bitsandbytes>=0.41.0  # For QLoRA quantization (uncomment if using QLoRA)

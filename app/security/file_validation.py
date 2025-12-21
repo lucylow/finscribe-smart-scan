@@ -1,9 +1,16 @@
 """File validation utilities."""
 import os
-import magic
 import hashlib
 from typing import Tuple, Optional
 import logging
+
+try:
+    import magic
+    MAGIC_AVAILABLE = True
+except ImportError:
+    MAGIC_AVAILABLE = False
+    logger = logging.getLogger(__name__)
+    logger.warning("python-magic not available. File type detection will be limited to extension-based validation.")
 
 logger = logging.getLogger(__name__)
 
@@ -59,9 +66,15 @@ def validate_file_extension(filename: str) -> Tuple[bool, Optional[str]]:
 
 def validate_file_type(file_content: bytes, filename: Optional[str] = None) -> Tuple[bool, Optional[str]]:
     """
-    Validate file MIME type using python-magic.
+    Validate file MIME type using python-magic if available, otherwise fall back to extension check.
     Returns: (is_valid, error_message)
     """
+    # If magic is not available, fall back to extension check
+    if not MAGIC_AVAILABLE:
+        if filename:
+            return validate_file_extension(filename)
+        return False, "File type validation requires filename when python-magic is not available"
+    
     try:
         mime = magic.Magic(mime=True)
         detected_mime = mime.from_buffer(file_content)

@@ -107,7 +107,7 @@ const FinScribe = () => {
     if (modeFromPath !== activeMode) {
       setActiveMode(modeFromPath);
     }
-  }, [location.pathname]);
+  }, [location.pathname, activeMode, getActiveModeFromPath]);
   
   // Update document title based on active mode
   useEffect(() => {
@@ -495,15 +495,19 @@ const FinScribe = () => {
             <div className="grid lg:grid-cols-3 gap-6 lg:gap-8">
               <div className="lg:col-span-2 space-y-4">
                 {/* Use SmartDropzone for multi-file support, fallback to DocumentUpload for single file */}
-                {false ? (
-                  <SmartDropzone
-                    onFilesChange={handleFilesChange}
-                    maxFiles={5}
-                    maxSizeMB={10}
-                  />
-                ) : (
-                  <DocumentUpload onFileSelect={handleFileSelect} file={file} />
-                )}
+                {/* TODO: Enable multi-file upload when ready - set enableMultiFileUpload to true */}
+                {(() => {
+                  const enableMultiFileUpload = false;
+                  return enableMultiFileUpload ? (
+                    <SmartDropzone
+                      onFilesChange={handleFilesChange}
+                      maxFiles={5}
+                      maxSizeMB={10}
+                    />
+                  ) : (
+                    <DocumentUpload onFileSelect={handleFileSelect} file={file} />
+                  );
+                })()}
                 
                 <AnimatePresence>
                   {(file || processing) && (

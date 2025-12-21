@@ -85,8 +85,8 @@ def ingest_task(self, job_id: str, file_content: bytes, filename: str, checksum:
         db = SessionLocal()
         try:
             job = db.query(Job).filter(Job.id == job_id).first()
-            if job and job.metadata and job.metadata.get("ingest_completed"):
-                return job.metadata.get("ingest_result", {})
+            if job and job.job_metadata and job.job_metadata.get("ingest_completed"):
+                return job.job_metadata.get("ingest_result", {})
         finally:
             db.close()
         raise Exception("Task already in progress")
@@ -112,7 +112,7 @@ def ingest_task(self, job_id: str, file_content: bytes, filename: str, checksum:
                     filename=filename,
                     file_size=len(file_content),
                     checksum=checksum,
-                    metadata={
+                    job_metadata={
                         "ingest_completed": True,
                         "ingest_result": {"storage_key": storage_key},
                         "storage_key": storage_key
@@ -121,8 +121,8 @@ def ingest_task(self, job_id: str, file_content: bytes, filename: str, checksum:
                 db.add(job)
             else:
                 job.status = JobStatus.PROCESSING.value
-                job.metadata = job.metadata or {}
-                job.metadata.update({
+                job.job_metadata = job.job_metadata or {}
+                job.job_metadata.update({
                     "ingest_completed": True,
                     "ingest_result": {"storage_key": storage_key},
                     "storage_key": storage_key
@@ -178,8 +178,9 @@ def preprocess_task(self, job_id: str, storage_key: str) -> Dict[str, Any]:
             
             # Update job metadata
             job = db.query(Job).filter(Job.id == job_id).first()
-            if job and job.metadata:
-                job.metadata["preprocess_completed"] = True
+            if job:
+                job.job_metadata = job.job_metadata or {}
+                job.job_metadata["preprocess_completed"] = True
             
             db.commit()
             

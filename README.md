@@ -102,6 +102,16 @@ pip install -r requirements.txt
 # STORAGE_BUCKET=finscribe
 # MODEL_MODE=mock  # Use 'production' for real models
 
+# OCR Backend Configuration (optional)
+# OCR_BACKEND=mock  # Options: 'mock', 'paddle_local', 'paddle_hf'
+# For paddle_local: Install paddleocr and paddlepaddle
+#   pip install paddleocr paddlepaddle  # CPU version
+#   # or for GPU: pip install paddleocr paddlepaddle-gpu
+#   export PADDLE_USE_GPU=false  # Set to 'true' for GPU acceleration
+# For paddle_hf: Set your Hugging Face token
+#   export HF_TOKEN=your_huggingface_token_here
+#   export HF_OCR_URL=https://api-inference.huggingface.co/models/PaddlePaddle/PaddleOCR-VL  # Optional custom URL
+
 # Run database migrations
 alembic upgrade head
 
@@ -1028,6 +1038,81 @@ docker-compose down                     # Stop all services
 ---
 
 ## 📝 Appendix: Configuration & Schemas
+
+### OCR Backend Configuration
+
+FinScribe supports multiple OCR backends that can be configured via the `OCR_BACKEND` environment variable:
+
+#### Available Backends
+
+1. **`mock`** (default): Mock backend for testing and development
+   - No dependencies required
+   - Returns deterministic test data
+   - Use for local development and unit tests
+
+2. **`paddle_local`**: Local PaddleOCR backend
+   - Fast on-premise inference
+   - Requires: `paddleocr` and `paddlepaddle` packages
+   - Installation:
+     ```bash
+     # CPU version
+     pip install paddleocr paddlepaddle
+     
+     # GPU version (CUDA 10.1)
+     pip install paddleocr paddlepaddle-gpu==2.5.0.post101
+     ```
+   - Environment variables:
+     - `PADDLE_USE_GPU=false` (set to `true` for GPU acceleration)
+   - Docker build:
+     ```bash
+     docker build --build-arg OCR_BACKEND=paddle_local --build-arg PADDLE_GPU=false -t finscribe .
+     ```
+
+3. **`paddle_hf`**: Remote Hugging Face PaddleOCR-VL inference
+   - No heavy local dependencies
+   - Uses Hugging Face Inference API
+   - Requires: `requests` package (already in requirements.txt)
+   - Environment variables:
+     - `HF_TOKEN`: Your Hugging Face API token (required)
+     - `HF_OCR_URL`: Optional custom model URL (defaults to PaddleOCR-VL on HF)
+   - Example:
+     ```bash
+     export OCR_BACKEND=paddle_hf
+     export HF_TOKEN=hf_xxxxxxxxxxxxx
+     ```
+
+#### Usage
+
+```bash
+# Use mock backend (default)
+export OCR_BACKEND=mock
+
+# Use local PaddleOCR
+export OCR_BACKEND=paddle_local
+export PADDLE_USE_GPU=false
+
+# Use Hugging Face remote backend
+export OCR_BACKEND=paddle_hf
+export HF_TOKEN=your_token_here
+```
+
+#### Fallback Behavior
+
+If a configured backend fails to initialize (missing dependencies, invalid token, etc.), the system automatically falls back to the `mock` backend and logs a warning. This ensures the application continues to function even if OCR dependencies are not properly configured.
+
+#### Testing
+
+Run unit tests for OCR backends:
+```bash
+# Test mock backend (always works)
+pytest tests/unit/test_ocr_backends.py::TestMockBackend -v
+
+# Test with HF backend (requires HF_TOKEN)
+HF_TOKEN=your_token pytest tests/unit/test_ocr_backends.py::TestPaddleHFBackend -v
+
+# Test with local PaddleOCR (requires paddleocr installed)
+TEST_PADDLE_LOCAL=1 pytest tests/unit/test_ocr_backends.py::TestPaddleLocalBackend -v
+```
 
 ### Numeric tolerance config (`configs/inference.yaml`)
 

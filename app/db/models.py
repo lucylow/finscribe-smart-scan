@@ -27,7 +27,7 @@ class Job(Base):
     filename = Column(String, nullable=True)
     file_size = Column(JSON, nullable=True)  # Store as bytes
     checksum = Column(String, nullable=True)  # SHA256 hash
-    metadata = Column(JSON, nullable=True)  # Additional job metadata
+    job_metadata = Column(JSON, nullable=True)  # Additional job metadata (renamed from 'metadata' to avoid SQLAlchemy reserved name)
     error = Column(Text, nullable=True)  # Error message if failed
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
@@ -66,7 +66,7 @@ class Model(Base):
     model_type = Column(String, nullable=False)  # ocr, vlm, llm
     checkpoint_id = Column(String, nullable=True)  # Git commit or checkpoint hash
     dataset_ids = Column(JSON, nullable=True)  # Training dataset IDs
-    metadata = Column(JSON, nullable=True)  # Model metadata
+    model_metadata = Column(JSON, nullable=True)  # Model metadata (renamed from 'metadata' to avoid SQLAlchemy reserved name)
     is_active = Column(String, default="true")  # Whether model is currently active
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 

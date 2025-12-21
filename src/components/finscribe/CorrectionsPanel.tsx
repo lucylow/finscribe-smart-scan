@@ -172,14 +172,14 @@ function CorrectionsPanel({
       
       setLocalData((prev) => {
         const newData = { ...prev };
-        let current: any = newData;
+        let current: Record<string, unknown> = newData;
         
         // Navigate to the field
         for (let i = 0; i < path.length - 1; i++) {
           if (!current[path[i]]) {
             current[path[i]] = {};
           }
-          current = current[path[i]];
+          current = current[path[i]] as Record<string, unknown>;
         }
         
         const fieldName = path[path.length - 1];
@@ -216,9 +216,9 @@ function CorrectionsPanel({
         // Optimistic save
         setLocalData((prev) => {
           const newData = { ...prev };
-          let current: any = newData;
+          let current: Record<string, unknown> = newData;
           for (let i = 0; i < path.length - 1; i++) {
-            current = current[path[i]];
+            current = current[path[i]] as Record<string, unknown>;
           }
           const fieldName = path[path.length - 1];
           if (current[fieldName]) {
@@ -231,9 +231,9 @@ function CorrectionsPanel({
         setTimeout(() => {
           setLocalData((prev) => {
             const newData = { ...prev };
-            let current: any = newData;
+            let current: Record<string, unknown> = newData;
             for (let i = 0; i < path.length - 1; i++) {
-              current = current[path[i]];
+              current = current[path[i]] as Record<string, unknown>;
             }
             const fieldName = path[path.length - 1];
             if (current[fieldName]) {
@@ -270,34 +270,34 @@ function CorrectionsPanel({
   const getChangedFields = useCallback((): string[] => {
     const changed: string[] = [];
     
-    const traverse = (obj: any, prefix: string = '') => {
+    const traverse = (obj: Record<string, unknown>, prefix: string = '') => {
       for (const key in obj) {
         const field = obj[key];
         if (field && typeof field === 'object' && 'isDirty' in field) {
-          if (field.isDirty) {
+          if ((field as FieldValue).isDirty) {
             changed.push(prefix ? `${prefix}.${key}` : key);
           }
-        } else if (field && typeof field === 'object') {
-          traverse(field, prefix ? `${prefix}.${key}` : key);
+        } else if (field && typeof field === 'object' && field !== null) {
+          traverse(field as Record<string, unknown>, prefix ? `${prefix}.${key}` : key);
         }
       }
     };
     
-    traverse(localData);
+    traverse(localData as Record<string, unknown>);
     return changed;
   }, [localData]);
 
   // Check if all required fields are valid
   const isValid = useCallback((): boolean => {
-    const traverse = (obj: any): boolean => {
+    const traverse = (obj: Record<string, unknown>): boolean => {
       for (const key in obj) {
         const field = obj[key];
         if (field && typeof field === 'object' && 'isValid' in field) {
-          if (!field.isValid) {
+          if (!(field as FieldValue).isValid) {
             return false;
           }
-        } else if (field && typeof field === 'object') {
-          if (!traverse(field)) {
+        } else if (field && typeof field === 'object' && field !== null) {
+          if (!traverse(field as Record<string, unknown>)) {
             return false;
           }
         }
@@ -305,7 +305,7 @@ function CorrectionsPanel({
       return true;
     };
     
-    return traverse(localData);
+    return traverse(localData as Record<string, unknown>);
   }, [localData]);
 
   // Export to active learning
@@ -322,18 +322,18 @@ function CorrectionsPanel({
       // Prepare corrections payload
       const corrections: Record<string, unknown> = {};
       
-      const extractValues = (obj: any, prefix: string = '') => {
+      const extractValues = (obj: Record<string, unknown>, prefix: string = '') => {
         for (const key in obj) {
           const field = obj[key];
           if (field && typeof field === 'object' && 'value' in field) {
-            corrections[prefix ? `${prefix}.${key}` : key] = field.value;
-          } else if (field && typeof field === 'object') {
-            extractValues(field, prefix ? `${prefix}.${key}` : key);
+            corrections[prefix ? `${prefix}.${key}` : key] = (field as FieldValue).value;
+          } else if (field && typeof field === 'object' && field !== null) {
+            extractValues(field as Record<string, unknown>, prefix ? `${prefix}.${key}` : key);
           }
         }
       };
       
-      extractValues(localData);
+      extractValues(localData as Record<string, unknown>);
 
       await submitCorrections(resultId, corrections);
       

@@ -142,7 +142,7 @@ function ImageViewer({
       x: e.clientX - panStart.x,
       y: e.clientY - panStart.y,
     });
-  }, [isPanning, panStart]);
+  }, [isPanning, panStart, zoom]);
 
   // Handle pan end
   const handleMouseUp = useCallback(() => {
