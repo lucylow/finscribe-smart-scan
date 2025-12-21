@@ -17,7 +17,8 @@ import {
   Sparkles,
   Home,
   Settings,
-  HelpCircle
+  HelpCircle,
+  ChevronRight
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 

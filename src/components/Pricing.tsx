@@ -165,11 +165,26 @@ const Pricing = () => {
               }}
               onHoverStart={() => setHoveredPlan(plan.name)}
               onHoverEnd={() => setHoveredPlan(null)}
-              className={`bg-card rounded-2xl p-6 shadow-card transition-all duration-300 relative border-2 ${
+              className={`bg-card rounded-2xl p-6 shadow-card transition-all duration-300 relative border-2 overflow-hidden ${
                 plan.highlight
                   ? "ring-2 ring-primary scale-105 z-10 border-primary/30"
                   : "border-transparent hover:border-primary/20"
               } ${hoveredPlan === plan.name ? "shadow-card-hover" : ""}`}
+            >
+              {/* Gradient overlay for highlighted plan */}
+              {plan.highlight && (
+                <motion.div
+                  className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-secondary/10 pointer-events-none"
+                  animate={{
+                    opacity: [0.3, 0.5, 0.3],
+                  }}
+                  transition={{
+                    duration: 3,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                  }}
+                />
+              )}
             >
               {plan.popular && (
                 <motion.div
