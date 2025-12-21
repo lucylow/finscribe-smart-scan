@@ -52,6 +52,7 @@ interface AnalysisResult {
   metadata?: Record<string, unknown>;
   markdown_output?: string;
   raw_ocr_output?: Record<string, unknown>;
+  [key: string]: unknown;
 }
 
 interface ComparisonResult {
@@ -60,6 +61,7 @@ interface ComparisonResult {
   fine_tuned_result?: Record<string, unknown>;
   baseline_result?: Record<string, unknown>;
   comparison_summary?: Record<string, unknown>;
+  [key: string]: unknown;
 }
 
 const FinScribe = () => {
@@ -177,7 +179,7 @@ const FinScribe = () => {
       }
       setUploadProgress(100);
       
-      setResults(response);
+      setResults(response as AnalysisResult);
       navigate('/app/results');
       
       toast.success('Analysis complete!', {
@@ -356,7 +358,7 @@ const FinScribe = () => {
                 </Button>
               </div>
             </div>
-            <ResultsDisplay results={results} />
+            <ResultsDisplay results={{ data: (results.data || {}) as Record<string, unknown>, validation: results.validation as { is_valid: boolean; issues?: { severity: 'error' | 'warning'; message: string }[] }, metadata: results.metadata, markdown_output: results.markdown_output }} />
           </motion.div>
         );
       } else {

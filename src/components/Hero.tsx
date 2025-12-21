@@ -250,15 +250,14 @@ const Hero = () => {
           transition={{ delay: 1.2 }}
         >
           {stats.map((stat, i) => (
-            <motion.div
-              key={stat.label}
-              className="text-center p-6 rounded-2xl bg-card/70 backdrop-blur-glass border border-border/50 card-hover group relative overflow-hidden"
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 1.2 + i * 0.1, duration: 0.5 }}
-              whileHover={{ y: -8, scale: 1.02 }}
-              transition={{ duration: 0.3, type: "spring", stiffness: 300 }}
-            >
+              <motion.div
+                key={stat.label}
+                className="text-center p-6 rounded-2xl bg-card/70 backdrop-blur-glass border border-border/50 card-hover group relative overflow-hidden"
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 1.2 + i * 0.1, duration: 0.5, type: "spring", stiffness: 300 }}
+                whileHover={{ y: -8, scale: 1.02 }}
+              >
               <motion.div
                 className="absolute inset-0 bg-gradient-to-br from-primary/5 to-secondary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
                 initial={false}
