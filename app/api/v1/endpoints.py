@@ -53,7 +53,7 @@ class ResultResponse(BaseModel):
     output_formats: Optional[List[str]] = None  # Available output formats
 
 # --- In-memory job store (would be Redis/DB in production) ---
-from ..core.worker import JOB_STATUS, process_job, process_compare_documents_job
+from ...core.worker import JOB_STATUS, process_job, process_compare_documents_job
 
 # --- Configuration ---
 MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "50"))

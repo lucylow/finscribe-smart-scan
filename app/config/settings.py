@@ -1,10 +1,18 @@
 import os
+import logging
 from typing import Dict, Any
+
+logger = logging.getLogger(__name__)
 
 def load_config() -> Dict[str, Any]:
     """Load configuration from environment variables with sensible defaults."""
     
     model_mode = os.getenv("MODEL_MODE", "mock")  # mock | local | remote
+    
+    # Validate model_mode
+    if model_mode not in ["mock", "local", "remote"]:
+        logger.warning(f"Invalid MODEL_MODE '{model_mode}', defaulting to 'mock'")
+        model_mode = "mock"
     
     return {
         "model_mode": model_mode,

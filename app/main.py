@@ -7,6 +7,10 @@ from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from .api.v1.endpoints import router as api_router
 from .api.v1.metrics import router as metrics_router
+
+# Initialize logger before use
+logger = logging.getLogger(__name__)
+
 try:
     from .api.v1.endpoints_enhanced import router as enhanced_router
     ENHANCED_ENDPOINTS_AVAILABLE = True
@@ -30,8 +34,6 @@ try:
 except ImportError:
     CAMEL_AVAILABLE = False
     logger.warning("CAMEL endpoints not available")
-
-logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="FinScribe AI Backend",

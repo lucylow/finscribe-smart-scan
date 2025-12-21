@@ -1,6 +1,7 @@
 import aiohttp
 import base64
 import json
+import os
 from typing import Dict, Any, List, Optional
 from abc import ABC, abstractmethod
 import logging
@@ -16,6 +17,14 @@ from .paddleocr_prompts import (
 from .semantic_layout import SemanticLayoutAnalyzer, SemanticLayoutResult
 
 logger = logging.getLogger(__name__)
+
+# Try to import new OCR backend abstraction (optional)
+try:
+    from app.ocr.adapter import OCRBackendAdapter
+    NEW_BACKEND_AVAILABLE = True
+except ImportError:
+    NEW_BACKEND_AVAILABLE = False
+    logger.debug("New OCR backend abstraction not available, using legacy implementation")
 
 
 class OCRClientBase(ABC):
@@ -257,7 +266,17 @@ class PaddleOCRVLService:
         self.config = config
         self.model_mode = config.get("model_mode", "mock")
         
-        if self.model_mode == "mock":
+        # Check if new OCR backend should be used (via OCR_BACKEND env var)
+        use_new_backend = NEW_BACKEND_AVAILABLE and os.getenv("OCR_BACKEND") is not None
+        
+        if use_new_backend:
+            # Use new backend abstraction (paddle_local, paddle_hf, or mock)
+            logger.info(f"Using new OCR backend abstraction (OCR_BACKEND={os.getenv('OCR_BACKEND')})")
+            self.client = OCRBackendAdapter()
+            # Override model_mode to reflect actual backend
+            backend_name = os.getenv("OCR_BACKEND", "mock").lower()
+            self.model_mode = backend_name if backend_name != "mock" else "mock"
+        elif self.model_mode == "mock":
             self.client = MockOCRClient()
         else:
             ocr_config = config.get("paddleocr_vl", {})

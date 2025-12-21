@@ -14,9 +14,26 @@ ENV APP_HOME=/app
 ENV MODEL_MODE=mock
 WORKDIR $APP_HOME
 
+# Optional: Install PaddleOCR for local OCR backend
+# Set PADDLE_GPU=true to install GPU version
+ARG PADDLE_GPU=false
+ARG OCR_BACKEND=mock
+ENV OCR_BACKEND=${OCR_BACKEND}
+
 # Install dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Conditionally install PaddleOCR if OCR_BACKEND=paddle_local
+RUN if [ "$OCR_BACKEND" = "paddle_local" ]; then \
+      if [ "$PADDLE_GPU" = "true" ]; then \
+        pip install paddlepaddle-gpu==2.5.0.post101 -f https://paddlepaddle.org.cn/whl/stable.html || \
+        pip install paddlepaddle-gpu==2.5.0; \
+      else \
+        pip install paddlepaddle==2.5.0; \
+      fi && \
+      pip install paddleocr==2.6.1.0; \
+    fi
 
 # Copy the application code
 COPY app $APP_HOME/app

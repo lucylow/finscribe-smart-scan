@@ -12,7 +12,19 @@ import logging
 from .models.paddleocr_vl_service import PaddleOCRVLService
 from .models.ernie_vlm_service import ErnieVLMService
 from .validation.financial_validator import FinancialValidator
-from .post_processing import FinancialDocumentPostProcessor
+# Import from the module file, not the package directory
+import sys
+import os
+_post_processing_module_path = os.path.join(os.path.dirname(__file__), 'post_processing.py')
+if os.path.exists(_post_processing_module_path):
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("post_processing_module", _post_processing_module_path)
+    post_processing_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(post_processing_module)
+    FinancialDocumentPostProcessor = post_processing_module.FinancialDocumentPostProcessor
+else:
+    # Fallback to package if module doesn't exist
+    from .post_processing.intelligence import FinancialPostProcessor as FinancialDocumentPostProcessor
 from ..config.settings import load_config
 from finscribe.receipts.processor import ReceiptProcessor
 
@@ -168,62 +180,62 @@ class FinancialDocumentProcessor:
                 logger.info("Step 2: Enriching with ERNIE VLM for semantic reasoning...")
                 try:
                     enriched_data = await self.vlm_service.enrich_financial_data(ocr_results, file_content)
+                    
+                    # Validate VLM results
+                    if not enriched_data or not isinstance(enriched_data, dict):
+                        raise ValueError("VLM service returned invalid results")
+                    
+                    if enriched_data.get("status") == "partial":
+                        logger.warning("VLM returned partial results - continuing with available data")
+                    
+                    # Ensure structured_data exists
+                    if "structured_data" not in enriched_data:
+                        enriched_data["structured_data"] = {}
+                        logger.warning("VLM results missing structured_data - using empty structure")
+                    
+                    # Merge post-processed data if available (post-processing can supplement VLM output)
+                    if post_processed_data and post_processed_data.get("success"):
+                        post_structured = post_processed_data.get("data", {})
+                        if post_structured:
+                            # Merge vendor data (post-processing takes precedence if VLM didn't extract it)
+                            if post_structured.get("vendor") and not enriched_data["structured_data"].get("vendor_block"):
+                                enriched_data["structured_data"]["vendor_block"] = post_structured["vendor"]
+                            # Merge client data
+                            if post_structured.get("client"):
+                                if not enriched_data["structured_data"].get("client_info"):
+                                    enriched_data["structured_data"]["client_info"] = post_structured["client"]
+                                else:
+                                    # Merge client fields that might be missing
+                                    client_info = enriched_data["structured_data"]["client_info"]
+                                    post_client = post_structured["client"]
+                                    if not client_info.get("invoice_number") and post_client.get("invoice_number"):
+                                        client_info["invoice_number"] = post_client["invoice_number"]
+                                    if not client_info.get("dates") and post_client.get("dates"):
+                                        client_info["dates"] = post_client["dates"]
+                            # Merge line items (post-processing can supplement)
+                            if post_structured.get("line_items") and not enriched_data["structured_data"].get("line_items"):
+                                enriched_data["structured_data"]["line_items"] = post_structured["line_items"]
+                            # Merge financial summary
+                            if post_structured.get("financial_summary"):
+                                if not enriched_data["structured_data"].get("financial_summary"):
+                                    enriched_data["structured_data"]["financial_summary"] = post_structured["financial_summary"]
+                                else:
+                                    # Merge financial fields
+                                    summary = enriched_data["structured_data"]["financial_summary"]
+                                    post_summary = post_structured["financial_summary"]
+                                    for key in ["subtotal", "grand_total", "currency", "payment_terms"]:
+                                        if not summary.get(key) and post_summary.get(key):
+                                            summary[key] = post_summary.get(key)
                 
-                # Validate VLM results
-                if not enriched_data or not isinstance(enriched_data, dict):
-                    raise ValueError("VLM service returned invalid results")
-                
-                if enriched_data.get("status") == "partial":
-                    logger.warning("VLM returned partial results - continuing with available data")
-                
-                # Ensure structured_data exists
-                if "structured_data" not in enriched_data:
-                    enriched_data["structured_data"] = {}
-                    logger.warning("VLM results missing structured_data - using empty structure")
-                
-                # Merge post-processed data if available (post-processing can supplement VLM output)
-                if post_processed_data and post_processed_data.get("success"):
-                    post_structured = post_processed_data.get("data", {})
-                    if post_structured:
-                        # Merge vendor data (post-processing takes precedence if VLM didn't extract it)
-                        if post_structured.get("vendor") and not enriched_data["structured_data"].get("vendor_block"):
-                            enriched_data["structured_data"]["vendor_block"] = post_structured["vendor"]
-                        # Merge client data
-                        if post_structured.get("client"):
-                            if not enriched_data["structured_data"].get("client_info"):
-                                enriched_data["structured_data"]["client_info"] = post_structured["client"]
-                            else:
-                                # Merge client fields that might be missing
-                                client_info = enriched_data["structured_data"]["client_info"]
-                                post_client = post_structured["client"]
-                                if not client_info.get("invoice_number") and post_client.get("invoice_number"):
-                                    client_info["invoice_number"] = post_client["invoice_number"]
-                                if not client_info.get("dates") and post_client.get("dates"):
-                                    client_info["dates"] = post_client["dates"]
-                        # Merge line items (post-processing can supplement)
-                        if post_structured.get("line_items") and not enriched_data["structured_data"].get("line_items"):
-                            enriched_data["structured_data"]["line_items"] = post_structured["line_items"]
-                        # Merge financial summary
-                        if post_structured.get("financial_summary"):
-                            if not enriched_data["structured_data"].get("financial_summary"):
-                                enriched_data["structured_data"]["financial_summary"] = post_structured["financial_summary"]
-                            else:
-                                # Merge financial fields
-                                summary = enriched_data["structured_data"]["financial_summary"]
-                                post_summary = post_structured["financial_summary"]
-                                for key in ["subtotal", "grand_total", "currency", "payment_terms"]:
-                                    if not summary.get(key) and post_summary.get(key):
-                                        summary[key] = post_summary[key]
-                
-            except Exception as vlm_error:
-                logger.error(f"VLM enrichment failed: {str(vlm_error)}", exc_info=True)
-                # Try to continue with OCR results only if VLM fails
-                logger.warning("Continuing with OCR results only after VLM failure")
-                enriched_data = {
-                    "structured_data": {},
-                    "status": "partial",
-                    "error": f"VLM enrichment failed: {str(vlm_error)}"
-                }
+                except Exception as vlm_error:
+                    logger.error(f"VLM enrichment failed: {str(vlm_error)}", exc_info=True)
+                    # Try to continue with OCR results only if VLM fails
+                    logger.warning("Continuing with OCR results only after VLM failure")
+                    enriched_data = {
+                        "structured_data": {},
+                        "status": "partial",
+                        "error": f"VLM enrichment failed: {str(vlm_error)}"
+                    }
             
             # Step 3: Apply business rule validation
             logger.info("Step 3: Applying business rule validation...")
