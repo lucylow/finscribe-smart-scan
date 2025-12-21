@@ -680,6 +680,65 @@ export const demoAcceptAndQueue = async (
 };
 
 /**
+ * Accept and queue corrections for active learning (optimized for demo flow)
+ * This is the preferred endpoint for the corrections panel
+ */
+export const acceptAndQueue = async (
+  docId: string | null,
+  corrected: Record<string, unknown>,
+  meta?: Record<string, unknown>
+): Promise<{ ok: boolean; queued: boolean; file?: string }> => {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+
+    let response: Response;
+    try {
+      response = await fetch(`${API_BASE_URL}/api/v1/demo/accept_and_queue`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          doc_id: docId,
+          corrected,
+          meta,
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+    } catch (error: unknown) {
+      clearTimeout(timeoutId);
+      const err = error as { name?: string };
+      if (err.name === 'AbortError') {
+        throw new TimeoutError('Request timed out');
+      }
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new NetworkError('Network error. Please check your connection.');
+      }
+      throw error;
+    }
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: response.statusText }));
+      throw new APIError(
+        errorData.error || errorData.detail || 'Failed to queue corrections',
+        response.status,
+        errorData
+      );
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Failed to queue corrections:', error);
+    if (error instanceof APIError || error instanceof NetworkError || error instanceof TimeoutError) {
+      throw error;
+    }
+    throw new APIError(error instanceof Error ? error.message : 'Failed to queue corrections');
+  }
+};
+
+/**
  * Get demo metrics
  */
 export const getDemoMetrics = async (): Promise<{

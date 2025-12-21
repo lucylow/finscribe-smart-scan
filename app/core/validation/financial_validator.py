@@ -1,3 +1,15 @@
+"""
+FinScribe Financial Validator
+
+This module:
+1. Validates arithmetic correctness (line items sum to subtotal, subtotal + tax = total)
+2. Validates date logic (issue_date <= due_date, reasonable date ranges)
+3. Normalizes currency values and formats
+4. Aggregates confidence scores from OCR/LLM extraction
+5. Flags documents needing human review
+
+Used by: app/core/document_processor.py, app/api/v1/camel_endpoints.py
+"""
 from typing import Dict, Any, List, Optional, Union
 from decimal import Decimal, ROUND_HALF_UP
 from datetime import datetime
@@ -7,7 +19,12 @@ logger = logging.getLogger(__name__)
 
 
 class FinancialValidator:
-    """Validates financial document data with arithmetic and business rules."""
+    """
+    Validates financial document data with arithmetic and business rules.
+    
+    Ensures extracted invoice data is mathematically correct and logically consistent.
+    Critical for production use where accuracy is essential.
+    """
     
     def __init__(self, tolerance: float = 0.01):
         self.tolerance = Decimal(str(tolerance))

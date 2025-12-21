@@ -57,6 +57,12 @@ try:
 except ImportError:
     DEMO_AVAILABLE = False
     logger.warning("Demo endpoints not available")
+try:
+    from .api.v1.etl import router as etl_router
+    ETL_AVAILABLE = True
+except ImportError:
+    ETL_AVAILABLE = False
+    logger.warning("ETL endpoints not available")
 
 app = FastAPI(
     title="FinScribe AI Backend",
@@ -135,6 +141,8 @@ if DEMO_AVAILABLE:
     app.include_router(demo_router, prefix="/api/v1", tags=["demo"])
 if EXPORTS_AVAILABLE:
     app.include_router(exports_router, prefix="/api/v1", tags=["exports"])
+if ETL_AVAILABLE:
+    app.include_router(etl_router, prefix="/api/v1", tags=["etl"])
 
 @app.get("/")
 def read_root():
