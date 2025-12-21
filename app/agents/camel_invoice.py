@@ -13,7 +13,7 @@ from typing import Dict, Any, Optional
 
 try:
     from camel.agents import ChatAgent
-    from camel.messages import BaseMessage, SystemMessage
+    from camel.messages import BaseMessage
     from camel.models import ModelFactory
     from camel.types import ModelPlatformType, ModelType
     CAMEL_AVAILABLE = True
@@ -93,7 +93,7 @@ def create_extractor_agent() -> ChatAgent:
     if not CAMEL_AVAILABLE:
         raise ImportError("CAMEL-AI is not installed")
     
-    system_message = SystemMessage(
+    system_message = BaseMessage.make_assistant_message(
         role_name="Extractor Agent",
         content="""You are an expert invoice field extractor. Your job is to extract invoice fields accurately from OCR text or structured data.
 
@@ -121,7 +121,7 @@ def create_validator_agent() -> ChatAgent:
     if not CAMEL_AVAILABLE:
         raise ImportError("CAMEL-AI is not installed")
     
-    system_message = SystemMessage(
+    system_message = BaseMessage.make_assistant_message(
         role_name="Validator Agent",
         content="""You are a financial validator. Your job is to validate financial correctness of invoice data.
 
@@ -145,7 +145,7 @@ def create_auditor_agent() -> ChatAgent:
     if not CAMEL_AVAILABLE:
         raise ImportError("CAMEL-AI is not installed")
     
-    system_message = SystemMessage(
+    system_message = BaseMessage.make_assistant_message(
         role_name="Auditor Agent",
         content="""You are an invoice auditor. Your job is to assess confidence and identify risks or uncertainties.
 
