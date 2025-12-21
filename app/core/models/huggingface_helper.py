@@ -133,3 +133,4 @@ class HuggingFaceHelper:
             return collection["collection_url"]
         return None
 
+

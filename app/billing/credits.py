@@ -45,3 +45,4 @@ def add_api_credits(db: Session, user, amount: int):
 #     raise HTTPException(402, "Out of API credits")
 # deduct_api_credits(db, user)
 
+

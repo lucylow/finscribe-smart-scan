@@ -215,3 +215,4 @@ structured_output = aggregate_regions(region_data_list)
 3. **Multi-Language Support**: Adapt prompts for different languages (translate field names and instructions)
 4. **Error Recovery**: Add prompts for handling ambiguous cases (e.g., "If date format is unclear, extract as-is and flag for review")
 
+

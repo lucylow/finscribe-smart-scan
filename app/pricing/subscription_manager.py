@@ -344,3 +344,4 @@ class SaaSSubscriptionManager:
         except (ValueError, IndexError):
             return []
 
+

@@ -312,3 +312,4 @@ To contribute additional training data:
 4. **Edge Cases**: Add more challenging examples (handwritten, poor quality, unusual layouts)
 5. **Domain-Specific**: Industry-specific invoices (construction, healthcare, legal services)
 
+

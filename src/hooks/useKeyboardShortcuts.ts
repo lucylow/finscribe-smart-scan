@@ -62,3 +62,4 @@ export function useKeyboardShortcuts({
   }, [navigate, onUpload, onAnalyze, onCompare, disabled]);
 }
 
+

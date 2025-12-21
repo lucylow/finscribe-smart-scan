@@ -87,3 +87,4 @@ def table_to_html(table_data: list, headers: Optional[list] = None) -> str:
     html += "</tbody></table>"
     return html
 
+

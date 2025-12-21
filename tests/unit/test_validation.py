@@ -125,3 +125,4 @@ class TestFinancialValidator:
         normalized = result["normalized_data"]
         assert normalized["financial_summary"]["currency"] == "USD"
 
+

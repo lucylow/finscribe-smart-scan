@@ -456,3 +456,4 @@ class SyntheticReceiptGenerator:
             "instruction_pairs": instruction_pairs
         }
 
+

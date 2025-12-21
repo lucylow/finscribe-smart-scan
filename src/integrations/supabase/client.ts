@@ -1,14 +1,21 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-// NOTE: Lovable projects should NOT rely on VITE_* env vars at runtime.
-// This app is connected to Supabase project: dvypmevjyxdeyhaofued
-const SUPABASE_URL = "https://dvypmevjyxdeyhaofued.supabase.co";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-// Supabase anon key is safe to expose in the browser (it is not the service role key).
-const SUPABASE_ANON_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR2eXBtZXZqeXhkZXloYW9mdWVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYyNTc4MzIsImV4cCI6MjA4MTgzMzgzMn0.cSVG9NlwCl6czffzmzx7PVyFz1fkM-yx2aXuZIy_kac";
+// Validate environment variables
+if (!SUPABASE_URL) {
+  throw new Error(
+    'Missing env.VITE_SUPABASE_URL, see https://supabase.com/docs/guides/getting-started/quickstart#environment-variables'
+  );
+}
 
+if (!SUPABASE_PUBLISHABLE_KEY) {
+  throw new Error(
+    'Missing env.VITE_SUPABASE_PUBLISHABLE_KEY, see https://supabase.com/docs/guides/getting-started/quickstart#environment-variables'
+  );
+}
 
 /**
  * Supabase client instance
@@ -20,7 +27,7 @@ const SUPABASE_ANON_KEY =
  */
 export const supabase: SupabaseClient<Database> = createClient<Database>(
   SUPABASE_URL,
-  SUPABASE_ANON_KEY,
+  SUPABASE_PUBLISHABLE_KEY,
   {
     auth: {
       storage: typeof window !== 'undefined' ? localStorage : undefined,
@@ -41,7 +48,7 @@ export const supabase: SupabaseClient<Database> = createClient<Database>(
  * Helper to check if Supabase is properly configured
  */
 export function isSupabaseConfigured(): boolean {
-  return !!SUPABASE_URL && !!SUPABASE_ANON_KEY;
+  return !!SUPABASE_URL && !!SUPABASE_PUBLISHABLE_KEY;
 }
 
 /**
@@ -50,7 +57,7 @@ export function isSupabaseConfigured(): boolean {
 export function getSupabaseConfig() {
   return {
     url: SUPABASE_URL,
-    hasKey: !!SUPABASE_ANON_KEY,
-    keyLength: SUPABASE_ANON_KEY?.length || 0,
+    hasKey: !!SUPABASE_PUBLISHABLE_KEY,
+    keyLength: SUPABASE_PUBLISHABLE_KEY?.length || 0,
   };
 }

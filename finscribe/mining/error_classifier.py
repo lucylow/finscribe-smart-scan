@@ -75,3 +75,4 @@ def get_error_severity(error_type: str) -> int:
     }
     return severity_map.get(error_type, 1)
 
+

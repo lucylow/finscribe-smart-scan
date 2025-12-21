@@ -135,3 +135,4 @@ def validate_arithmetic(invoice_json: Dict) -> bool:
     except (KeyError, TypeError, ValueError):
         return False
 
+

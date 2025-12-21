@@ -1,3 +1,4 @@
 {"prompt":"Vendor TechCorp Inc Inv 2024-001 Date Jan15 Items Ent License five 250 each Totl 1250","completion":"{\"document_type\":\"invoice\",\"vendor\":{\"name\":\"TechCorp Inc.\"},\"line_items\":[{\"desc\":\"Enterprise License\",\"qty\":5,\"unit_price\":250.0,\"line_total\":1250.0}],\"financial_summary\":{\"subtotal\":1250.0,\"tax_rate\":0.0,\"tax_amount\":0.0,\"grand_total\":1250.0}}"}
 {"prompt":"Invoice AcmeLLC A7782 WidgetA 2x50 WidgetB 3x30 total 190","completion":"{\"document_type\":\"invoice\",\"vendor\":{\"name\":\"Acme LLC\"},\"line_items\":[{\"desc\":\"Widget A\",\"qty\":2,\"unit_price\":50.0,\"line_total\":100.0},{\"desc\":\"Widget B\",\"qty\":3,\"unit_price\":30.0,\"line_total\":90.0}],\"financial_summary\":{\"subtotal\":190.0,\"tax_rate\":0.0,\"tax_amount\":0.0,\"grand_total\":190.0}}"}
 
+

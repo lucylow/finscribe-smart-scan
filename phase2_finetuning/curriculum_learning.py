@@ -248,3 +248,4 @@ class CurriculumTrainerCallback:
         
         return None
 
+

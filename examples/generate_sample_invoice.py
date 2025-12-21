@@ -96,3 +96,4 @@ draw.text((W-200, H-300), "PAID", font=try_font(24), fill=(200,30,30))
 img.save(OUT_PATH, quality=92)
 print(f"✓ Generated sample invoice: {OUT_PATH}")
 
+

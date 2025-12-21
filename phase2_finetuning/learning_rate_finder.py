@@ -271,3 +271,4 @@ def find_optimal_lr(
     
     return suggested_lr if suggested_lr else start_lr * 100  # Fallback
 
+

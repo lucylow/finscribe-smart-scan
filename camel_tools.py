@@ -122,3 +122,4 @@ def llama_validate(ocr_json_str: str) -> str:
         # Fallback: return error JSON
         return json.dumps({"error": str(e), "original": ocr_json_str})
 
+

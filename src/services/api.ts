@@ -211,15 +211,14 @@ export const analyzeDocument = async (formData: FormData) => {
     
     // Step 3: Return result in format expected by frontend
     if (finalStatus.result) {
-      const result = finalStatus.result as AnalysisResultData;
       return {
         success: true,
         job_id: jobResponse.job_id,
-        data: result.data || result,
-        validation: result.validation,
-        metadata: result.metadata,
-        markdown_output: result.markdown_output,
-        raw_ocr_output: result.raw_ocr_output
+        data: finalStatus.result.data || finalStatus.result,
+        validation: finalStatus.result.validation,
+        metadata: finalStatus.result.metadata,
+        markdown_output: finalStatus.result.markdown_output,
+        raw_ocr_output: finalStatus.result.raw_ocr_output
       };
     }
     
@@ -302,14 +301,13 @@ export const compareDocuments = async (file1: File, file2: File) => {
     
     // Step 3: Return result in format expected by frontend
     if (finalStatus.result) {
-      const result = finalStatus.result as ComparisonResultData;
       return {
         success: true,
         job_id: jobResponse.job_id,
-        comparison: result.comparison,
-        document1: result.document1,
-        document2: result.document2,
-        metadata: result.metadata
+        comparison: finalStatus.result.comparison,
+        document1: finalStatus.result.document1,
+        document2: finalStatus.result.document2,
+        metadata: finalStatus.result.metadata
       };
     }
     
@@ -388,13 +386,12 @@ export const compareWithBaseline = async (formData: FormData) => {
     
     // Step 3: Return result in format expected by frontend
     if (finalStatus.result) {
-      const result = finalStatus.result as BaselineComparisonResultData;
       return {
         success: true,
         job_id: jobResponse.job_id,
-        fine_tuned_result: result.fine_tuned_result,
-        baseline_result: result.baseline_result,
-        comparison_summary: result.comparison_summary
+        fine_tuned_result: finalStatus.result.fine_tuned_result,
+        baseline_result: finalStatus.result.baseline_result,
+        comparison_summary: finalStatus.result.comparison_summary
       };
     }
     

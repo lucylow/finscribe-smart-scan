@@ -121,3 +121,4 @@ supabase functions serve
 - Check webhook URL in Stripe dashboard
 - Ensure event types are selected in Stripe
 
+

@@ -111,3 +111,4 @@ def check_quota(db: Session, user_id: str, plan_tier: str) -> dict:
         "used": cycle["docs_used"],
     }
 
+

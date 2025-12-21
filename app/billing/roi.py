@@ -44,3 +44,4 @@ def calculate_manual_cost(
 # roi_fee = calculate_roi_fee(manual_cost, docs_processed=100)
 # Store result in billing_cycles.overage_cost_usd
 
+

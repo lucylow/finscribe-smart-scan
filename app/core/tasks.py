@@ -398,3 +398,4 @@ def index_task(self, job_id: str, result_data: Dict[str, Any]) -> Dict[str, Any]
     finally:
         release_lock(idempotency_key)
 
+

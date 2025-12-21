@@ -240,3 +240,4 @@ def get_metrics_collector() -> MetricsCollector:
     """Get global metrics collector instance."""
     return _metrics_collector
 
+

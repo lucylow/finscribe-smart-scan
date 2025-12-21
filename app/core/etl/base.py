@@ -55,3 +55,4 @@ class ETLAdapter(ABC):
         """Validate adapter configuration."""
         pass
 
+

@@ -175,7 +175,7 @@ function CurrencyDemo() {
   const [amount, setAmount] = useState('100');
   const [from, setFrom] = useState('USD');
   const [to, setTo] = useState('EUR');
-  const [conversion, setConversion] = useState<{ amount: number; from: string; to: string; converted: number; rate: number } | null>(null);
+  const [conversion, setConversion] = useState<{ amount: number; from: string; to: string; result: number; rate: number } | null>(null);
   const [converting, setConverting] = useState(false);
 
   const handleConvert = async () => {

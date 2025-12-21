@@ -295,3 +295,4 @@ def validate_multi_currency_consistency(document: InvoiceDocument) -> Dict[str, 
         "warnings": warnings,
     }
 
+

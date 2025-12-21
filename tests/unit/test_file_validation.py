@@ -53,3 +53,4 @@ class TestFileValidation:
         assert len(checksum) == 64  # SHA256 produces 64 character hex string
         assert checksum == compute_file_checksum(file_content)  # Should be deterministic
 
+

@@ -128,3 +128,4 @@ INSERT INTO public.partners (name, type, code, revenue_share) VALUES
   ('Xero', 'xero', 'xero', 0.30)
 ON CONFLICT (name) DO NOTHING;
 
+

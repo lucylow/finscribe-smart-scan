@@ -605,3 +605,4 @@ class SemanticLayoutAnalyzer:
             "description": region.metadata.get("description", "")
         }
 
+

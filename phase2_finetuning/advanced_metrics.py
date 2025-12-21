@@ -403,3 +403,4 @@ class ComprehensiveEvaluator:
         # Weighted average (field accuracy is most important)
         return 0.5 * field_score + 0.3 * table_score + 0.2 * numerical_score
 
+

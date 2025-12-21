@@ -256,3 +256,4 @@ The fine-tuned PaddleOCR-VL model demonstrates **substantial improvements** acro
 
 These results validate our fine-tuning approach using completion-only training with LoRA adapters on synthetic and real financial document data.
 
+

@@ -104,3 +104,4 @@ def generate_invoice(
         "payment_terms": random.choice(["Net 30", "Net 15", "Due on Receipt", "Net 60"]),
     }
 
+

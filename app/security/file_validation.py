@@ -125,3 +125,4 @@ def compute_file_checksum(file_content: bytes) -> str:
     """Compute SHA256 checksum of file content."""
     return hashlib.sha256(file_content).hexdigest()
 
+

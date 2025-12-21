@@ -41,3 +41,4 @@ celery_app.conf.update(
     task_default_routing_key="default",
 )
 
+

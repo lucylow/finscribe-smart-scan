@@ -83,3 +83,4 @@ echo "3. After training, merge LoRA: llamafactory-cli export examples/merge_lora
 echo "4. Serve model: llamafactory-cli api examples/inference/llama_vllm.yaml"
 echo "5. Use finscribe.llm_client to call the API from your pipeline"
 
+

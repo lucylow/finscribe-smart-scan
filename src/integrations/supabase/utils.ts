@@ -110,8 +110,8 @@ export async function downloadFile(bucket: string, path: string) {
  */
 export function subscribeToTable<T>(
   table: string,
-  callback: (payload: { eventType: 'INSERT' | 'UPDATE' | 'DELETE'; new?: T; old?: T }) => void,
-  filter?: string
+  filter?: string,
+  callback: (payload: { eventType: 'INSERT' | 'UPDATE' | 'DELETE'; new?: T; old?: T }) => void
 ) {
   const channel = supabase
     .channel(`${table}-changes`)
@@ -143,16 +143,16 @@ export function subscribeToTable<T>(
  */
 export async function batchInsert<T>(
   table: string,
-  rows: Record<string, unknown>[],
+  rows: unknown[],
   options?: { returning?: 'minimal' | 'representation' }
-): Promise<T[]> {
-  // Use any to bypass strict typing for dynamic table names
-  const { data, error } = await (supabase.from as (name: string) => ReturnType<typeof supabase.from>)(table)
-    .insert(rows as never)
+) {
+  const { data, error } = await supabase
+    .from(table)
+    .insert(rows)
     .select(options?.returning === 'minimal' ? undefined : '*');
 
   if (error) throw error;
-  return (data || []) as T[];
+  return data as T[];
 }
 
 /**
@@ -163,24 +163,22 @@ export async function batchUpdate<T>(
   updates: Record<string, unknown>,
   filter: string,
   filterValue: unknown
-): Promise<T[]> {
-  const { data, error } = await (supabase.from as (name: string) => ReturnType<typeof supabase.from>)(table)
-    .update(updates as never)
-    .eq(filter as never, filterValue as never)
+) {
+  const { data, error } = await supabase
+    .from(table)
+    .update(updates)
+    .eq(filter, filterValue)
     .select();
 
   if (error) throw error;
-  return (data || []) as T[];
+  return data as T[];
 }
 
 /**
  * Batch delete helper
  */
 export async function batchDelete(table: string, filter: string, filterValue: unknown) {
-  const { data, error } = await (supabase.from as (name: string) => ReturnType<typeof supabase.from>)(table)
-    .delete()
-    .eq(filter as never, filterValue as never)
-    .select();
+  const { data, error } = await supabase.from(table).delete().eq(filter, filterValue).select();
   if (error) throw error;
   return data;
 }

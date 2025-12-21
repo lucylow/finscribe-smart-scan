@@ -76,3 +76,4 @@ def load_quantized_model(model_path: Path):
     except Exception as e:
         raise RuntimeError(f"Failed to load quantized model: {e}")
 
+

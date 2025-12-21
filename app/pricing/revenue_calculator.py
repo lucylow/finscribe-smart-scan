@@ -247,3 +247,4 @@ class FinancialProjections:
             "annualized_roi": ((year_3_valuation / investment_amount) ** (1/3) - 1) * 100 if investment_amount > 0 else 0
         }
 
+

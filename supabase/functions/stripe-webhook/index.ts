@@ -9,10 +9,10 @@
 // This is a simplified implementation for demonstration
 
 // Deno.serve is the standard way to serve Supabase Edge Functions
-import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { handleCors, corsResponse } from "../_shared/cors.ts";
 import { handleError, successResponse } from "../_shared/errors.ts";
-import { getSupabaseConfig, getStripeConfig } from "../_shared/config.ts";
+import { getSupabaseConfig, getStripeConfig, getAppConfig } from "../_shared/config.ts";
 import type { StripeWebhookEvent } from "../_shared/types.ts";
 
 // Verify Stripe webhook signature
@@ -66,7 +66,7 @@ async function verifyStripeSignature(
 // Process Stripe webhook events
 async function processWebhookEvent(
   event: StripeWebhookEvent,
-  supabaseClient: SupabaseClient
+  supabaseClient: ReturnType<typeof createClient>
 ) {
   const { type, data } = event;
   const object = data.object;
@@ -88,7 +88,7 @@ async function processWebhookEvent(
         .update({
           plan: plan,
           updated_at: new Date().toISOString(),
-        } as Record<string, unknown>)
+        })
         .eq("stripe_customer_id", customerId);
 
       if (error) {
@@ -109,7 +109,7 @@ async function processWebhookEvent(
         .update({
           plan: "free",
           updated_at: new Date().toISOString(),
-        } as Record<string, unknown>)
+        })
         .eq("stripe_customer_id", customerId);
 
       if (error) {
@@ -148,7 +148,7 @@ async function processWebhookEvent(
             plan: plan,
             stripe_customer_id: customerId,
             updated_at: new Date().toISOString(),
-          } as Record<string, unknown>)
+          })
           .eq("id", userId);
 
         if (error) {
@@ -218,3 +218,4 @@ Deno.serve(async (request) => {
     return handleError(error, request);
   }
 });
+

@@ -88,3 +88,4 @@ def should_redact(data: Dict[str, Any], redaction_enabled: bool = False) -> bool
     redaction_enabled = redaction_enabled or os.getenv("PII_REDACTION_ENABLED", "false").lower() == "true"
     return redaction_enabled
 
+

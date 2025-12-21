@@ -521,3 +521,4 @@ function MultiDocumentComparison({ data }: MultiDocumentComparisonProps) {
 
 export default MultiDocumentComparison;
 
+

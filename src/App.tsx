@@ -107,9 +107,20 @@ const App = () => (
                   <Route path="/pricing" element={<PricingPage />} />
                   <Route
                     path="/app"
-                    element={<Navigate to="/app/upload" replace />}
+                    element={
+                      <ProtectedRoute>
+                        <Navigate to="/app/upload" replace />
+                      </ProtectedRoute>
+                    }
                   />
-                  <Route path="/app/*" element={<FinScribe />} />
+                  <Route
+                    path="/app/*"
+                    element={
+                      <ProtectedRoute>
+                        <FinScribe />
+                      </ProtectedRoute>
+                    }
+                  />
                   {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                   <Route path="*" element={<NotFound />} />
                 </Routes>

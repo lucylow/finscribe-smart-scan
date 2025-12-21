@@ -9,3 +9,4 @@
 {"prompt":"OCR_TEXT:\nVendor: Apex Solutions\nInvoice: AP-222\nDate: 2024-01-18\nSecurity Audit 1 x 1500.00\nTax 150.00\nTotal 1650.00\n\nExtract structured JSON.","completion":"{\"document_type\":\"invoice\",\"vendor\":{\"name\":\"Apex Solutions\"},\"client\":{},\"line_items\":[{\"desc\":\"Security Audit\",\"qty\":1,\"unit_price\":1500.0,\"line_total\":1500.0}],\"financial_summary\":{\"subtotal\":1500.0,\"tax_rate\":0.1,\"tax_amount\":150.0,\"grand_total\":1650.0}}"}
 {"prompt":"OCR_TEXT:\nVendor: Lunar Labs\nInvoice: LL-555\nDate: 2024-03-05\nAI Model Training 1 x 2200.00\nTotal 2200.00\n\nExtract structured JSON.","completion":"{\"document_type\":\"invoice\",\"vendor\":{\"name\":\"Lunar Labs\"},\"client\":{},\"line_items\":[{\"desc\":\"AI Model Training\",\"qty\":1,\"unit_price\":2200.0,\"line_total\":2200.0}],\"financial_summary\":{\"subtotal\":2200.0,\"tax_rate\":0.0,\"tax_amount\":0.0,\"grand_total\":2200.0}}"}
 
+

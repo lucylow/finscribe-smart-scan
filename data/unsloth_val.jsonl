@@ -1,3 +1,4 @@
 {"prompt":"OCR_TEXT:\nVendor: TestCo\nInvoice: T-001\nDate: 2024-01-01\nService Fee 1 x 100.00\nTotal 100.00\n\nExtract structured JSON.","completion":"{\"document_type\":\"invoice\",\"vendor\":{\"name\":\"TestCo\"},\"client\":{},\"line_items\":[{\"desc\":\"Service Fee\",\"qty\":1,\"unit_price\":100.0,\"line_total\":100.0}],\"financial_summary\":{\"subtotal\":100.0,\"tax_rate\":0.0,\"tax_amount\":0.0,\"grand_total\":100.0}}"}
 {"prompt":"OCR_TEXT:\nVendor: Sample Ltd\nInvoice: S-002\nDate: 2024-02-02\nItem A 2 x 40.00\nTax 8.00\nTotal 88.00\n\nExtract structured JSON.","completion":"{\"document_type\":\"invoice\",\"vendor\":{\"name\":\"Sample Ltd\"},\"client\":{},\"line_items\":[{\"desc\":\"Item A\",\"qty\":2,\"unit_price\":40.0,\"line_total\":80.0}],\"financial_summary\":{\"subtotal\":80.0,\"tax_rate\":0.1,\"tax_amount\":8.0,\"grand_total\":88.0}}"}
 
+

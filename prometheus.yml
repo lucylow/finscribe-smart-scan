@@ -8,3 +8,4 @@ scrape_configs:
       - targets: ['backend:8000']
     metrics_path: '/api/v1/metrics'
 
+

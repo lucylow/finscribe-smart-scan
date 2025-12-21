@@ -158,3 +158,4 @@ See `notebooks/finscribe_llamafactory_micro_experiment.ipynb` for a quick Colab-
 4. **Security**: Add authentication for production deployments
 5. **Active Learning**: Accepted corrections from the Streamlit UI are saved to `data/active_learning_queue.jsonl` for periodic retraining
 
+

@@ -6,7 +6,7 @@
  */
 
 // Deno.serve is the standard way to serve Supabase Edge Functions
-import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { handleCors } from "../_shared/cors.ts";
 import { handleError, successResponse, FunctionError } from "../_shared/errors.ts";
 import { requireAuth } from "../_shared/auth.ts";
@@ -32,12 +32,12 @@ interface UsageResponse {
 // Get current usage for user in current billing cycle
 async function getCurrentUsage(
   userId: string,
-  supabaseClient: SupabaseClient
+  supabaseClient: ReturnType<typeof createClient>
 ): Promise<{ docsUsed: number; quota: number | null; plan: string }> {
   // Get user plan
   const { data: profile, error: profileError } = await supabaseClient
     .from("profiles")
-    .select("*")
+    .select("plan")
     .eq("id", userId)
     .single();
 
@@ -46,7 +46,7 @@ async function getCurrentUsage(
     throw new FunctionError("Failed to fetch user profile", 500, "DATABASE_ERROR");
   }
 
-  const plan = ((profile as Record<string, unknown>)?.plan as string) || "free";
+  const plan = (profile?.plan as string) || "free";
 
   // Define quotas by plan (you should sync this with your pricing plans)
   const quotas: Record<string, number | null> = {
@@ -84,7 +84,7 @@ async function getCurrentUsage(
 async function recordUsage(
   userId: string,
   event: UsageEvent,
-  supabaseClient: SupabaseClient
+  supabaseClient: ReturnType<typeof createClient>
 ): Promise<void> {
   const usageData = {
     user_id: userId,
@@ -95,7 +95,7 @@ async function recordUsage(
 
   const { error } = await supabaseClient
     .from("document_usage")
-    .insert(usageData as Record<string, unknown>);
+    .insert(usageData);
 
   if (error) {
     console.error("Error recording usage:", error);
@@ -111,7 +111,7 @@ async function recordUsage(
 async function updateBillingCycle(
   userId: string,
   docsUsed: number,
-  supabaseClient: SupabaseClient
+  supabaseClient: ReturnType<typeof createClient>
 ): Promise<void> {
   const now = new Date();
   const periodStart = new Date(now.getFullYear(), now.getMonth(), 1)
@@ -129,7 +129,7 @@ async function updateBillingCycle(
       period_end: periodEnd,
       docs_used: docsUsed,
       updated_at: new Date().toISOString(),
-    } as Record<string, unknown>, {
+    }, {
       onConflict: "user_id,period_start",
     });
 
@@ -214,3 +214,4 @@ Deno.serve(async (request) => {
     return handleError(error, request);
   }
 });
+

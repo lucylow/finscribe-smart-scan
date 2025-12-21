@@ -19,3 +19,4 @@ def is_premium_feature(feature: str) -> bool:
     """Check if a feature is premium (requires payment)."""
     return feature in PREMIUM_FEATURE_COSTS
 
+

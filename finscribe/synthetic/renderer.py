@@ -115,3 +115,4 @@ def render_invoice(
     
     return img
 
+

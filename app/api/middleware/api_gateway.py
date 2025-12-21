@@ -266,3 +266,4 @@ async def api_gateway_middleware(request: Request, call_next):
         # (web interface, public endpoints, etc.)
         return await call_next(request)
 
+

@@ -293,3 +293,4 @@ Run `supabase gen types typescript` to regenerate types after schema changes.
 - [Supabase Auth Helpers](https://supabase.com/docs/guides/auth)
 - [React Query Documentation](https://tanstack.com/query/latest)
 
+

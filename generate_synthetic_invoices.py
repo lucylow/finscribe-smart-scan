@@ -443,3 +443,4 @@ if __name__ == "__main__":
     generate_dataset(num_samples=args.num, out_dir=args.out, error_rate=args.error_rate,
                      canvas_size=(args.width, args.height), noise_level=args.noise, seed=args.seed)
 
+

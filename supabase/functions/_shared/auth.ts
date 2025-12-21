@@ -41,11 +41,7 @@ export async function getAuthenticatedUser(
       return null;
     }
 
-    // Map User to AuthenticatedUser
-    return {
-      id: user.id,
-      email: user.email,
-    };
+    return user as AuthenticatedUser;
   } catch (error) {
     console.error("Error authenticating user:", error);
     return null;
@@ -66,3 +62,4 @@ export async function requireAuth(
   }
   return user;
 }
+

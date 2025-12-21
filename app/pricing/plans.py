@@ -76,3 +76,4 @@ def get_monthly_quota(plan_tier: str) -> Optional[int]:
         return None
     return plan.get("monthly_docs")
 
+

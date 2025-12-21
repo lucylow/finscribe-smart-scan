@@ -7,3 +7,4 @@ RUN pip install --no-cache-dir --upgrade pip && \
 EXPOSE 8100
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8100"]
 
+

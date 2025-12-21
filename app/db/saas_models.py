@@ -320,3 +320,4 @@ class UsageRecord(Base):
     # Relationships
     tenant = relationship("Tenant", back_populates="usage_records")
 
+

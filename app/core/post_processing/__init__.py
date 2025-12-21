@@ -6,3 +6,4 @@ from .intelligence import FinancialPostProcessor
 
 __all__ = ['FinancialPostProcessor']
 
+
