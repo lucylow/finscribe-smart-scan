@@ -1,0 +1,31 @@
+Demo GIF Instructions for Judges
+
+Steps to Record:
+1. Start demo (make demo or ./demo_run.sh)
+2. Open demo UI at http://localhost:5173
+3. Navigate to Upload page (/app/upload)
+4. Upload examples/sample_invoice_1.png (or use any sample invoice)
+5. Wait for OCR processing to complete
+6. Click on a bounding box overlay region, edit a value (e.g., grand total)
+7. Click "Accept & Send to Training" button
+8. Scroll to Export panel (right sidebar)
+9. Click "Download QuickBooks CSV"
+10. Open the downloaded CSV in Excel/Google Sheets to show the data
+
+Recording Tips:
+- Use screen recording tool (OBS, QuickTime, or screen-to-gif)
+- Keep recording to 30-45 seconds
+- Highlight the ROI calculator showing savings
+- Show the export download and CSV opening
+- Attach the GIF to your PR or presentation
+
+Tools for Recording:
+- macOS: QuickTime Player (File → New Screen Recording)
+- Windows: Built-in Game Bar (Win+G) or OBS Studio
+- Linux: SimpleScreenRecorder or OBS Studio
+- Online: Loom, Screencastify
+
+File Naming:
+- finscribe_demo.gif
+- finscribe_roi_export_demo.gif
+

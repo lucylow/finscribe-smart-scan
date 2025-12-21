@@ -1,3 +1,14 @@
+"""
+FinScribe AI Backend - Main Application Entry Point
+
+This module:
+1. Initializes FastAPI application with CORS middleware
+2. Registers API routers (endpoints, metrics, billing, CAMEL, Unsloth, etc.)
+3. Handles global exception handling for consistent error responses
+4. Provides health check endpoint
+
+Used by: Docker containers, local development, production deployments
+"""
 import uvicorn
 import logging
 from fastapi import FastAPI, Request, status
@@ -34,6 +45,18 @@ try:
 except ImportError:
     CAMEL_AVAILABLE = False
     logger.warning("CAMEL endpoints not available")
+try:
+    from .api.v1.exports import router as exports_router
+    EXPORTS_AVAILABLE = True
+except ImportError:
+    EXPORTS_AVAILABLE = False
+    logger.warning("Exports endpoints not available")
+try:
+    from .api.v1.demo import router as demo_router
+    DEMO_AVAILABLE = True
+except ImportError:
+    DEMO_AVAILABLE = False
+    logger.warning("Demo endpoints not available")
 
 app = FastAPI(
     title="FinScribe AI Backend",
@@ -108,6 +131,10 @@ if UNSLOTH_AVAILABLE:
     app.include_router(unsloth_router, prefix="/api/v1", tags=["unsloth"])
 if CAMEL_AVAILABLE:
     app.include_router(camel_router, prefix="/api/v1", tags=["camel"])
+if DEMO_AVAILABLE:
+    app.include_router(demo_router, prefix="/api/v1", tags=["demo"])
+if EXPORTS_AVAILABLE:
+    app.include_router(exports_router, prefix="/api/v1", tags=["exports"])
 
 @app.get("/")
 def read_root():

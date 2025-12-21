@@ -1,0 +1,21 @@
+# Default training config (used by training scripts)
+model_name: PaddlePaddle/PaddleOCR-VL
+batch_size: 4
+epochs: 5
+learning_rate: 2e-5
+lora:
+  r: 16
+  alpha: 32
+  dropout: 0.1
+optimizer:
+  name: adamw
+  weight_decay: 0.01
+scheduler:
+  type: cosine
+  warmup_ratio: 0.1
+dataset:
+  train: data/training/train.jsonl
+  val: data/training/val.jsonl
+logging:
+  wandb: false
+

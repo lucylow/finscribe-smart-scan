@@ -1,6 +1,17 @@
 """
-OCR backend abstraction layer.
-Defines the standard interface for OCR backends and provides a factory function.
+FinScribe OCR Backend Abstraction
+
+This module:
+1. Defines the standard OCRResult interface for all OCR backends
+2. Provides OCRBackend base class for implementing different OCR providers
+3. Factory function (get_backend_from_env) selects backend based on environment
+
+Supported backends:
+- mock: Mock backend for testing/development
+- paddle_local: Local PaddleOCR installation (requires paddlepaddle)
+- paddle_hf: Remote Hugging Face PaddleOCR-VL inference API
+
+Used by: app/ocr/adapter.py, app/core/document_processor.py
 """
 import os
 import logging

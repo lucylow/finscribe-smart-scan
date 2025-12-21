@@ -6,7 +6,7 @@ SAMPLE_SCRIPT = examples/generate_sample_invoice.py
 SAMPLE_PATH = examples/sample_invoice.jpg
 ACTIVE_QUEUE = active_learning.jsonl
 
-.PHONY: all generate-sample build up logs down clean help test-camel
+.PHONY: all generate-sample build up logs down clean help test-camel demo demo-up demo-down demo-logs
 
 all: generate-sample build up
 	@echo "✓ Stack started. Use 'make logs' to tail logs, 'make down' to stop."
@@ -65,9 +65,41 @@ health:
 	@echo "\nMock Validator:"
 	@curl -s http://localhost:8100/health | python -m json.tool || echo "✗ Validator not responding"
 
+demo: build
+	@echo "Starting FinScribe demo stack..."
+	@echo "This will start: API (8000), Frontend (5173), Postgres, Redis, MinIO"
+	$(DOCKER_COMPOSE) up -d api frontend postgres redis minio
+	@echo ""
+	@echo "✓ Demo stack started!"
+	@echo "  Frontend: http://localhost:5173"
+	@echo "  Backend API: http://localhost:8000"
+	@echo "  API Docs: http://localhost:8000/docs"
+	@echo "  MinIO Console: http://localhost:9001 (minioadmin/minioadmin)"
+	@echo ""
+	@echo "Use 'make demo-logs' to view logs, 'make demo-down' to stop"
+
+demo-up:
+	@echo "Starting demo services..."
+	$(DOCKER_COMPOSE) up -d api frontend postgres redis minio
+
+demo-down:
+	@echo "Stopping demo services..."
+	$(DOCKER_COMPOSE) down
+
+demo-logs:
+	@echo "Tailing demo logs (press Ctrl-C to quit)..."
+	$(DOCKER_COMPOSE) logs -f api frontend
+
 help:
 	@echo "FinScribe CAMEL-AI Integration - Makefile targets:"
 	@echo ""
+	@echo "Demo Commands:"
+	@echo "  make demo             -> build and start full demo stack (API + Frontend + DB)"
+	@echo "  make demo-up          -> start demo services"
+	@echo "  make demo-down        -> stop demo services"
+	@echo "  make demo-logs        -> view demo service logs"
+	@echo ""
+	@echo "Development Commands:"
 	@echo "  make all              -> generate sample, build images, start stack"
 	@echo "  make generate-sample  -> create examples/sample_invoice.jpg"
 	@echo "  make build            -> docker-compose build"
