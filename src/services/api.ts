@@ -570,3 +570,179 @@ export const getJobStatus = async (jobId: string): Promise<JobStatus> => {
     throw new APIError(error instanceof Error ? error.message : 'Failed to get job status');
   }
 };
+
+/**
+ * Demo OCR endpoint - simplified OCR for demo purposes
+ */
+export const demoOCR = async (file: File): Promise<OCRResponse> => {
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout for OCR
+
+    let response: Response;
+    try {
+      response = await fetch(`${API_BASE_URL}/api/v1/demo/ocr`, {
+        method: 'POST',
+        body: formData,
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+    } catch (error: unknown) {
+      clearTimeout(timeoutId);
+      const err = error as { name?: string };
+      if (err.name === 'AbortError') {
+        throw new TimeoutError('OCR request timed out');
+      }
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new NetworkError('Network error. Please check your connection.');
+      }
+      throw error;
+    }
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: response.statusText }));
+      throw new APIError(
+        errorData.error || errorData.detail || 'OCR failed',
+        response.status,
+        errorData
+      );
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Demo OCR failed:', error);
+    if (error instanceof APIError || error instanceof NetworkError || error instanceof TimeoutError) {
+      throw error;
+    }
+    throw new APIError(error instanceof Error ? error.message : 'OCR failed');
+  }
+};
+
+/**
+ * Demo accept and queue endpoint - queue corrections for active learning
+ */
+export const demoAcceptAndQueue = async (
+  docId: string | null,
+  corrected: Record<string, unknown>,
+  meta?: Record<string, unknown>
+): Promise<{ ok: boolean; queued: boolean; file?: string }> => {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+
+    let response: Response;
+    try {
+      response = await fetch(`${API_BASE_URL}/api/v1/demo/accept_and_queue`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          doc_id: docId,
+          corrected,
+          meta,
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+    } catch (error: unknown) {
+      clearTimeout(timeoutId);
+      const err = error as { name?: string };
+      if (err.name === 'AbortError') {
+        throw new TimeoutError('Request timed out');
+      }
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new NetworkError('Network error. Please check your connection.');
+      }
+      throw error;
+    }
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: response.statusText }));
+      throw new APIError(
+        errorData.error || errorData.detail || 'Failed to queue corrections',
+        response.status,
+        errorData
+      );
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Failed to queue corrections:', error);
+    if (error instanceof APIError || error instanceof NetworkError || error instanceof TimeoutError) {
+      throw error;
+    }
+    throw new APIError(error instanceof Error ? error.message : 'Failed to queue corrections');
+  }
+};
+
+/**
+ * Get demo metrics
+ */
+export const getDemoMetrics = async (): Promise<{
+  queued: number;
+  demo_mode: string;
+  ocr_backend: string;
+  queue_file: string;
+}> => {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
+    let response: Response;
+    try {
+      response = await fetch(`${API_BASE_URL}/api/v1/demo/metrics`, {
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+    } catch (error: unknown) {
+      clearTimeout(timeoutId);
+      const err = error as { name?: string };
+      if (err.name === 'AbortError') {
+        throw new TimeoutError('Request timed out');
+      }
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new NetworkError('Network error. Please check your connection.');
+      }
+      throw error;
+    }
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: response.statusText }));
+      throw new APIError(
+        errorData.error || errorData.detail || 'Failed to get metrics',
+        response.status,
+        errorData
+      );
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Failed to get metrics:', error);
+    if (error instanceof APIError || error instanceof NetworkError || error instanceof TimeoutError) {
+      throw error;
+    }
+    throw new APIError(error instanceof Error ? error.message : 'Failed to get metrics');
+  }
+};
+
+// Types for demo API
+export interface OCRResponse {
+  text: string;
+  regions: Array<{
+    type: string;
+    bbox: number[];
+    text: string;
+    confidence: number;
+  }>;
+  tables: unknown[];
+  meta: {
+    backend: string;
+    duration: number;
+    latency_ms: number;
+    filename?: string;
+  };
+}

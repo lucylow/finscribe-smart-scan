@@ -34,8 +34,19 @@ logger = logging.getLogger(__name__)
 
 class FinancialDocumentProcessor:
     """
-    Main orchestrator for processing financial documents.
-    Combines PaddleOCR-VL for layout parsing with ERNIE (4.5/5) for semantic reasoning.
+    FinScribe Document Processing Pipeline Orchestrator
+    
+    This class:
+    1. Orchestrates OCR → LLM → Validation pipeline
+    2. Combines PaddleOCR-VL for layout parsing with fine-tuned LLM for semantic extraction
+    3. Applies financial validation rules (arithmetic checks, date logic)
+    4. Generates structured JSON output with confidence scores
+    5. Saves corrections to active learning queue
+    
+    Pipeline flow:
+      Document → OCR (PaddleOCR-VL) → LLM Extraction → Validation → Structured JSON
+    
+    Used by: app/api/v1/endpoints.py, app/core/worker.py
     """
     
     def __init__(self, config: Dict[str, Any] = None):

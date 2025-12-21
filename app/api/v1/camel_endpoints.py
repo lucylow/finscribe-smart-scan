@@ -1,6 +1,17 @@
 """
-CAMEL-AI integration endpoints for FinScribe.
-Exposes /process_invoice endpoint that uses CAMEL agents to orchestrate OCR and validation.
+FinScribe OCR → LLM → Agent Pipeline
+
+This module:
+1. Receives invoice OCR text via /process_invoice endpoint
+2. Extracts structured fields using a fine-tuned LLaMA model
+3. Validates results using CAMEL agents (multi-agent reasoning)
+4. Returns confidence-scored JSON for UI editing
+5. Saves corrections to active learning queue for future training
+
+Flow:
+  Upload file → OCR service (PaddleOCR-VL) → LLM extraction → CAMEL validation → Structured JSON
+
+Used by: /api/v1/process_invoice endpoint
 """
 import os
 import json

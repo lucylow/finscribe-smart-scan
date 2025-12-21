@@ -1,5 +1,55 @@
 version: '3.8'
 services:
+  # Backend API (FastAPI)
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: finscribe_api
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./:/app
+      - ./data:/app/data
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://finscribe:finscribe_pass@postgres:5432/finscribe
+      - REDIS_URL=redis://redis:6379/0
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - STORAGE_BUCKET=finscribe
+      - MODEL_MODE=mock
+      - OCR_BACKEND=${OCR_BACKEND:-mock}
+      - HF_TOKEN=${HF_TOKEN:-}
+      - DATA_DIR=/app/data
+    depends_on:
+      - postgres
+      - redis
+      - minio
+    networks:
+      - finscribe-network
+
+  # Frontend (React/Vite)
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: finscribe_frontend
+    command: npm run dev -- --host 0.0.0.0 --port 5173
+    volumes:
+      - ./:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    depends_on:
+      - api
+    networks:
+      - finscribe-network
+
+  # OCR Service (optional)
   ocr_service:
     build: ./ocr_service
     container_name: finscribe_ocr
@@ -7,12 +57,15 @@ services:
       - "8002:8000"
     volumes:
       - ./data:/data
+    networks:
+      - finscribe-network
 
+  # LLaMA Factory (optional, for training)
   llamafactory:
     build: ./llamafactory-docker
     container_name: finscribe_llamafactory
     ports:
-      - "8000:8000"
+      - "8001:8000"
     environment:
       - HF_TOKEN=${HF_TOKEN:-}
       - NVIDIA_VISIBLE_DEVICES=all
@@ -27,9 +80,13 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
+    networks:
+      - finscribe-network
 
+  # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
+    container_name: finscribe_postgres
     environment:
       POSTGRES_USER: finscribe
       POSTGRES_PASSWORD: finscribe_pass
@@ -38,10 +95,35 @@ services:
       - pgdata:/var/lib/postgresql/data
     ports:
       - "5432:5432"
+    networks:
+      - finscribe-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U finscribe"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
+  # Redis (for Celery task queue)
+  redis:
+    image: redis:7-alpine
+    container_name: finscribe_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    networks:
+      - finscribe-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MinIO (S3-compatible storage)
   minio:
     image: minio/minio:latest
-    command: server /data
+    container_name: finscribe_minio
+    command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
@@ -50,7 +132,19 @@ services:
     ports:
       - "9000:9000"
       - "9001:9001"
+    networks:
+      - finscribe-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
 
 volumes:
   pgdata:
   miniodata:
+  redisdata:
+
+networks:
+  finscribe-network:
+    driver: bridge

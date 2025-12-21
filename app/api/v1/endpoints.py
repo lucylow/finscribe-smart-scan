@@ -1,3 +1,20 @@
+"""
+FinScribe API v1 Endpoints
+
+This module:
+1. Defines core API endpoints for document analysis (/analyze, /jobs, /results)
+2. Handles file uploads, validation, and async job processing
+3. Provides job status tracking and result retrieval
+4. Implements active learning correction submission
+
+Main endpoints:
+- POST /analyze: Upload document for analysis (returns job_id)
+- GET /jobs/{job_id}: Get job status and progress
+- GET /results/{result_id}: Retrieve structured extraction results
+- POST /results/{id}/corrections: Submit corrections for active learning
+
+Used by: Frontend React app, external integrations
+"""
 import os
 import json
 import hashlib

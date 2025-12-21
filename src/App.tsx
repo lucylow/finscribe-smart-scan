@@ -16,6 +16,7 @@ const Index = lazy(() => import("./pages/Index"));
 const FinScribe = lazy(() => import("./pages/FinScribe"));
 const Auth = lazy(() => import("./pages/Auth"));
 const PricingPage = lazy(() => import("./pages/PricingPage"));
+const Demo = lazy(() => import("./pages/Demo"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 // Configure QueryClient with error handling
@@ -105,6 +106,7 @@ const App = () => (
                   <Route path="/" element={<Index />} />
                   <Route path="/auth" element={<Auth />} />
                   <Route path="/pricing" element={<PricingPage />} />
+                  <Route path="/demo" element={<Demo />} />
                   <Route
                     path="/app"
                     element={

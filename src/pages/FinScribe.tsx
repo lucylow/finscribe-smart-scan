@@ -45,6 +45,8 @@ import PerformanceMetrics from '@/components/finscribe/PerformanceMetrics';
 import APIPlayground from '@/components/finscribe/APIPlayground';
 import MultiDocumentComparison from '@/components/finscribe/MultiDocumentComparison';
 import AppSidebar from '@/components/finscribe/AppSidebar';
+import ROICalculator from '@/components/finscribe/ROICalculator';
+import ExportPanel from '@/components/finscribe/ExportPanel';
 import { analyzeDocument, compareWithBaseline } from '@/services/api';
 import { ErrorHandler } from '@/lib/errorHandler';
 
@@ -587,41 +589,46 @@ const FinScribe = () => {
               </div>
 
               <div className="lg:block hidden">
-                <Card className="h-full bg-gradient-to-br from-muted/50 to-muted/30 border-muted sticky top-24">
-                  <CardContent className="pt-6">
-                    <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                      <Zap className="w-5 h-5 text-primary" aria-hidden="true" />
-                      <span>Supported Documents</span>
-                    </h3>
-                    <ul className="space-y-3 mb-6" role="list">
-                      {[
-                        'Invoices & Bills (Multi-currency)',
-                        'Receipts & Expense Reports',
-                        'Purchase Orders',
-                        'Bank Statements',
-                        'Financial Statements'
-                      ].map((item, i) => (
-                        <motion.li 
-                          key={item} 
-                          className="flex items-center text-sm gap-2"
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: i * 0.1 }}
-                          role="listitem"
-                        >
-                          <CheckCircle className="w-4 h-4 text-success flex-shrink-0" aria-hidden="true" />
-                          <span>{item}</span>
-                        </motion.li>
-                      ))}
-                    </ul>
-                    
-                    <div className="p-4 rounded-xl bg-primary/5 border border-primary/10">
-                      <p className="text-xs text-muted-foreground">
-                        <strong className="text-foreground">Pro Tip:</strong> For best results, use clear images or PDFs with minimal skew.
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
+                <div className="space-y-6">
+                  <ROICalculator />
+                  <ExportPanel />
+                  
+                  <Card className="bg-gradient-to-br from-muted/50 to-muted/30 border-muted">
+                    <CardContent className="pt-6">
+                      <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                        <Zap className="w-5 h-5 text-primary" aria-hidden="true" />
+                        <span>Supported Documents</span>
+                      </h3>
+                      <ul className="space-y-3 mb-6" role="list">
+                        {[
+                          'Invoices & Bills (Multi-currency)',
+                          'Receipts & Expense Reports',
+                          'Purchase Orders',
+                          'Bank Statements',
+                          'Financial Statements'
+                        ].map((item, i) => (
+                          <motion.li 
+                            key={item} 
+                            className="flex items-center text-sm gap-2"
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: i * 0.1 }}
+                            role="listitem"
+                          >
+                            <CheckCircle className="w-4 h-4 text-success flex-shrink-0" aria-hidden="true" />
+                            <span>{item}</span>
+                          </motion.li>
+                        ))}
+                      </ul>
+                      
+                      <div className="p-4 rounded-xl bg-primary/5 border border-primary/10">
+                        <p className="text-xs text-muted-foreground">
+                          <strong className="text-foreground">Pro Tip:</strong> For best results, use clear images or PDFs with minimal skew.
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
               </div>
             </div>
           </motion.div>
