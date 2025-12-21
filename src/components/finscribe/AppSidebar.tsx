@@ -28,13 +28,54 @@ interface AppSidebarProps {
 }
 
 const navigationItems = [
-  { id: 'upload', label: 'Upload & Analyze', icon: Upload, description: 'Process documents' },
-  { id: 'compare', label: 'Compare Models', icon: GitCompare, description: 'Fine-tuned vs Baseline' },
-  { id: 'compare-documents', label: 'Compare Documents', icon: FileText, description: 'Quote vs Invoice' },
-  { id: 'features', label: 'Features Demo', icon: Wrench, description: 'Interactive demos' },
-  { id: 'metrics', label: 'Performance', icon: BarChart3, description: 'Analytics dashboard' },
-  { id: 'api', label: 'API Playground', icon: Rocket, description: 'Test endpoints' },
+  { 
+    id: 'upload', 
+    label: 'Upload & Analyze', 
+    icon: Upload, 
+    description: 'Process documents',
+    shortcut: '⌘U',
+    category: 'main'
+  },
+  { 
+    id: 'compare', 
+    label: 'Compare Models', 
+    icon: GitCompare, 
+    description: 'Fine-tuned vs Baseline',
+    shortcut: '⌘C',
+    category: 'main'
+  },
+  { 
+    id: 'compare-documents', 
+    label: 'Compare Documents', 
+    icon: FileText, 
+    description: 'Quote vs Invoice',
+    category: 'tools'
+  },
+  { 
+    id: 'features', 
+    label: 'Features Demo', 
+    icon: Wrench, 
+    description: 'Interactive demos',
+    category: 'tools'
+  },
+  { 
+    id: 'metrics', 
+    label: 'Performance', 
+    icon: BarChart3, 
+    description: 'Analytics dashboard',
+    category: 'tools'
+  },
+  { 
+    id: 'api', 
+    label: 'API Playground', 
+    icon: Rocket, 
+    description: 'Test endpoints',
+    category: 'tools'
+  },
 ];
+
+const mainNavItems = navigationItems.filter(item => item.category === 'main');
+const toolsNavItems = navigationItems.filter(item => item.category === 'tools');
 
 const quickStats = [
   { label: 'Processed', value: '1,247', change: '+128', icon: FileText },
@@ -72,47 +113,115 @@ function AppSidebar({ activeMode, onModeChange }: AppSidebarProps) {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-        <p className="text-xs font-medium text-muted-foreground px-3 py-2">Navigation</p>
-        {navigationItems.map((item) => {
-          const isActive = activeMode === item.id;
-          return (
-            <motion.button
-              key={item.id}
-              onClick={() => {
-                onModeChange(item.id);
-                // Also update URL if needed
-                if (item.id !== 'upload' && item.id !== 'compare') {
-                  navigate(`/app/${item.id}`);
-                }
-              }}
-              whileHover={{ x: 2 }}
-              whileTap={{ scale: 0.98 }}
-              aria-label={`Navigate to ${item.label}`}
-              aria-current={isActive ? "page" : undefined}
-              className={cn(
-                "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
-                isActive
-                  ? "bg-primary/10 text-primary border border-primary/20"
-                  : "hover:bg-muted text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <item.icon className={cn(
-                "w-4 h-4 flex-shrink-0",
-                isActive ? "text-primary" : ""
-              )} />
-              <div className="min-w-0">
-                <p className={cn(
-                  "text-sm font-medium truncate",
-                  isActive ? "text-primary" : ""
-                )}>
-                  {item.label}
-                </p>
-                <p className="text-xs text-muted-foreground truncate">{item.description}</p>
-              </div>
-            </motion.button>
-          );
-        })}
+      <nav className="flex-1 p-3 space-y-4 overflow-y-auto">
+        {/* Main Navigation */}
+        <div>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 py-2 mb-1">Main</p>
+          <div className="space-y-1">
+            {mainNavItems.map((item) => {
+              const isActive = activeMode === item.id;
+              return (
+                <motion.button
+                  key={item.id}
+                  onClick={() => {
+                    onModeChange(item.id);
+                    navigate(`/app/${item.id}`);
+                  }}
+                  whileHover={{ x: 2 }}
+                  whileTap={{ scale: 0.98 }}
+                  aria-label={`Navigate to ${item.label}`}
+                  aria-current={isActive ? "page" : undefined}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 relative group",
+                    isActive
+                      ? "bg-primary/10 text-primary border border-primary/20 shadow-sm"
+                      : "hover:bg-muted/80 text-muted-foreground hover:text-foreground border border-transparent"
+                  )}
+                >
+                  <div className={cn(
+                    "absolute left-0 top-1/2 -translate-y-1/2 w-1 h-0 rounded-r-full bg-primary transition-all duration-200",
+                    isActive ? "h-full" : "group-hover:h-4"
+                  )} />
+                  <item.icon className={cn(
+                    "w-4 h-4 flex-shrink-0 transition-colors",
+                    isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
+                  )} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className={cn(
+                        "text-sm font-medium truncate",
+                        isActive ? "text-primary" : ""
+                      )}>
+                        {item.label}
+                      </p>
+                      {item.shortcut && (
+                        <kbd className="hidden lg:inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-100">
+                          {item.shortcut}
+                        </kbd>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground truncate mt-0.5">{item.description}</p>
+                  </div>
+                  {isActive && (
+                    <ChevronRight className="w-4 h-4 text-primary flex-shrink-0" />
+                  )}
+                </motion.button>
+              );
+            })}
+          </div>
+        </div>
+
+        <Separator />
+
+        {/* Tools Navigation */}
+        <div>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 py-2 mb-1">Tools</p>
+          <div className="space-y-1">
+            {toolsNavItems.map((item) => {
+              const isActive = activeMode === item.id;
+              return (
+                <motion.button
+                  key={item.id}
+                  onClick={() => {
+                    onModeChange(item.id);
+                    navigate(`/app/${item.id}`);
+                  }}
+                  whileHover={{ x: 2 }}
+                  whileTap={{ scale: 0.98 }}
+                  aria-label={`Navigate to ${item.label}`}
+                  aria-current={isActive ? "page" : undefined}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 relative group",
+                    isActive
+                      ? "bg-primary/10 text-primary border border-primary/20 shadow-sm"
+                      : "hover:bg-muted/80 text-muted-foreground hover:text-foreground border border-transparent"
+                  )}
+                >
+                  <div className={cn(
+                    "absolute left-0 top-1/2 -translate-y-1/2 w-1 h-0 rounded-r-full bg-primary transition-all duration-200",
+                    isActive ? "h-full" : "group-hover:h-4"
+                  )} />
+                  <item.icon className={cn(
+                    "w-4 h-4 flex-shrink-0 transition-colors",
+                    isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
+                  )} />
+                  <div className="min-w-0 flex-1">
+                    <p className={cn(
+                      "text-sm font-medium truncate",
+                      isActive ? "text-primary" : ""
+                    )}>
+                      {item.label}
+                    </p>
+                    <p className="text-xs text-muted-foreground truncate mt-0.5">{item.description}</p>
+                  </div>
+                  {isActive && (
+                    <ChevronRight className="w-4 h-4 text-primary flex-shrink-0" />
+                  )}
+                </motion.button>
+              );
+            })}
+          </div>
+        </div>
 
         <Separator className="my-4" />
 
