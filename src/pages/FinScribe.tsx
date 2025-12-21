@@ -5,6 +5,15 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
+import { 
+  Breadcrumb,
+  BreadcrumbList,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from '@/components/ui/breadcrumb';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { toast } from 'sonner';
 import { 
   CloudUpload, 
@@ -70,6 +79,7 @@ const FinScribe = () => {
   const [comparisonResults, setComparisonResults] = useState<ComparisonResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
   // Sync active mode with URL
   useEffect(() => {
@@ -84,6 +94,7 @@ const FinScribe = () => {
     const titles: Record<string, string> = {
       upload: 'Upload & Analyze',
       compare: 'Compare Models',
+      results: 'Analysis Results',
       'compare-documents': 'Compare Documents',
       features: 'Features Demo',
       metrics: 'Performance Metrics',
@@ -92,6 +103,30 @@ const FinScribe = () => {
     const title = titles[activeMode] || 'FinScribe AI';
     document.title = `${title} - FinScribe AI`;
   }, [activeMode]);
+  
+  // Get breadcrumb items
+  const getBreadcrumbItems = () => {
+    const items = [
+      { label: 'Home', href: '/' },
+      { label: 'App', href: '/app' },
+    ];
+    
+    const pageTitles: Record<string, string> = {
+      upload: 'Upload & Analyze',
+      compare: 'Compare Models',
+      results: 'Results',
+      'compare-documents': 'Compare Documents',
+      features: 'Features Demo',
+      metrics: 'Performance Metrics',
+      api: 'API Playground',
+    };
+    
+    if (activeMode !== 'upload' && pageTitles[activeMode]) {
+      items.push({ label: pageTitles[activeMode], href: `/app/${activeMode}` });
+    }
+    
+    return items;
+  };
 
   const handleFileSelect = useCallback((selectedFile: File | null) => {
     setFile(selectedFile);
@@ -285,6 +320,66 @@ const FinScribe = () => {
   };
 
   const renderContent = () => {
+    // Handle results route - show results if available, otherwise show empty state
+    if (activeMode === 'results') {
+      if (results) {
+        return (
+          <motion.div
+            key="results"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+          >
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+              <h2 className="text-xl sm:text-2xl font-bold">Analysis Results</h2>
+              <div className="flex gap-2 w-full sm:w-auto">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => handleDownloadResults('json')}
+                  className="flex-1 sm:flex-initial"
+                  aria-label="Download results as JSON"
+                >
+                  <FileJson className="w-4 h-4 mr-2" aria-hidden="true" />
+                  <span>JSON</span>
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => handleDownloadResults('csv')}
+                  className="flex-1 sm:flex-initial"
+                  aria-label="Download results as CSV"
+                >
+                  <FileSpreadsheet className="w-4 h-4 mr-2" aria-hidden="true" />
+                  <span>CSV</span>
+                </Button>
+              </div>
+            </div>
+            <ResultsDisplay results={results} />
+          </motion.div>
+        );
+      } else {
+        return (
+          <motion.div 
+            className="text-center py-12"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <div className="max-w-md mx-auto">
+              <FileText className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-50" />
+              <h3 className="text-lg font-semibold mb-2">No results yet</h3>
+              <p className="text-muted-foreground mb-6">
+                Upload and analyze a document to see detailed extraction results here.
+              </p>
+              <Button className="mt-4" onClick={() => navigate('/app/upload')}>
+                Go to Upload
+              </Button>
+            </div>
+          </motion.div>
+        );
+      }
+    }
+    
     switch (activeMode) {
       case 'upload':
         return (
@@ -321,45 +416,63 @@ const FinScribe = () => {
                 </AnimatePresence>
 
                 <div className="flex flex-col sm:flex-row flex-wrap gap-3 justify-center pt-4">
-                  <Button
-                    size="lg"
-                    onClick={handleAnalyze}
-                    disabled={!file || processing}
-                    className="shadow-btn min-w-full sm:min-w-[180px] group"
-                    aria-label="Analyze document with AI"
+                  <motion.div
+                    whileHover={{ scale: 1.02, y: -2 }}
+                    whileTap={{ scale: 0.98 }}
+                    transition={{ type: "spring", stiffness: 400 }}
                   >
-                    {processing ? (
-                      <>
-                        <motion.div
-                          animate={{ rotate: 360 }}
-                          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                          className="mr-2"
-                          aria-hidden="true"
-                        >
-                          <Sparkles className="w-4 h-4" />
-                        </motion.div>
-                        <span>Processing...</span>
-                      </>
-                    ) : (
-                      <>
-                        <CloudUpload className="w-4 h-4 mr-2" aria-hidden="true" />
-                        <span>Analyze with AI</span>
-                        <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" aria-hidden="true" />
-                      </>
-                    )}
-                  </Button>
+                    <Button
+                      size="lg"
+                      onClick={handleAnalyze}
+                      disabled={!file || processing}
+                      className="shadow-btn min-w-full sm:min-w-[180px] group relative overflow-hidden btn-hover-lift"
+                      aria-label="Analyze document with AI"
+                    >
+                      {processing ? (
+                        <>
+                          <motion.div
+                            animate={{ rotate: 360 }}
+                            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                            className="mr-2 relative z-10"
+                            aria-hidden="true"
+                          >
+                            <Sparkles className="w-4 h-4" />
+                          </motion.div>
+                          <span className="relative z-10">Processing...</span>
+                        </>
+                      ) : (
+                        <>
+                          <CloudUpload className="w-4 h-4 mr-2 relative z-10" aria-hidden="true" />
+                          <span className="relative z-10">Analyze with AI</span>
+                          <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform relative z-10" aria-hidden="true" />
+                          <motion.div
+                            className="absolute inset-0 bg-gradient-to-r from-primary-glow/20 to-secondary-glow/20"
+                            initial={{ x: "-100%" }}
+                            whileHover={{ x: "100%" }}
+                            transition={{ duration: 0.6 }}
+                          />
+                        </>
+                      )}
+                    </Button>
+                  </motion.div>
                   
-                  <Button
-                    variant="outline"
-                    size="lg"
-                    onClick={handleCompare}
-                    disabled={!file || processing}
-                    className="min-w-full sm:min-w-[160px]"
-                    aria-label="Compare with baseline model"
+                  <motion.div
+                    whileHover={{ scale: 1.02, y: -2 }}
+                    whileTap={{ scale: 0.98 }}
+                    transition={{ type: "spring", stiffness: 400 }}
                   >
-                    <GitCompare className="w-4 h-4 mr-2" aria-hidden="true" />
-                    <span>Compare Models</span>
-                  </Button>
+                    <Button
+                      variant="outline"
+                      size="lg"
+                      onClick={handleCompare}
+                      disabled={!file || processing}
+                      className="min-w-full sm:min-w-[160px] btn-hover-lift hover:border-primary/50"
+                      aria-label="Compare with baseline model"
+                    >
+                      <GitCompare className="w-4 h-4 mr-2" aria-hidden="true" />
+                      <span>Compare Models</span>
+                    </Button>
+                  </motion.div>
                 </div>
               </div>
 
@@ -404,59 +517,6 @@ const FinScribe = () => {
           </motion.div>
         );
 
-      case 'results':
-        return results ? (
-          <motion.div
-            key="results"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-          >
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-              <h2 className="text-xl sm:text-2xl font-bold">Analysis Results</h2>
-              <div className="flex gap-2 w-full sm:w-auto">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => handleDownloadResults('json')}
-                  className="flex-1 sm:flex-initial"
-                  aria-label="Download results as JSON"
-                >
-                  <FileJson className="w-4 h-4 mr-2" aria-hidden="true" />
-                  <span>JSON</span>
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => handleDownloadResults('csv')}
-                  className="flex-1 sm:flex-initial"
-                  aria-label="Download results as CSV"
-                >
-                  <FileSpreadsheet className="w-4 h-4 mr-2" aria-hidden="true" />
-                  <span>CSV</span>
-                </Button>
-              </div>
-            </div>
-            <ResultsDisplay results={results} />
-          </motion.div>
-        ) : (
-          <motion.div 
-            className="text-center py-12"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            <div className="max-w-md mx-auto">
-              <FileText className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-50" />
-              <h3 className="text-lg font-semibold mb-2">No results yet</h3>
-              <p className="text-muted-foreground mb-6">
-                Upload and analyze a document to see detailed extraction results here.
-              </p>
-              <Button className="mt-4" onClick={() => navigate('/app/upload')}>
-                Go to Upload
-              </Button>
-            </div>
-          </motion.div>
-        );
 
       case 'compare':
         return comparisonResults ? (
@@ -556,7 +616,12 @@ const FinScribe = () => {
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Bar */}
-        <header className="sticky top-0 z-40 bg-card/95 backdrop-blur-xl border-b border-border/50 shadow-sm px-4 py-3 sm:py-4 flex items-center justify-between gap-2">
+        <motion.header 
+          initial={{ y: -100 }}
+          animate={{ y: 0 }}
+          transition={{ duration: 0.3 }}
+          className="sticky top-0 z-40 bg-card/95 backdrop-blur-xl border-b border-border/50 shadow-sm px-4 py-3 sm:py-4 flex items-center justify-between gap-2"
+        >
           <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
             <Button 
               variant="ghost" 
@@ -572,13 +637,54 @@ const FinScribe = () => {
               )}
             </Button>
 
-            {/* Mobile Logo */}
-            <Link to="/" className="lg:hidden flex items-center gap-2 min-w-0">
-              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
-                <Sparkles className="w-4 h-4 text-primary-foreground" />
-              </div>
-              <span className="font-bold truncate">FinScribe</span>
-            </Link>
+            {/* Mobile Logo & Menu */}
+            <div className="lg:hidden flex items-center gap-2 min-w-0">
+              <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+                <SheetTrigger asChild>
+                  <Button variant="ghost" size="icon" className="lg:hidden">
+                    <Menu className="w-5 h-5" />
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="left" className="w-80 p-0 sm:max-w-sm">
+                  <div className="h-full overflow-hidden">
+                    <AppSidebar 
+                      activeMode={activeMode} 
+                      onModeChange={(mode) => {
+                        setActiveMode(mode);
+                        navigate(`/app/${mode}`);
+                        setMobileMenuOpen(false);
+                      }} 
+                    />
+                  </div>
+                </SheetContent>
+              </Sheet>
+              <Link to="/" className="flex items-center gap-2 min-w-0">
+                <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
+                  <Sparkles className="w-4 h-4 text-primary-foreground" />
+                </div>
+                <span className="font-bold truncate">FinScribe</span>
+              </Link>
+            </div>
+            
+            {/* Breadcrumbs - Desktop */}
+            <Breadcrumb className="hidden md:flex">
+              <BreadcrumbList>
+                {getBreadcrumbItems().map((item, index, array) => (
+                  <React.Fragment key={item.href}>
+                    <BreadcrumbItem>
+                      {index === array.length - 1 ? (
+                        <BreadcrumbPage>{item.label}</BreadcrumbPage>
+                      ) : (
+                        <BreadcrumbLink asChild>
+                          <Link to={item.href}>{item.label}</Link>
+                        </BreadcrumbLink>
+                      )}
+                    </BreadcrumbItem>
+                    {index < array.length - 1 && <BreadcrumbSeparator />}
+                  </React.Fragment>
+                ))}
+              </BreadcrumbList>
+            </Breadcrumb>
 
             <Badge className="hidden md:flex gap-1 items-center bg-primary/10 text-primary border-0 flex-shrink-0">
               <CheckCircle className="w-3 h-3" />
@@ -587,35 +693,17 @@ const FinScribe = () => {
             </Badge>
           </div>
 
-          {/* Mobile Navigation */}
-          <div className="flex lg:hidden gap-1 sm:gap-2 overflow-x-auto scrollbar-hide flex-1 justify-end">
-            {['upload', 'compare', 'features', 'metrics', 'api'].map((mode) => (
-              <Button
-                key={mode}
-                variant={activeMode === mode ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => {
-                  setActiveMode(mode);
-                  navigate(`/app/${mode}`);
-                }}
-                className="capitalize whitespace-nowrap text-xs sm:text-sm"
-                aria-label={`Switch to ${mode} mode`}
-                aria-current={activeMode === mode ? "page" : undefined}
-              >
-                <span className="hidden sm:inline">
-                  {mode === 'upload' ? 'Upload' : 
-                   mode === 'compare' ? 'Compare' :
-                   mode === 'features' ? 'Demo' :
-                   mode === 'metrics' ? 'Metrics' : 'API'}
-                </span>
-                <span className="sm:hidden">
-                  {mode === 'upload' ? 'Up' : 
-                   mode === 'compare' ? 'Cmp' :
-                   mode === 'features' ? 'Demo' :
-                   mode === 'metrics' ? 'Met' : 'API'}
-                </span>
-              </Button>
-            ))}
+          {/* Mobile Page Title */}
+          <div className="lg:hidden flex items-center gap-2 min-w-0 flex-1">
+            <h1 className="text-sm font-semibold truncate">
+              {activeMode === 'upload' ? 'Upload & Analyze' :
+               activeMode === 'compare' ? 'Compare Models' :
+               activeMode === 'results' ? 'Results' :
+               activeMode === 'compare-documents' ? 'Compare Documents' :
+               activeMode === 'features' ? 'Features Demo' :
+               activeMode === 'metrics' ? 'Performance' :
+               activeMode === 'api' ? 'API Playground' : 'FinScribe'}
+            </h1>
           </div>
 
           <Badge variant="outline" className="hidden sm:flex flex-shrink-0 ml-2">Privacy-First</Badge>
@@ -623,6 +711,25 @@ const FinScribe = () => {
 
         {/* Content Area */}
         <main className="flex-1 p-4 sm:p-6 overflow-auto">
+          {/* Breadcrumbs - Mobile */}
+          <Breadcrumb className="md:hidden mb-4">
+            <BreadcrumbList>
+              {getBreadcrumbItems().map((item, index, array) => (
+                <React.Fragment key={item.href}>
+                  <BreadcrumbItem>
+                    {index === array.length - 1 ? (
+                      <BreadcrumbPage className="text-xs">{item.label}</BreadcrumbPage>
+                    ) : (
+                      <BreadcrumbLink asChild>
+                        <Link to={item.href} className="text-xs">{item.label}</Link>
+                      </BreadcrumbLink>
+                    )}
+                  </BreadcrumbItem>
+                  {index < array.length - 1 && <BreadcrumbSeparator />}
+                </React.Fragment>
+              ))}
+            </BreadcrumbList>
+          </Breadcrumb>
           <AnimatePresence mode="wait">
             {error && (
               <motion.div

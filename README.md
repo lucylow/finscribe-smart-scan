@@ -19,10 +19,12 @@
 ### Additional Documentation
 
 **Core Documentation:**
+- **[Documentation Index](DOCUMENTATION_INDEX.md)** — Complete index of all documentation files
 - **[Training Guide](training/README.md)** — Complete fine-tuning instructions and hyperparameters ⭐
 - **[Prompt Engineering Guide](training/prompt_format.md)** — Detailed prompt design strategy
 - **[Dataset Documentation](data/README_data.md)** — Dataset format, generation, and validation
 - **[Evaluation Results](evaluation/results.md)** — Quantitative metrics and case studies
+- **[Inference Guide](inference/README.md)** — How to use the model for document processing
 
 **Additional Resources:**
 - **[Hackathon Submission Guide](docs/HACKATHON_SUBMISSION.md)** — Complete hackathon submission documentation
@@ -143,10 +145,10 @@ curl http://localhost:8000/api/v1/health
 8. [Key Capabilities](#-key-capabilities)
 9. [Tech Stack](#-tech-stack)
 10. [System Overview & Architecture](#-system-overview--architecture)
-    - [High-level End-to-end Flow](#1-high-level-end-to-end-flow)
-    - [Model & Training Pipeline](#2-model--training-pipeline)
-    - [Inference & Request Sequence](#3-inference--validation-sequence)
-    - [Deployment Architecture](#4-deployment--scaling-architecture)
+   - [High-level End-to-end Flow](#1-high-level-end-to-end-flow)
+   - [Model & Training Pipeline](#2-model--training-pipeline)
+   - [Inference & Request Sequence](#3-inference--validation-sequence)
+   - [Deployment Architecture](#4-deployment--scaling-architecture)
 11. [Technical Implementation](#-technical-implementation)
 12. [API Reference](#-api-reference)
 13. [Training & Fine-tuning](#-training-sft--lora-details)
@@ -637,6 +639,8 @@ CREATE TABLE active_learning (
 ---
 
 ## 🚀 How to Use / Demo
+
+See the **[Inference Guide](inference/README.md)** for detailed usage instructions and examples.
 
 ### Live Demo
 

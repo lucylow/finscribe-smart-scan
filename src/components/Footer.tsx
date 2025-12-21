@@ -1,3 +1,4 @@
+import { motion } from "framer-motion";
 import { Bot, Twitter, Linkedin, Github, Youtube } from "lucide-react";
 
 const footerLinks = {
@@ -33,13 +34,24 @@ const socialLinks = [
 
 const Footer = () => {
   return (
-    <footer className="bg-foreground text-background pt-16 pb-8">
-      <div className="container-custom">
+    <footer className="bg-foreground text-background pt-16 pb-8 relative overflow-hidden">
+      {/* Decorative background elements */}
+      <div className="absolute inset-0 opacity-5">
+        <div className="absolute top-20 left-10 w-64 h-64 bg-primary rounded-full blur-3xl" />
+        <div className="absolute bottom-20 right-10 w-96 h-96 bg-secondary rounded-full blur-3xl" />
+      </div>
+      
+      <div className="container-custom relative z-10">
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-12 mb-12">
           {/* Brand */}
           <div>
-            <a href="#" className="flex items-center gap-2 text-xl font-extrabold mb-6">
-              <Bot className="w-8 h-8 text-secondary" />
+            <a href="#" className="flex items-center gap-2 text-xl font-extrabold mb-6 group">
+              <motion.div
+                whileHover={{ rotate: 360, scale: 1.1 }}
+                transition={{ duration: 0.5 }}
+              >
+                <Bot className="w-8 h-8 text-secondary" />
+              </motion.div>
               <span>FinScribe</span>
               <span className="text-secondary">AI</span>
             </a>
@@ -49,14 +61,16 @@ const Footer = () => {
             </p>
             <div className="flex gap-3">
               {socialLinks.map((social) => (
-                <a
+                <motion.a
                   key={social.label}
                   href={social.href}
                   aria-label={social.label}
-                  className="w-10 h-10 rounded-full bg-background/10 flex items-center justify-center hover:bg-primary hover:-translate-y-1 transition-all"
+                  className="w-10 h-10 rounded-full bg-background/10 flex items-center justify-center hover:bg-primary transition-all"
+                  whileHover={{ y: -2, scale: 1.1 }}
+                  whileTap={{ scale: 0.95 }}
                 >
                   <social.icon className="w-5 h-5" />
-                </a>
+                </motion.a>
               ))}
             </div>
           </div>

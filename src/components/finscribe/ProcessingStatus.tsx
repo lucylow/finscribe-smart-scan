@@ -25,18 +25,35 @@ function ProcessingStatus({ progress, processing }: ProcessingStatusProps) {
     <motion.div 
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="w-full p-6 bg-card rounded-xl border shadow-sm"
+      className="w-full p-6 bg-card rounded-xl border shadow-sm card-hover relative overflow-hidden group"
       role="status"
       aria-live="polite"
       aria-atomic="true"
     >
-      <div className="flex justify-between mb-3">
-        <span className="text-sm font-medium text-foreground">
+      <motion.div
+        className="absolute inset-0 bg-gradient-to-br from-primary/5 to-secondary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+        initial={false}
+      />
+      <div className="flex justify-between mb-3 relative z-10">
+        <span className="text-sm font-medium text-foreground flex items-center gap-2">
+          {processing && (
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+            >
+              <Loader2 className="w-4 h-4 text-primary" />
+            </motion.div>
+          )}
           {processing ? 'Processing your document...' : 'Upload complete'}
         </span>
-        <span className="text-sm font-mono text-primary font-semibold" aria-label={`Progress: ${Math.round(progress)} percent`}>
+        <motion.span 
+          className="text-sm font-mono text-primary font-semibold" 
+          aria-label={`Progress: ${Math.round(progress)} percent`}
+          animate={{ scale: progress === 100 ? [1, 1.1, 1] : 1 }}
+          transition={{ duration: 0.3 }}
+        >
           {Math.round(progress)}%
-        </span>
+        </motion.span>
       </div>
       
       <div 
@@ -65,7 +82,7 @@ function ProcessingStatus({ progress, processing }: ProcessingStatusProps) {
       </div>
 
       {processing && (
-        <div className="space-y-3">
+        <div className="space-y-3 relative z-10">
           {steps.slice(0, currentStep + 1).map((step, index) => {
             const isComplete = index < currentStep;
             const isCurrent = index === currentStep;
@@ -76,7 +93,8 @@ function ProcessingStatus({ progress, processing }: ProcessingStatusProps) {
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: index * 0.1 }}
-                className="flex items-center gap-3"
+                className="flex items-center gap-3 group/step"
+                whileHover={{ x: 4 }}
               >
                 <div
                   className={cn(
@@ -107,7 +125,7 @@ function ProcessingStatus({ progress, processing }: ProcessingStatusProps) {
                     isComplete 
                       ? "text-muted-foreground line-through" 
                       : isCurrent 
-                        ? "text-foreground font-medium" 
+                        ? "text-foreground font-medium group-hover/step:text-primary" 
                         : "text-muted-foreground"
                   )}
                 >

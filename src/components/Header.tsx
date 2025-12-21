@@ -108,15 +108,32 @@ const Header = () => {
               <ThemeToggle />
               {!isAppPage && (
                 <>
-                  <Button asChild size="sm" variant="outline" className="mr-2 font-semibold border-2 hover:bg-muted/50">
-                    <Link to="/auth">Login</Link>
-                  </Button>
-                  <Button asChild size="sm" className="shadow-btn group font-semibold px-5">
-                    <Link to="/app/upload">
-                      <Zap className="w-4 h-4 mr-1.5 group-hover:animate-pulse" />
-                      Try Free
-                    </Link>
-                  </Button>
+                  <motion.div
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    <Button asChild size="sm" variant="outline" className="mr-2 font-semibold border-2 hover:bg-muted/50 hover:border-primary/50 transition-all btn-hover-lift">
+                      <Link to="/auth">Login</Link>
+                    </Button>
+                  </motion.div>
+                  <motion.div
+                    whileHover={{ scale: 1.05, y: -2 }}
+                    whileTap={{ scale: 0.95 }}
+                    transition={{ type: "spring", stiffness: 400 }}
+                  >
+                    <Button asChild size="sm" className="shadow-btn group font-semibold px-5 btn-hover-lift relative overflow-hidden">
+                      <Link to="/app/upload" className="relative z-10 flex items-center">
+                        <Zap className="w-4 h-4 mr-1.5 group-hover:animate-pulse relative z-10" />
+                        <span className="relative z-10">Try Free</span>
+                        <motion.div
+                          className="absolute inset-0 bg-gradient-to-r from-primary-glow/20 to-secondary-glow/20"
+                          initial={{ x: "-100%" }}
+                          whileHover={{ x: "100%" }}
+                          transition={{ duration: 0.6 }}
+                        />
+                      </Link>
+                    </Button>
+                  </motion.div>
                 </>
               )}
             </motion.div>

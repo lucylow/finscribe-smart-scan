@@ -46,7 +46,7 @@ const itemVariants = {
 
 const HowItWorks = () => {
   return (
-    <section className="section-padding">
+    <section id="demo" className="section-padding bg-gradient-to-b from-background to-muted/30">
       <div className="container-custom">
         <motion.div
           initial={{ opacity: 0, y: 20 }}

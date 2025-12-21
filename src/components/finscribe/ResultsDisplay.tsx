@@ -95,51 +95,90 @@ function ResultsDisplay({ results }: ResultsProps) {
           </Card>
         </motion.div>
 
-        <Card className="bg-gradient-to-br from-secondary/10 to-secondary/5 border-secondary/20">
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-secondary/20 flex items-center justify-center">
-                <Building2 className="w-5 h-5 text-secondary" />
+        <motion.div
+          whileHover={{ y: -4, scale: 1.02 }}
+          transition={{ type: "spring", stiffness: 300 }}
+        >
+          <Card className="bg-gradient-to-br from-secondary/10 to-secondary/5 border-secondary/20 card-hover group overflow-hidden relative">
+            <motion.div
+              className="absolute inset-0 bg-gradient-to-br from-secondary/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+              initial={false}
+            />
+            <CardContent className="pt-4 pb-4 relative z-10">
+              <div className="flex items-center gap-3">
+                <motion.div 
+                  className="w-10 h-10 rounded-lg bg-secondary/20 flex items-center justify-center group-hover:bg-secondary/30 transition-colors"
+                  whileHover={{ rotate: 360 }}
+                  transition={{ duration: 0.6 }}
+                >
+                  <Building2 className="w-5 h-5 text-secondary" />
+                </motion.div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Vendor</p>
+                  <p className="font-semibold truncate max-w-[100px]">{data.vendor || 'Detected'}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Vendor</p>
-                <p className="font-semibold truncate max-w-[100px]">{data.vendor || 'Detected'}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </motion.div>
 
-        <Card className="bg-gradient-to-br from-success/10 to-success/5 border-success/20">
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-success/20 flex items-center justify-center">
-                <DollarSign className="w-5 h-5 text-success" />
+        <motion.div
+          whileHover={{ y: -4, scale: 1.02 }}
+          transition={{ type: "spring", stiffness: 300 }}
+        >
+          <Card className="bg-gradient-to-br from-success/10 to-success/5 border-success/20 card-hover group overflow-hidden relative">
+            <motion.div
+              className="absolute inset-0 bg-gradient-to-br from-success/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+              initial={false}
+            />
+            <CardContent className="pt-4 pb-4 relative z-10">
+              <div className="flex items-center gap-3">
+                <motion.div 
+                  className="w-10 h-10 rounded-lg bg-success/20 flex items-center justify-center group-hover:bg-success/30 transition-colors"
+                  whileHover={{ rotate: 360 }}
+                  transition={{ duration: 0.6 }}
+                >
+                  <DollarSign className="w-5 h-5 text-success" />
+                </motion.div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Total Amount</p>
+                  <p className="font-bold text-lg bg-gradient-to-r from-success to-success/80 bg-clip-text text-transparent">${data.total?.toFixed(2) || '0.00'}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Total Amount</p>
-                <p className="font-bold text-lg">${data.total?.toFixed(2) || '0.00'}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </motion.div>
 
-        <Card className={`bg-gradient-to-br ${validation?.is_valid ? 'from-success/10 to-success/5 border-success/20' : 'from-destructive/10 to-destructive/5 border-destructive/20'}`}>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${validation?.is_valid ? 'bg-success/20' : 'bg-destructive/20'}`}>
-                {validation?.is_valid ? (
-                  <CheckCircle className="w-5 h-5 text-success" />
-                ) : (
-                  <AlertTriangle className="w-5 h-5 text-destructive" />
-                )}
+        <motion.div
+          whileHover={{ y: -4, scale: 1.02 }}
+          transition={{ type: "spring", stiffness: 300 }}
+        >
+          <Card className={`bg-gradient-to-br ${validation?.is_valid ? 'from-success/10 to-success/5 border-success/20' : 'from-destructive/10 to-destructive/5 border-destructive/20'} card-hover group overflow-hidden relative`}>
+            <motion.div
+              className={`absolute inset-0 bg-gradient-to-br ${validation?.is_valid ? 'from-success/20' : 'from-destructive/20'} to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300`}
+              initial={false}
+            />
+            <CardContent className="pt-4 pb-4 relative z-10">
+              <div className="flex items-center gap-3">
+                <motion.div 
+                  className={`w-10 h-10 rounded-lg flex items-center justify-center ${validation?.is_valid ? 'bg-success/20 group-hover:bg-success/30' : 'bg-destructive/20 group-hover:bg-destructive/30'} transition-colors`}
+                  whileHover={{ rotate: 360 }}
+                  transition={{ duration: 0.6 }}
+                >
+                  {validation?.is_valid ? (
+                    <CheckCircle className="w-5 h-5 text-success" />
+                  ) : (
+                    <AlertTriangle className="w-5 h-5 text-destructive" />
+                  )}
+                </motion.div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Validation</p>
+                  <p className="font-semibold">{validation?.is_valid ? 'Passed' : 'Issues Found'}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Validation</p>
-                <p className="font-semibold">{validation?.is_valid ? 'Passed' : 'Issues Found'}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </motion.div>
       </motion.div>
 
       {/* Validation Issues */}
@@ -212,7 +251,8 @@ function ResultsDisplay({ results }: ResultsProps) {
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: index * 0.05 }}
-                        className="border-b transition-colors hover:bg-muted/50"
+                        className="border-b transition-colors hover:bg-muted/50 group"
+                        whileHover={{ x: 4 }}
                       >
                         <TableCell className="font-medium">{item.description}</TableCell>
                         <TableCell className="text-right">{item.quantity}</TableCell>

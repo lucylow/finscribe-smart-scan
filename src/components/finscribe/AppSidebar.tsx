@@ -27,7 +27,16 @@ interface AppSidebarProps {
   onModeChange: (mode: string) => void;
 }
 
-const navigationItems = [
+interface NavigationItem {
+  id: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  description: string;
+  shortcut?: string;
+  category: 'main' | 'tools';
+}
+
+const navigationItems: NavigationItem[] = [
   { 
     id: 'upload', 
     label: 'Upload & Analyze', 
@@ -113,7 +122,7 @@ function AppSidebar({ activeMode, onModeChange }: AppSidebarProps) {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-3 space-y-4 overflow-y-auto">
+      <nav className="flex-1 p-3 space-y-4 overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted [&::-webkit-scrollbar-track]:bg-transparent hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/30">
         {/* Main Navigation */}
         <div>
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 py-2 mb-1">Main</p>
@@ -225,48 +234,54 @@ function AppSidebar({ activeMode, onModeChange }: AppSidebarProps) {
 
         <Separator className="my-4" />
 
-        <p className="text-xs font-medium text-muted-foreground px-3 py-2">Quick Links</p>
-        <Link
-          to="/"
-          className="flex items-center gap-3 px-3 py-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-        >
-          <Home className="w-4 h-4" />
-          <span className="text-sm">Home</span>
-        </Link>
-        <a
-          href="/#features"
-          className="flex items-center gap-3 px-3 py-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-        >
-          <Settings className="w-4 h-4" />
-          <span className="text-sm">Features</span>
-        </a>
-        <a
-          href="/#faq"
-          className="flex items-center gap-3 px-3 py-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-        >
-          <HelpCircle className="w-4 h-4" />
-          <span className="text-sm">FAQ</span>
-        </a>
+        {/* Quick Links */}
+        <div>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 py-2 mb-1">Quick Links</p>
+          <div className="space-y-1">
+            <Link
+              to="/"
+              className="flex items-center gap-3 px-3 py-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-all duration-200 group"
+            >
+              <Home className="w-4 h-4 group-hover:text-primary transition-colors" />
+              <span className="text-sm font-medium">Home</span>
+            </Link>
+            <a
+              href="/#features"
+              className="flex items-center gap-3 px-3 py-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-all duration-200 group"
+            >
+              <Settings className="w-4 h-4 group-hover:text-primary transition-colors" />
+              <span className="text-sm font-medium">Features</span>
+            </a>
+            <a
+              href="/#faq"
+              className="flex items-center gap-3 px-3 py-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-all duration-200 group"
+            >
+              <HelpCircle className="w-4 h-4 group-hover:text-primary transition-colors" />
+              <span className="text-sm font-medium">FAQ</span>
+            </a>
+          </div>
+        </div>
       </nav>
 
       {/* Quick Stats */}
       <div className="p-4 border-t bg-muted/30">
-        <p className="text-xs font-medium text-muted-foreground mb-3">Quick Stats</p>
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Quick Stats</p>
         <div className="grid grid-cols-2 gap-2">
           {quickStats.map((stat) => (
-            <div 
+            <motion.div 
               key={stat.label}
-              className="p-2 bg-card rounded-lg border"
+              className="p-2.5 bg-card rounded-lg border hover:border-primary/20 transition-colors cursor-default"
+              whileHover={{ scale: 1.02 }}
             >
-              <div className="flex items-center gap-1.5 mb-1">
-                <stat.icon className="w-3 h-3 text-primary" />
-                <span className="text-xs text-muted-foreground">{stat.label}</span>
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <stat.icon className="w-3.5 h-3.5 text-primary" />
+                <span className="text-xs text-muted-foreground font-medium">{stat.label}</span>
               </div>
-              <p className="text-sm font-bold">{stat.value}</p>
-              <Badge className="mt-1 text-[10px] bg-success/20 text-success border-0 px-1 py-0">
+              <p className="text-sm font-bold mb-1">{stat.value}</p>
+              <Badge className="text-[10px] bg-success/20 text-success border-0 px-1.5 py-0.5 font-medium">
                 {stat.change}
               </Badge>
-            </div>
+            </motion.div>
           ))}
         </div>
       </div>

@@ -1,3 +1,4 @@
+import { motion } from "framer-motion";
 import {
   Accordion,
   AccordionContent,
@@ -42,12 +43,24 @@ const FAQ = () => {
   return (
     <section id="faq" className="section-padding bg-muted">
       <div className="container-custom max-w-3xl">
-        <h2 className="text-3xl md:text-4xl font-bold text-center mb-4">
-          Frequently Asked Questions
-        </h2>
-        <p className="text-center text-muted-foreground mb-12">
+        <motion.h2 
+          className="text-3xl md:text-4xl lg:text-5xl font-bold text-center mb-4 tracking-tight"
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6 }}
+        >
+          Frequently Asked <span className="text-gradient bg-gradient-to-r from-primary via-primary to-secondary bg-clip-text text-transparent">Questions</span>
+        </motion.h2>
+        <motion.p 
+          className="text-center text-muted-foreground mb-12 text-lg"
+          initial={{ opacity: 0 }}
+          whileInView={{ opacity: 1 }}
+          viewport={{ once: true }}
+          transition={{ delay: 0.2, duration: 0.6 }}
+        >
           Everything you need to know about FinScribe AI.
-        </p>
+        </motion.p>
 
         <Accordion type="single" collapsible className="space-y-4">
           {faqs.map((faq, index) => (

@@ -108,8 +108,9 @@ const Auth = () => {
   };
 
   return (
-    <div className="min-h-screen gradient-hero gradient-mesh flex items-center justify-center p-4">
-      <Card className="w-full max-w-md glass-card shadow-2xl border-2">
+    <ProtectedRoute requireAuth={false}>
+      <div className="min-h-screen gradient-hero gradient-mesh flex items-center justify-center p-4">
+        <Card className="w-full max-w-md glass-card shadow-2xl border-2">
         <CardHeader className="text-center pb-6">
           <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-primary to-secondary rounded-2xl flex items-center justify-center shadow-lg">
             <Sparkles className="w-8 h-8 text-white" />
@@ -231,7 +232,8 @@ const Auth = () => {
           </div>
         </CardContent>
       </Card>
-    </div>
+      </div>
+    </ProtectedRoute>
   );
 };
 
