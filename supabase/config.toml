@@ -1,1 +1,19 @@
 project_id = "dvypmevjyxdeyhaofued"
+
+[functions.ocr-extract]
+verify_jwt = false
+
+[functions.ai-enhance]
+verify_jwt = false
+
+[functions.document-upload]
+verify_jwt = false
+
+[functions.image-processor]
+verify_jwt = false
+
+[functions.stripe-webhook]
+verify_jwt = false
+
+[functions.usage-tracking]
+verify_jwt = false
