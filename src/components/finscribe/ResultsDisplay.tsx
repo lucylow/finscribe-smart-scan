@@ -8,6 +8,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { CheckCircle, XCircle, AlertTriangle, FileText, Building2, DollarSign, Code, TableIcon, Layers, FileCode } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { ValidationStatus, ValidationStatusBadge } from '@/components/ui/validation-status';
 
 interface LineItem {
   description: string;
@@ -142,7 +143,9 @@ function ResultsDisplay({ results }: ResultsProps) {
                 </motion.div>
                 <div>
                   <p className="text-xs text-muted-foreground">Total Amount</p>
-                  <p className="font-bold text-lg bg-gradient-to-r from-success to-success/80 bg-clip-text text-transparent">${data.total?.toFixed(2) || '0.00'}</p>
+                  <ValidationStatus status="success" variant="subtle" showIcon={false}>
+                    <p className="font-bold text-lg financial-large text-success">${data.total?.toFixed(2) || '0.00'}</p>
+                  </ValidationStatus>
                 </div>
               </div>
             </CardContent>
@@ -153,31 +156,37 @@ function ResultsDisplay({ results }: ResultsProps) {
           whileHover={{ y: -4, scale: 1.02 }}
           transition={{ type: "spring", stiffness: 300 }}
         >
-          <Card className={`bg-gradient-to-br ${validation?.is_valid ? 'from-success/10 to-success/5 border-success/20' : 'from-destructive/10 to-destructive/5 border-destructive/20'} card-hover group overflow-hidden relative`}>
-            <motion.div
-              className={`absolute inset-0 bg-gradient-to-br ${validation?.is_valid ? 'from-success/20' : 'from-destructive/20'} to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300`}
-              initial={false}
-            />
-            <CardContent className="pt-4 pb-4 relative z-10">
-              <div className="flex items-center gap-3">
-                <motion.div 
-                  className={`w-10 h-10 rounded-lg flex items-center justify-center ${validation?.is_valid ? 'bg-success/20 group-hover:bg-success/30' : 'bg-destructive/20 group-hover:bg-destructive/30'} transition-colors`}
-                  whileHover={{ rotate: 360 }}
-                  transition={{ duration: 0.6 }}
-                >
-                  {validation?.is_valid ? (
-                    <CheckCircle className="w-5 h-5 text-success" />
-                  ) : (
-                    <AlertTriangle className="w-5 h-5 text-destructive" />
-                  )}
-                </motion.div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Validation</p>
-                  <p className="font-semibold">{validation?.is_valid ? 'Passed' : 'Issues Found'}</p>
+          <ValidationStatus
+            status={validation?.is_valid ? 'success' : 'error'}
+            variant="subtle"
+            className="w-full"
+          >
+            <Card className={`bg-gradient-to-br ${validation?.is_valid ? 'from-success/10 to-success/5 border-success/20' : 'from-destructive/10 to-destructive/5 border-destructive/20'} card-hover group overflow-hidden relative`}>
+              <motion.div
+                className={`absolute inset-0 bg-gradient-to-br ${validation?.is_valid ? 'from-success/20' : 'from-destructive/20'} to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300`}
+                initial={false}
+              />
+              <CardContent className="pt-4 pb-4 relative z-10">
+                <div className="flex items-center gap-3">
+                  <motion.div 
+                    className={`w-10 h-10 rounded-lg flex items-center justify-center ${validation?.is_valid ? 'bg-success/20 group-hover:bg-success/30' : 'bg-destructive/20 group-hover:bg-destructive/30'} transition-colors`}
+                    whileHover={{ rotate: 360 }}
+                    transition={{ duration: 0.6 }}
+                  >
+                    {validation?.is_valid ? (
+                      <CheckCircle className="w-5 h-5 text-success" />
+                    ) : (
+                      <AlertTriangle className="w-5 h-5 text-destructive" />
+                    )}
+                  </motion.div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Validation</p>
+                    <p className="font-semibold">{validation?.is_valid ? 'Passed' : 'Issues Found'}</p>
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </ValidationStatus>
         </motion.div>
       </motion.div>
 
@@ -262,7 +271,11 @@ function ResultsDisplay({ results }: ResultsProps) {
                     ))}
                     <TableRow className="bg-primary/5 font-bold">
                       <TableCell colSpan={3} className="text-right">Grand Total:</TableCell>
-                      <TableCell className="text-right text-lg text-primary">${data.total?.toFixed(2)}</TableCell>
+                      <TableCell className="text-right">
+                        <ValidationStatus status="success" variant="subtle" showIcon={false}>
+                          <span className="text-lg financial-large text-primary">${data.total?.toFixed(2)}</span>
+                        </ValidationStatus>
+                      </TableCell>
                     </TableRow>
                   </TableBody>
                 </Table>

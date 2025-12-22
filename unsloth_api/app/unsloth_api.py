@@ -7,11 +7,29 @@ or integrated into the main FinScribe backend.
 import os
 import json
 import logging
-from typing import Optional
+from typing import Optional, Dict, Any
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from transformers import AutoTokenizer, AutoModelForCausalLM, GenerationConfig
 import torch
+
+# Import prompt templates and semantic filtering
+try:
+    from .prompt_templates import build_few_shot_prompt, build_zero_shot_prompt
+    PROMPT_TEMPLATES_AVAILABLE = True
+except ImportError:
+    PROMPT_TEMPLATES_AVAILABLE = False
+    logger.warning("Prompt templates not available, using default prompts")
+
+# Import semantic block filtering
+try:
+    import sys
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'app', 'ocr'))
+    from paddle_wrapper import get_structured_ocr_output
+    SEMANTIC_FILTERING_AVAILABLE = True
+except ImportError:
+    SEMANTIC_FILTERING_AVAILABLE = False
+    logger.warning("Semantic filtering not available")
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -77,6 +95,8 @@ class UnslothResponse(BaseModel):
     doc_id: Optional[str] = None
     parsed: dict
     model_available: bool
+    confidence_score: Optional[float] = None
+    needs_review: Optional[bool] = None
 
 
 def extract_json(decoded_text: str, prompt_length: int) -> dict:
@@ -102,9 +122,133 @@ def extract_json(decoded_text: str, prompt_length: int) -> dict:
         return {"_raw_output": decoded_text, "_parse_error": True, "_error": str(e)}
 
 
+def calculate_hybrid_confidence(
+    parsed: Dict[str, Any],
+    ocr_result: Optional[Dict[str, Any]] = None,
+    validation_result: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """
+    Calculate hybrid confidence score combining multiple factors.
+    
+    Factors:
+    1. OCR Confidence: Average confidence of bounding boxes used
+    2. LLM Adherence: How well output adheres to JSON schema
+    3. Validation Agent Score: Arithmetic/business rule validation
+    
+    Returns:
+        Dict with confidence_score (0-1) and needs_review (bool)
+    """
+    scores = []
+    weights = []
+    
+    # Factor 1: OCR Confidence (if available)
+    if ocr_result:
+        regions = ocr_result.get("regions", [])
+        if regions:
+            ocr_confidences = [r.get("confidence", 0.0) for r in regions if isinstance(r, dict)]
+            if ocr_confidences:
+                ocr_avg = sum(ocr_confidences) / len(ocr_confidences)
+                scores.append(ocr_avg)
+                weights.append(0.3)  # 30% weight
+                logger.debug(f"OCR confidence: {ocr_avg:.3f}")
+    
+    # Factor 2: LLM Adherence (JSON parsing success)
+    llm_adherence = 1.0
+    if parsed.get("_parse_error"):
+        llm_adherence = 0.0
+    elif parsed.get("_raw_output"):
+        # Partial parsing - lower score
+        llm_adherence = 0.5
+    else:
+        # Check if required fields are present
+        required_fields = ["document_type", "financial_summary"]
+        present_fields = sum(1 for field in required_fields if field in parsed)
+        llm_adherence = present_fields / len(required_fields)
+    
+    scores.append(llm_adherence)
+    weights.append(0.4)  # 40% weight
+    logger.debug(f"LLM adherence: {llm_adherence:.3f}")
+    
+    # Factor 3: Validation Agent Score
+    validation_score = 1.0
+    if validation_result:
+        if validation_result.get("is_valid", False):
+            validation_score = 1.0
+        elif validation_result.get("math_ok", True):  # Soft warning
+            validation_score = 0.5
+        else:  # Hard fail
+            validation_score = 0.0
+    else:
+        # Perform basic arithmetic validation if validation_result not provided
+        validation_score = _validate_arithmetic_basic(parsed)
+    
+    scores.append(validation_score)
+    weights.append(0.3)  # 30% weight
+    logger.debug(f"Validation score: {validation_score:.3f}")
+    
+    # Calculate weighted average
+    if len(scores) > 0 and len(weights) > 0:
+        # Normalize weights
+        total_weight = sum(weights)
+        if total_weight > 0:
+            normalized_weights = [w / total_weight for w in weights]
+            hybrid_score = sum(s * w for s, w in zip(scores, normalized_weights))
+        else:
+            hybrid_score = sum(scores) / len(scores) if scores else 0.5
+    else:
+        hybrid_score = 0.5  # Default if no scores
+    
+    # Flag for human review if score is below threshold
+    needs_review = hybrid_score < 0.90
+    
+    return {
+        "confidence_score": hybrid_score,
+        "needs_review": needs_review,
+        "component_scores": {
+            "ocr_confidence": scores[0] if len(scores) > 0 else None,
+            "llm_adherence": scores[1] if len(scores) > 1 else None,
+            "validation_score": scores[2] if len(scores) > 2 else None
+        }
+    }
+
+
+def _validate_arithmetic_basic(parsed: Dict[str, Any], tolerance: float = 0.01) -> float:
+    """
+    Basic arithmetic validation (fallback if validation service not available).
+    
+    Returns:
+        Score: 1.0 for pass, 0.5 for soft warning, 0.0 for hard fail
+    """
+    try:
+        fs = parsed.get("financial_summary", {})
+        if not fs:
+            return 0.5  # Missing financial summary
+        
+        subtotal = fs.get("subtotal", 0.0) or 0.0
+        tax = fs.get("tax", 0.0) or 0.0
+        grand_total = fs.get("grand_total", 0.0) or 0.0
+        
+        if grand_total == 0:
+            return 0.5  # Missing grand total
+        
+        # Check: subtotal + tax ≈ grand_total
+        expected_total = subtotal + tax
+        difference = abs(expected_total - grand_total)
+        
+        if difference < tolerance:
+            return 1.0  # Perfect match
+        elif difference < 1.0:  # Small difference (soft warning)
+            return 0.5
+        else:  # Large difference (hard fail)
+            return 0.0
+    except Exception as e:
+        logger.warning(f"Arithmetic validation failed: {e}")
+        return 0.5  # Default to medium confidence on error
+
+
 @app.post("/v1/infer", response_model=UnslothResponse)
 async def infer(payload: OCRPayload):
-    """Run Unsloth inference on OCR text."""
+    """Run Unsloth inference on OCR text with enhanced prompting and confidence scoring."""
     if model is None or tokenizer is None:
         # Return mock response
         return UnslothResponse(
@@ -116,23 +260,48 @@ async def infer(payload: OCRPayload):
                 "financial_summary": {"subtotal": 0.0, "grand_total": 0.0},
                 "_mock": True
             },
-            model_available=False
+            model_available=False,
+            confidence_score=0.5,
+            needs_review=True
         )
     
     try:
-        # Build prompt
-        instruction = payload.instruction or (
-            "\n\nExtract structured JSON with vendor, invoice_number, dates, "
-            "line_items, and financial_summary. Output only valid JSON."
-        )
-        prompt = f"OCR_TEXT:\n{payload.ocr_text}{instruction}"
+        # Step 1: Apply semantic block filtering if OCR result is structured
+        structured_ocr_text = payload.ocr_text
+        ocr_result = None
         
-        # Tokenize
+        # Try to parse OCR text as structured result
+        try:
+            if payload.ocr_text.startswith("{") or "regions" in payload.ocr_text.lower():
+                # Might be JSON-structured OCR result
+                ocr_result = json.loads(payload.ocr_text) if payload.ocr_text.startswith("{") else None
+                if ocr_result and SEMANTIC_FILTERING_AVAILABLE:
+                    structured_ocr_text = get_structured_ocr_output(ocr_result)
+                    logger.info("Applied semantic block filtering to OCR output")
+        except (json.JSONDecodeError, Exception) as e:
+            logger.debug(f"OCR text is not structured JSON, using as-is: {e}")
+        
+        # Step 2: Build prompt using few-shot template
+        if PROMPT_TEMPLATES_AVAILABLE:
+            try:
+                prompt = build_few_shot_prompt(structured_ocr_text)
+                logger.debug("Using few-shot prompt template")
+            except Exception as e:
+                logger.warning(f"Few-shot prompt failed, using zero-shot: {e}")
+                prompt = build_zero_shot_prompt(structured_ocr_text)
+        else:
+            # Fallback to simple prompt
+            instruction = payload.instruction or (
+                "\n\nExtract structured JSON with vendor, invoice_number, dates, "
+                "line_items, and financial_summary. Output only valid JSON."
+            )
+            prompt = f"OCR_TEXT:\n{structured_ocr_text}{instruction}"
+        
+        # Step 3: Tokenize and generate
         inputs = tokenizer(
             prompt, return_tensors="pt", truncation=True, max_length=2048
         ).to(device)
         
-        # Generate
         gen_config = GenerationConfig(
             temperature=payload.temperature,
             top_p=0.95,
@@ -144,16 +313,33 @@ async def infer(payload: OCRPayload):
         with torch.no_grad():
             outputs = model.generate(**inputs, generation_config=gen_config)
         
-        # Decode
+        # Step 4: Decode and extract JSON
         decoded = tokenizer.decode(outputs[0], skip_special_tokens=True)
-        
-        # Extract JSON
         parsed = extract_json(decoded, len(prompt))
+        
+        # Step 5: Perform validation (basic arithmetic check)
+        validation_result = None
+        try:
+            validation_result = {
+                "is_valid": not parsed.get("_parse_error", False),
+                "math_ok": _validate_arithmetic_basic(parsed) >= 0.5
+            }
+        except Exception as e:
+            logger.warning(f"Validation failed: {e}")
+        
+        # Step 6: Calculate hybrid confidence score
+        confidence_data = calculate_hybrid_confidence(
+            parsed,
+            ocr_result=ocr_result,
+            validation_result=validation_result
+        )
         
         return UnslothResponse(
             doc_id=payload.doc_id,
             parsed=parsed,
-            model_available=True
+            model_available=True,
+            confidence_score=confidence_data["confidence_score"],
+            needs_review=confidence_data["needs_review"]
         )
         
     except Exception as e:
