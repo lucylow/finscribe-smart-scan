@@ -109,19 +109,11 @@ const App = () => (
                   <Route path="/demo" element={<Demo />} />
                   <Route
                     path="/app"
-                    element={
-                      <ProtectedRoute>
-                        <Navigate to="/app/upload" replace />
-                      </ProtectedRoute>
-                    }
+                    element={<Navigate to="/app/upload" replace />}
                   />
                   <Route
                     path="/app/*"
-                    element={
-                      <ProtectedRoute>
-                        <FinScribe />
-                      </ProtectedRoute>
-                    }
+                    element={<FinScribe />}
                   />
                   {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                   <Route path="*" element={<NotFound />} />
