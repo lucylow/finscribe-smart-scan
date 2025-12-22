@@ -167,6 +167,10 @@ async def general_exception_handler(request: Request, exc: Exception):
         }
     )
 
+# Initialize database on startup
+from .db import init_db
+init_db()
+
 app.include_router(api_router, prefix="/api/v1")
 app.include_router(metrics_router, prefix="/api/v1")
 if ENHANCED_ENDPOINTS_AVAILABLE:
