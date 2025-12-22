@@ -1,100 +1,84 @@
 """
-tasks.py
+Celery tasks for FinScribe Smart Scan.
 
-Celery tasks that:
-- read staged images
-- call OCR client
-- store per-page OCR JSON artifacts
-- call a semantic parser stub (optional) or write raw OCR results to results artifact
-
-This example uses LocalStorage by default; replace with MinIOStorage in production.
+Pipeline:
+  ingest -> OCR -> semantic parse -> persist result
 """
 
-import os
+from __future__ import annotations
 import json
+import os
 import logging
-from typing import Any, Optional
+from typing import Dict, Any
+
 from .celery_app import celery_app
-from .ocr_client import get_ocr_client
-from .staging import LocalStorage, StorageInterface, read_bytes_from_storage, Boto3StorageAdapter
-from datetime import datetime
+from .staging import get_storage
+from .ocr_client import MockOCRClient, PaddleOCRClient
+from .semantic_parse_task import parse_ocr_artifact_to_structured
 
 logger = logging.getLogger(__name__)
+logger.setLevel(os.getenv("LOGLEVEL", "INFO"))
 
-# Storage instance - in real app inject via DI
-STORAGE_BASE = os.getenv("STORAGE_BASE", "./storage")
-_storage: Optional[StorageInterface] = None
+storage = get_storage()
 
+MODEL_MODE = os.getenv("MODEL_MODE", "mock").lower()
 
-def get_storage() -> StorageInterface:
-    """Get storage instance, preferring boto3-based service if available."""
-    global _storage
-    if _storage is not None:
-        return _storage
-    
-    # Try to use existing StorageService if available
-    try:
-        from app.storage.storage_service import get_storage_service
-        storage_service = get_storage_service()
-        _storage = Boto3StorageAdapter(storage_service)
-        logger.info("Using Boto3StorageAdapter (MinIO/S3)")
-        return _storage
-    except Exception as e:
-        logger.warning(f"Could not initialize Boto3StorageAdapter: {e}. Falling back to LocalStorage.")
-        _storage = LocalStorage(STORAGE_BASE)
-        return _storage
+if MODEL_MODE == "paddle":
+    ocr_client = PaddleOCRClient()
+else:
+    ocr_client = MockOCRClient()
 
 
-def save_json_to_storage(key: str, obj: Any) -> None:
-    """Helper to save json artifact."""
-    storage = get_storage()
-    data = json.dumps(obj, ensure_ascii=False, indent=None).encode("utf-8")
-    storage.put_bytes(key, data)
-    logger.debug("Saved JSON artifact %s", key)
-
-
-def save_ocr_result_metadata(job_id: str, page_key: str, ocr_regions: list) -> None:
+@celery_app.task(bind=True, name="finscribe.ocr_task")
+def ocr_task(self, job_id: str, page_key: str, image_storage_key: str):
     """
-    Example persistence: save OCR JSON and append metadata to results DB/file.
-    Replace with DB writes in real app (Postgres).
+    Performs OCR on a single page image and saves OCR artifact.
+    Automatically triggers semantic parsing.
     """
-    artifact_key = f"ocr/{job_id}/{page_key.split('/')[-1]}.json"
-    payload = {
+    logger.info("[OCR] job=%s key=%s", job_id, image_storage_key)
+
+    image_bytes = storage.get_bytes(image_storage_key)
+    if not image_bytes:
+        raise RuntimeError(f"Image not found: {image_storage_key}")
+
+    regions = ocr_client.analyze_image(image_bytes)
+
+    ocr_artifact = {
         "job_id": job_id,
-        "page_key": page_key,
-        "ocr": ocr_regions,
-        "saved_at": datetime.utcnow().isoformat() + "Z",
+        "source_key": image_storage_key,
+        "regions": regions,
+        # Include 'ocr' key for compatibility with parse_ocr_artifact_to_structured
+        "ocr": regions,
     }
-    save_json_to_storage(artifact_key, payload)
-    logger.info("Saved OCR result artifact: %s", artifact_key)
-    # In real app, write DB row referencing artifact_key and page metadata
+
+    ocr_key = f"ocr/{job_id}/page_0.json"
+    storage.put_bytes(ocr_key, json.dumps(ocr_artifact, indent=2).encode())
+
+    logger.info("[OCR] saved artifact %s", ocr_key)
+
+    # enqueue semantic parsing
+    semantic_parse_task.delay(job_id, ocr_key)
+
+    return {"job_id": job_id, "ocr_key": ocr_key}
 
 
-@celery_app.task(bind=True, max_retries=3, default_retry_delay=5)
-def ocr_task(self, job_id: str, page_key: str) -> dict:
+@celery_app.task(bind=True, name="finscribe.semantic_parse_task")
+def semantic_parse_task(self, job_id: str, ocr_key: str):
     """
-    Celery task: perform OCR on a single staged page.
-    Args:
-        job_id: str - job identifier
-        page_key: str - storage key (e.g. staging/{job_id}/page_0.png)
+    Parses OCR artifact into structured finance JSON.
     """
-    logger.info("ocr_task start job=%s page=%s", job_id, page_key)
-    try:
-        storage = get_storage()
-        image_bytes = read_bytes_from_storage(page_key, storage)
-        ocr_client = get_ocr_client()
-        ocr_regions = ocr_client.analyze_image_bytes(image_bytes)
+    logger.info("[PARSE] job=%s ocr_key=%s", job_id, ocr_key)
 
-        # Save OCR JSON artifact
-        save_ocr_result_metadata(job_id, page_key, ocr_regions)
+    raw = storage.get_bytes(ocr_key)
+    if not raw:
+        raise RuntimeError(f"OCR artifact missing: {ocr_key}")
 
-        # Optionally trigger semantic parse task here
-        # semantic_parse_task.delay(job_id, page_key, artifact_key)
-        
-        logger.info("ocr_task completed job=%s page=%s regions=%d", job_id, page_key, len(ocr_regions))
-        return {"ok": True, "num_regions": len(ocr_regions)}
-    except Exception as exc:
-        logger.exception("ocr_task failed job=%s page=%s", job_id, page_key)
-        # retry with exponential backoff
-        raise self.retry(exc=exc, countdown=min(60, (2 ** self.request.retries)))
+    artifact = json.loads(raw.decode())
+    structured = parse_ocr_artifact_to_structured(artifact)
 
+    result_key = f"results/{job_id}/structured.json"
+    storage.put_bytes(result_key, json.dumps(structured, indent=2).encode())
+
+    logger.info("[PARSE] saved structured result %s", result_key)
+
+    return {"job_id": job_id, "result_key": result_key}

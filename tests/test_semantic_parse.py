@@ -129,3 +129,133 @@ def test_get_schema_for_doc_type():
     assert len(required) > 0
     assert all(f.required for f in required)
 
+
+# ============================================================================
+# Tests for finscribe.semantic_parse_task module
+# ============================================================================
+
+from decimal import Decimal
+from finscribe.semantic_parse_task import parse_ocr_artifact_to_structured, validate_financials
+
+
+def make_region(text, x=0, y=0, w=100, h=20, confidence=0.98):
+    """
+    Helper to synthesize an OCR region entry matching the expected artifact format.
+    bbox format [x, y, w, h]
+    """
+    return {"text": text, "bbox": [x, y, w, h], "confidence": confidence}
+
+
+def test_parse_simple_invoice_success():
+    """
+    Simple invoice with invoice number, date, vendor, two line items, subtotal, tax and total.
+    Expect parsed invoice_no, date, vendor, 2 line items and successful arithmetic validation.
+    """
+    regions = []
+
+    # Vendor block (top-left)
+    regions.append(make_region("ACME Corporation", x=20, y=10))
+    regions.append(make_region("123 Industrial Way", x=20, y=30))
+    # Invoice number & date near top
+    regions.append(make_region("Invoice #: INV-123", x=1400, y=20))
+    regions.append(make_region("Date: 2025-12-20", x=1400, y=40))
+
+    # Line item header (ignore)
+    regions.append(make_region("Description", x=100, y=300))
+    regions.append(make_region("Qty", x=1200, y=300))
+    regions.append(make_region("Price", x=1400, y=300))
+    regions.append(make_region("Total", x=1700, y=300))
+
+    # Line item 1
+    regions.append(make_region("Widget A", x=100, y=340))
+    regions.append(make_region("2", x=1200, y=340))
+    regions.append(make_region("$50.00", x=1400, y=340))
+    regions.append(make_region("$100.00", x=1700, y=340))
+
+    # Line item 2
+    regions.append(make_region("Widget B", x=100, y=380))
+    regions.append(make_region("1", x=1200, y=380))
+    regions.append(make_region("$30.00", x=1400, y=380))
+    regions.append(make_region("$30.00", x=1700, y=380))
+
+    # Subtotal / Tax / Total near bottom-right
+    regions.append(make_region("Subtotal", x=1400, y=900))
+    regions.append(make_region("$130.00", x=1700, y=900))
+    regions.append(make_region("Tax (10%)", x=1400, y=930))
+    regions.append(make_region("$13.00", x=1700, y=930))
+    regions.append(make_region("Total", x=1400, y=960))
+    regions.append(make_region("$143.00", x=1700, y=960))
+
+    ocr_artifact = {
+        "job_id": "job-test-1",
+        "page_key": "staging/job-test-1/page_0.png",
+        "ocr": regions,
+    }
+
+    structured = parse_ocr_artifact_to_structured(ocr_artifact)
+
+    assert structured["invoice_no"] == "INV-123"
+    assert structured["invoice_date"] == "2025-12-20"
+    assert "ACME Corporation" in (structured["vendor"] or "")
+    assert len(structured["line_items"]) >= 2
+    assert structured["subtotal"] == pytest.approx(130.0, rel=1e-6)
+    assert structured["tax"] == pytest.approx(13.0, rel=1e-6)
+    assert structured["total"] == pytest.approx(143.0, rel=1e-6)
+    assert structured["validation"]["math_ok"] is True
+    assert structured["needs_review"] is False
+
+
+def test_parse_invoice_total_mismatch_flags_review():
+    """
+    Invoice where declared total does not match subtotal+tax -> should set needs_review and validation errors.
+    """
+    regions = []
+
+    # Minimal top area
+    regions.append(make_region("Vendor XYZ", x=10, y=10))
+    regions.append(make_region("Invoice: INV-999", x=1300, y=10))
+    regions.append(make_region("2025-11-01", x=1300, y=40))
+
+    # One line item
+    regions.append(make_region("Service Fee", x=100, y=200))
+    regions.append(make_region("1", x=1200, y=200))
+    regions.append(make_region("$100.00", x=1700, y=200))
+
+    regions.append(make_region("Subtotal", x=1400, y=600))
+    regions.append(make_region("$100.00", x=1700, y=600))
+    regions.append(make_region("Tax", x=1400, y=630))
+    regions.append(make_region("$10.00", x=1700, y=630))
+    # Declared total intentionally wrong
+    regions.append(make_region("Total", x=1400, y=660))
+    regions.append(make_region("$50.00", x=1700, y=660))
+
+    ocr_artifact = {
+        "job_id": "job-test-2",
+        "page_key": "staging/job-test-2/page_0.png",
+        "ocr": regions,
+    }
+
+    structured = parse_ocr_artifact_to_structured(ocr_artifact)
+    assert structured["subtotal"] == pytest.approx(100.0, rel=1e-6)
+    assert structured["tax"] == pytest.approx(10.0, rel=1e-6)
+    assert structured["total"] == pytest.approx(50.0, rel=1e-6)
+
+    assert structured["validation"]["math_ok"] is False
+    assert any(e["code"].startswith("TOTAL") or e["code"].startswith("SUBTOTAL") for e in structured["validation"]["errors"])
+    assert structured["needs_review"] is True
+
+
+def test_validate_financials_edge_cases_empty_lines():
+    """
+    If no line items, but subtotal and total present, validation uses available numbers without crash.
+    """
+    structured = {
+        "line_items": [],
+        "subtotal": 0.0,
+        "tax": 0.0,
+        "total": 0.0
+    }
+    res = validate_financials(structured)
+    assert isinstance(res, dict)
+    assert res["math_ok"] is True
+

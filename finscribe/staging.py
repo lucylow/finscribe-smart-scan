@@ -1,169 +1,168 @@
+# finscribe/staging.py
 """
-staging.py
+Simple storage abstractions with Local fallback and MinIO (S3 compatible) option.
 
-Simple staging utilities:
-- stage_upload: detect file type and stage pages (PDF -> PNG per page, images pass-through)
-- Storage abstraction (LocalStorage & MinIOStorage sample)
+Provides:
+ - StorageInterface (put_bytes/get_bytes/exists/list_prefix)
+ - LocalStorage: filesystem-based storage rooted at base_path
+ - MinIOStorage: S3-compatible using boto3 (optional, used if MINIO_ENDPOINT set)
+ - get_storage(): factory that returns MinIOStorage if relevant env vars present else LocalStorage
+ - helper read_bytes_from_storage(key, storage)
 """
 
-import io
+from __future__ import annotations
 import os
-import pathlib
+import io
 import logging
-from typing import List, Tuple, BinaryIO
-from pdf2image import convert_from_bytes  # pip install pdf2image
-from PIL import Image
+from typing import Optional, Iterable, List
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
+logger.setLevel(os.getenv("LOGLEVEL", "INFO"))
 
-# -------------------------
-# Storage abstraction
-# -------------------------
+# Try optional boto3 import for MinIO support
+try:
+    import boto3
+    from botocore.client import Config
+    BOTO3_AVAILABLE = True
+except Exception:
+    BOTO3_AVAILABLE = False
+
+
 class StorageInterface:
-    """Minimal storage interface used by staging / tasks."""
+    """Minimal storage interface."""
 
     def put_bytes(self, key: str, data: bytes) -> None:
-        raise NotImplementedError
+        raise NotImplementedError()
 
-    def get_bytes(self, key: str) -> bytes:
-        raise NotImplementedError
+    def get_bytes(self, key: str) -> Optional[bytes]:
+        raise NotImplementedError()
 
-    def url_for(self, key: str, expires: int = 3600) -> str:
-        raise NotImplementedError
+    def exists(self, key: str) -> bool:
+        raise NotImplementedError()
+
+    def list_prefix(self, prefix: str) -> Iterable[str]:
+        raise NotImplementedError()
 
 
 class LocalStorage(StorageInterface):
-    """Simple local filesystem storage (useful for dev)."""
+    """Local filesystem storage root-based implementation."""
 
     def __init__(self, base_path: str = "./storage"):
-        self.base = pathlib.Path(base_path)
-        self.base.mkdir(parents=True, exist_ok=True)
-        logger.info("LocalStorage base: %s", str(self.base))
+        self.base_path = Path(base_path)
+        self.base_path.mkdir(parents=True, exist_ok=True)
+        logger.info("LocalStorage rooted at %s", str(self.base_path))
 
-    def _path(self, key: str) -> pathlib.Path:
-        # sanitize key - simple approach
-        return self.base / key
+    def _full_path(self, key: str) -> Path:
+        # simple safety: don't allow escape above base_path
+        safe_key = key.lstrip("/").replace("..", "")
+        return self.base_path / safe_key
 
     def put_bytes(self, key: str, data: bytes) -> None:
-        p = self._path(key)
+        p = self._full_path(key)
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_bytes(data)
-        logger.debug("LocalStorage.put_bytes -> %s", p)
+        with open(p, "wb") as f:
+            f.write(data)
+        logger.debug("LocalStorage.put_bytes %s (%d bytes)", str(p), len(data))
 
-    def get_bytes(self, key: str) -> bytes:
-        p = self._path(key)
-        return p.read_bytes()
+    def get_bytes(self, key: str) -> Optional[bytes]:
+        p = self._full_path(key)
+        if not p.exists():
+            logger.debug("LocalStorage.get_bytes missing %s", str(p))
+            return None
+        with open(p, "rb") as f:
+            return f.read()
 
-    def url_for(self, key: str, expires: int = 3600) -> str:
-        # local path; frontend can fetch via backend proxy if needed
-        return str(self._path(key))
+    def exists(self, key: str) -> bool:
+        return self._full_path(key).exists()
 
-
-try:
-    from minio import Minio  # type: ignore
-    MINIO_AVAILABLE = True
-except Exception:
-    MINIO_AVAILABLE = False
+    def list_prefix(self, prefix: str) -> Iterable[str]:
+        p = self._full_path(prefix)
+        if not p.exists():
+            return []
+        if p.is_file():
+            return [str(p)]
+        out = []
+        for child in p.rglob("*"):
+            if child.is_file():
+                out.append(str(child))
+        return out
 
 
 class MinIOStorage(StorageInterface):
-    """MinIO wrapper. Requires MINIO_* env vars and minio package installed."""
+    """
+    MinIO (S3-compatible) implementation using boto3.
 
-    def __init__(self, endpoint: str, access_key: str, secret_key: str, bucket: str = "finscribe"):
-        if not MINIO_AVAILABLE:
-            raise RuntimeError("Minio library not installed. pip install minio")
-        self.client = Minio(endpoint, access_key=access_key, secret_key=secret_key, secure=False)
+    Requires these env vars:
+      MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY, MINIO_BUCKET
+    """
+
+    def __init__(self, endpoint: str, access_key: str, secret_key: str, bucket: str, secure: bool = False):
+        if not BOTO3_AVAILABLE:
+            raise RuntimeError("boto3 is required for MinIOStorage but is not installed.")
+        self.endpoint = endpoint
         self.bucket = bucket
-        if not self.client.bucket_exists(bucket):
-            self.client.make_bucket(bucket)
-
-    def put_bytes(self, key: str, data: bytes) -> None:
-        self.client.put_object(self.bucket, key, io.BytesIO(data), length=len(data))
-
-    def get_bytes(self, key: str) -> bytes:
-        resp = self.client.get_object(self.bucket, key)
-        data = resp.read()
-        resp.close()
-        resp.release_conn()
-        return data
-
-    def url_for(self, key: str, expires: int = 3600) -> str:
-        return self.client.presigned_get_object(self.bucket, key, expires=expires)
-
-
-class Boto3StorageAdapter(StorageInterface):
-    """Adapter for existing app.storage.storage_service.StorageService (boto3-based)."""
-
-    def __init__(self, storage_service):
-        """
-        Args:
-            storage_service: Instance of app.storage.storage_service.StorageService
-        """
-        self.storage = storage_service
-        self.bucket = storage_service.bucket_name
-
-    def put_bytes(self, key: str, data: bytes) -> None:
-        """Put bytes using boto3 client."""
-        self.storage.client.put_object(
-            Bucket=self.bucket,
-            Key=key,
-            Body=data
+        self.secure = secure
+        cfg = Config(signature_version="s3v4", s3={'addressing_style': 'path'})
+        self.client = boto3.client(
+            "s3",
+            endpoint_url=f"http{'s' if secure else ''}://{endpoint}",
+            aws_access_key_id=access_key,
+            aws_secret_access_key=secret_key,
+            config=cfg,
         )
-
-    def get_bytes(self, key: str) -> bytes:
-        """Get bytes using boto3 client."""
-        resp = self.storage.client.get_object(Bucket=self.bucket, Key=key)
-        return resp['Body'].read()
-
-    def url_for(self, key: str, expires: int = 3600) -> str:
-        """Generate signed URL."""
-        return self.storage.get_signed_url(key, expires_in=expires)
-
-
-# -------------------------
-# Staging functions
-# -------------------------
-def stage_upload(file_bytes: bytes, filename: str, job_id: str, storage: StorageInterface) -> List[str]:
-    """
-    Stage an uploaded file.
-
-    - If PDF: convert each page to PNG at 300 DPI and store as `staging/{job_id}/page_{i}.png`
-    - If image: store as `staging/{job_id}/page_0.png`
-    - Returns list of storage keys for each staged page, in order.
-    """
-    filename_lower = filename.lower()
-    staging_keys = []
-    if filename_lower.endswith(".pdf"):
-        logger.info("Staging PDF upload (%d bytes) for job %s", len(file_bytes), job_id)
-        # convert pages
-        pil_pages = convert_from_bytes(file_bytes, dpi=300)
-        for i, pil in enumerate(pil_pages):
-            buf = io.BytesIO()
-            pil.save(buf, format="PNG")
-            key = f"staging/{job_id}/page_{i}.png"
-            storage.put_bytes(key, buf.getvalue())
-            staging_keys.append(key)
-            logger.debug("Staged page %s", key)
-    else:
-        # treat as single image
-        logger.info("Staging image upload (%s) for job %s", filename, job_id)
+        # ensure bucket exists
         try:
-            # normalize and re-save as PNG
-            img = Image.open(io.BytesIO(file_bytes)).convert("RGB")
-            buf = io.BytesIO()
-            img.save(buf, format="PNG")
-            key = f"staging/{job_id}/page_0.png"
-            storage.put_bytes(key, buf.getvalue())
-            staging_keys.append(key)
-            logger.debug("Staged image %s", key)
+            self.client.head_bucket(Bucket=bucket)
+        except Exception:
+            logger.info("Creating bucket %s on %s", bucket, endpoint)
+            self.client.create_bucket(Bucket=bucket)
+
+    def put_bytes(self, key: str, data: bytes) -> None:
+        self.client.put_object(Bucket=self.bucket, Key=key, Body=data)
+        logger.debug("MinIOStorage.put_bytes %s (%d bytes) to bucket %s", key, len(data), self.bucket)
+
+    def get_bytes(self, key: str) -> Optional[bytes]:
+        try:
+            resp = self.client.get_object(Bucket=self.bucket, Key=key)
+            return resp["Body"].read()
         except Exception as e:
-            logger.exception("Failed to process image upload: %s", e)
-            raise
+            logger.debug("MinIOStorage.get_bytes miss %s: %s", key, e)
+            return None
 
-    return staging_keys
+    def exists(self, key: str) -> bool:
+        try:
+            self.client.head_object(Bucket=self.bucket, Key=key)
+            return True
+        except Exception:
+            return False
+
+    def list_prefix(self, prefix: str) -> Iterable[str]:
+        paginator = self.client.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=self.bucket, Prefix=prefix):
+            for obj in page.get("Contents", []):
+                yield obj["Key"]
 
 
-def read_bytes_from_storage(key: str, storage: StorageInterface) -> bytes:
-    """Convenience wrapper to read bytes for tasks."""
+def get_storage() -> StorageInterface:
+    """
+    Factory: If MINIO_ENDPOINT + MINIO_BUCKET present -> return MinIOStorage,
+    otherwise LocalStorage rooted at STORAGE_BASE env var.
+    """
+    minio_endpoint = os.getenv("MINIO_ENDPOINT")
+    bucket = os.getenv("MINIO_BUCKET")
+    if minio_endpoint and bucket and BOTO3_AVAILABLE:
+        access = os.getenv("MINIO_ACCESS_KEY", "minioadmin")
+        secret = os.getenv("MINIO_SECRET_KEY", "minioadmin")
+        secure = os.getenv("MINIO_SECURE", "false").lower() in ("1", "true", "yes")
+        return MinIOStorage(minio_endpoint, access, secret, bucket, secure=secure)
+    base = os.getenv("STORAGE_BASE", "./data/storage")
+    return LocalStorage(base)
+
+
+def read_bytes_from_storage(key: str, storage: StorageInterface) -> Optional[bytes]:
+    """
+    Safe helper to read bytes. Accepts key like 'staging/job/page_0.png' or
+    an absolute path in LocalStorage.
+    """
     return storage.get_bytes(key)
-

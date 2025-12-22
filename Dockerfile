@@ -19,6 +19,8 @@ RUN apt-get update && apt-get install -y \
 ENV PYTHONUNBUFFERED=1
 ENV APP_HOME=/app
 ENV MODEL_MODE=mock
+ENV STORAGE_BASE=/data/storage
+ENV CELERY_BROKER_URL=redis://redis:6379/0
 WORKDIR $APP_HOME
 
 # Optional: Install PaddleOCR for local OCR backend
@@ -44,10 +46,13 @@ RUN if [ "$OCR_BACKEND" = "paddle_local" ]; then \
 
 # Copy the application code
 COPY app $APP_HOME/app
-COPY active_learning.jsonl $APP_HOME/active_learning.jsonl
+COPY finscribe $APP_HOME/finscribe
+COPY tests $APP_HOME/tests
+COPY active_learning.jsonl $APP_HOME/active_learning.jsonl 2>/dev/null || true
 
-# Create staging directory
-RUN mkdir -p /tmp/finscribe_uploads
+# Create staging directory and storage directory
+RUN mkdir -p /tmp/finscribe_uploads && \
+    mkdir -p /data/storage
 
 # Expose port
 EXPOSE 8000
