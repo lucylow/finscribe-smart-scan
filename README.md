@@ -89,15 +89,107 @@ git clone https://github.com/lucylow/finscribe-smart-scan.git
 cd finscribe-smart-scan
 ```
 
-### 2. Run Everything
+### 2. Install Dependencies
+
+For local PaddleOCR (recommended):
+```bash
+# Install PaddlePaddle CPU version (for development)
+pip install paddlepaddle==2.5.0 -f https://www.paddlepaddle.org.cn/whl/linux/mkl/avx/stable.html
+
+# Install other dependencies
+pip install -r requirements.txt
+```
+
+### 3. Set Environment Variables
+
+Create a `.env` file:
+```bash
+# OCR Configuration
+OCR_MODE=paddle          # Use local PaddleOCR (or "mock" for testing)
+OCR_LANG=en              # Language code
+OCR_USE_GPU=0            # Set to 1 for GPU acceleration
+
+# Storage
+STORAGE_BASE=./data/storage    # Local storage path
+
+# Database
+DATABASE_URL=sqlite:///./finscribe.db  # SQLite for local dev
+
+# Celery
+CELERY_BROKER_URL=redis://localhost:6379/0
+CELERY_RESULT_BACKEND=redis://localhost:6379/1
+```
+
+### 4. Run Everything with Docker Compose
+
 ```bash
 docker-compose up --build
 ```
 
-### 3. Open the Demo
+This starts:
+- **FastAPI Backend** (port 8000)
+- **PostgreSQL Database** (port 5432)
+- **Redis** (port 6379)
+- **Celery Worker** (for OCR processing)
+- **MinIO** (optional, for object storage)
+
+### 5. Test the OCR Pipeline
+
+#### Upload a Document via API:
+```bash
+# Upload an invoice
+curl -F "file=@examples/sample_invoice_1.png" http://localhost:8000/v1/analyze
+
+# Response:
+# {
+#   "job_id": "job-abc123",
+#   "status": "pending",
+#   "message": "Job received and queued for processing",
+#   "poll_url": "/v1/jobs/job-abc123"
+# }
+```
+
+#### Check Job Status:
+```bash
+curl http://localhost:8000/v1/jobs/job-abc123
+
+# Response:
+# {
+#   "job_id": "job-abc123",
+#   "status": "completed",
+#   ...
+# }
+```
+
+#### Get Results:
+```bash
+curl http://localhost:8000/v1/results/job-abc123
+
+# Response contains structured JSON with:
+# - invoice_no, invoice_date, vendor
+# - line_items (description, qty, unit_price, line_total)
+# - financial_summary (subtotal, tax, total)
+# - confidence_score
+```
+
+### 6. Run Locally (Without Docker)
+
+```bash
+# Terminal 1: Start Redis
+redis-server
+
+# Terminal 2: Start Celery Worker
+celery -A finscribe.celery_app worker --loglevel=info
+
+# Terminal 3: Start FastAPI
+uvicorn finscribe.api.endpoints:app --reload --port 8000
+```
+
+### 7. Open the Demo
 - **Frontend**: http://localhost:5173
 - **Backend API**: http://localhost:8000
 - **API Docs**: http://localhost:8000/docs
+- **Health Check**: http://localhost:8000/health
 
 Upload one of the sample invoices in `/examples/`.
 
@@ -1007,7 +1099,94 @@ structured_data = json.loads(response)
 
 ## 🔌 API Reference
 
+### POST /v1/analyze
+
+**New OCR Pipeline Endpoint** - Upload documents for OCR and semantic parsing.
+
+**Input:**
+- Multipart file upload (PNG, JPG, PDF, TIFF)
+- Returns `202 Accepted` with job ID for async processing
+
+**Example:**
+```bash
+curl -F "file=@invoice.pdf" http://localhost:8000/v1/analyze
+```
+
+**Response (202 Accepted):**
+```json
+{
+  "job_id": "job-abc123",
+  "status": "pending",
+  "message": "Job received and queued for processing",
+  "poll_url": "/v1/jobs/job-abc123"
+}
+```
+
+### GET /v1/jobs/{job_id}
+
+Get job status and progress.
+
+**Example:**
+```bash
+curl http://localhost:8000/v1/jobs/job-abc123
+```
+
+**Response:**
+```json
+{
+  "job_id": "job-abc123",
+  "status": "completed",
+  "created_at": "2025-01-20T10:30:00Z",
+  "updated_at": "2025-01-20T10:30:05Z"
+}
+```
+
+**Status values:** `pending`, `processing`, `completed`, `failed`
+
+### GET /v1/results/{job_id}
+
+Get structured extraction results for a completed job.
+
+**Example:**
+```bash
+curl http://localhost:8000/v1/results/job-abc123
+```
+
+**Response:**
+```json
+{
+  "job_id": "job-abc123",
+  "status": "completed",
+  "result": {
+    "invoice_no": "INV-123",
+    "invoice_date": "2025-01-20",
+    "vendor": "ACME Corporation",
+    "line_items": [
+      {
+        "description": "Widget A",
+        "qty": 2,
+        "unit_price": 50.0,
+        "line_total": 100.0
+      }
+    ],
+    "financial_summary": {
+      "subtotal": 100.0,
+      "tax": 10.0,
+      "total": 110.0,
+      "currency": "USD"
+    },
+    "confidence_score": 0.95,
+    "validation": {
+      "math_ok": true,
+      "errors": []
+    }
+  }
+}
+```
+
 ### POST /process_invoice
+
+**Legacy Endpoint** - Synchronous invoice processing.
 
 **Input:**
 - Multipart file (PNG, JPG, PDF)

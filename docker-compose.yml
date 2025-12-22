@@ -13,7 +13,11 @@ services:
     environment:
       - STORAGE_BASE=/data/storage
       - MODEL_MODE=${MODEL_MODE:-mock}
+      - OCR_MODE=${OCR_MODE:-paddle}
+      - OCR_LANG=${OCR_LANG:-en}
+      - OCR_USE_GPU=${OCR_USE_GPU:-0}
       - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
       - MINIO_ENDPOINT=minio:9000
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin
@@ -158,6 +162,9 @@ services:
     environment:
       - STORAGE_BASE=/data/storage
       - MODEL_MODE=${MODEL_MODE:-mock}
+      - OCR_MODE=${OCR_MODE:-paddle}
+      - OCR_LANG=${OCR_LANG:-en}
+      - OCR_USE_GPU=${OCR_USE_GPU:-0}
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/1
       - MINIO_ENDPOINT=minio:9000
@@ -167,7 +174,7 @@ services:
       - DATABASE_URL=postgresql://finscribe:finscribe@postgres:5432/finscribe
     volumes:
       - ./data:/data
-    command: ["celery", "-A", "finscribe.celery_app.celery_app", "worker", "--loglevel=info", "-Q", "default"]
+    command: ["celery", "-A", "finscribe.celery_app", "worker", "--loglevel=info", "-Q", "default"]
     networks:
       - finscribe-network
 
