@@ -242,83 +242,107 @@ def process_compare_documents_job(
     Background worker that processes multi-document comparison jobs.
     Uses PaddleOCR-VL + ERNIE-VL for multimodal document comparison.
     """
-    # Validate inputs
-    if not job_id or job_id not in JOB_STATUS:
-        logger.error(f"Invalid job_id: {job_id}")
-        return
+    db = get_db_session()
+    job_service = JobService(db)
     
-    if not file_content_1 or len(file_content_1) == 0:
-        error_msg = "File 1 content is empty"
-        logger.error(f"{error_msg} for job {job_id}")
-        _update_job_error(job_id, error_msg)
-        return
-    
-    if not file_content_2 or len(file_content_2) == 0:
-        error_msg = "File 2 content is empty"
-        logger.error(f"{error_msg} for job {job_id}")
-        _update_job_error(job_id, error_msg)
-        return
-    
-    loop = None
     try:
-        # Run async processing in sync context
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+        # Validate inputs
+        job = job_service.get_job(job_id)
+        if not job:
+            logger.error(f"Job {job_id} not found in database")
+            return
         
-        # Set a timeout for the entire processing (10 minutes for two documents)
-        timeout_seconds = 600
+        if not file_content_1 or len(file_content_1) == 0:
+            error_msg = "File 1 content is empty"
+            logger.error(f"{error_msg} for job {job_id}")
+            job_service.update_job_status(job_id, status="failed", error=error_msg)
+            metrics.record_job_failed("compare", "empty_file")
+            return
+        
+        if not file_content_2 or len(file_content_2) == 0:
+            error_msg = "File 2 content is empty"
+            logger.error(f"{error_msg} for job {job_id}")
+            job_service.update_job_status(job_id, status="failed", error=error_msg)
+            metrics.record_job_failed("compare", "empty_file")
+            return
+        
+        loop = None
+        start_time = time.time()
         
         try:
-            # Update to processing state
-            _update_job(job_id, "processing", 5, "staging")
+            # Run async processing in sync context
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
             
-            # Run with timeout
-            result = loop.run_until_complete(
-                asyncio.wait_for(
-                    _process_document_comparison(job_id, file_content_1, filename_1, file_content_2, filename_2),
-                    timeout=timeout_seconds
+            # Set a timeout for the entire processing (10 minutes for two documents)
+            timeout_seconds = 600
+            
+            try:
+                # Update to processing state
+                job_service.update_job_status(job_id, status="processing", progress=5, stage="staging")
+                
+                # Run with timeout
+                result = loop.run_until_complete(
+                    asyncio.wait_for(
+                        _process_document_comparison(job_id, file_content_1, filename_1, file_content_2, filename_2, job_service),
+                        timeout=timeout_seconds
+                    )
                 )
-            )
+                
+                # Validate result
+                if not result or not isinstance(result, dict):
+                    raise ValueError("Processing returned invalid result")
+                
+                # Store result in database
+                job_service.create_result(
+                    job_id=job_id,
+                    data=result,
+                    validation=None,
+                    models_used=result.get("metadata", {}).get("models_used"),
+                    raw_ocr_output=None
+                )
+                
+                # Record metrics
+                elapsed = time.time() - start_time
+                metrics.record_job_completed("compare", "completed")
+                metrics.record_task_latency("process_compare_job", elapsed, "success")
+                
+                logger.info(f"Job {job_id}: Document comparison completed successfully in {elapsed:.2f}s")
+                
+            except asyncio.TimeoutError:
+                error_msg = f"Processing timeout after {timeout_seconds} seconds"
+                logger.error(f"Job {job_id}: {error_msg}")
+                job_service.update_job_status(job_id, status="failed", error=error_msg)
+                metrics.record_job_failed("compare", "timeout")
+            except Exception as e:
+                error_msg = str(e)
+                logger.error(f"Job {job_id}: Processing failed - {error_msg}", exc_info=True)
+                job_service.update_job_status(job_id, status="failed", error=error_msg)
+                elapsed = time.time() - start_time
+                metrics.record_job_failed("compare", type(e).__name__)
+                metrics.record_task_latency("process_compare_job", elapsed, "failed")
+            finally:
+                if loop:
+                    try:
+                        # Cancel any remaining tasks
+                        pending = asyncio.all_tasks(loop)
+                        for task in pending:
+                            task.cancel()
+                        # Give tasks time to cancel
+                        if pending:
+                            loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+                    except Exception as cleanup_error:
+                        logger.warning(f"Error during cleanup for job {job_id}: {str(cleanup_error)}")
+                    finally:
+                        loop.close()
             
-            # Validate result
-            if not result or not isinstance(result, dict):
-                raise ValueError("Processing returned invalid result")
-            
-            # Mark completed
-            JOB_STATUS[job_id]["status"] = "completed"
-            JOB_STATUS[job_id]["progress"] = 100
-            JOB_STATUS[job_id]["stage"] = "completed"
-            JOB_STATUS[job_id]["result"] = result
-            
-            logger.info(f"Job {job_id}: Document comparison completed successfully")
-            
-        except asyncio.TimeoutError:
-            error_msg = f"Processing timeout after {timeout_seconds} seconds"
-            logger.error(f"Job {job_id}: {error_msg}")
-            _update_job_error(job_id, error_msg)
         except Exception as e:
-            error_msg = str(e)
-            logger.error(f"Job {job_id}: Processing failed - {error_msg}", exc_info=True)
-            _update_job_error(job_id, error_msg)
-        finally:
-            if loop:
-                try:
-                    # Cancel any remaining tasks
-                    pending = asyncio.all_tasks(loop)
-                    for task in pending:
-                        task.cancel()
-                    # Give tasks time to cancel
-                    if pending:
-                        loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-                except Exception as cleanup_error:
-                    logger.warning(f"Error during cleanup for job {job_id}: {str(cleanup_error)}")
-                finally:
-                    loop.close()
-        
-    except Exception as e:
-        error_msg = f"Critical error in worker: {str(e)}"
-        logger.error(f"Job {job_id}: {error_msg}", exc_info=True)
-        _update_job_error(job_id, error_msg)
+            error_msg = f"Critical error in worker: {str(e)}"
+            logger.error(f"Job {job_id}: {error_msg}", exc_info=True)
+            job_service.update_job_status(job_id, status="failed", error=error_msg)
+            metrics.record_job_failed("compare", "critical_error")
+    finally:
+        db.close()
 
 
 async def _process_document_comparison(
@@ -326,20 +350,21 @@ async def _process_document_comparison(
     file_content_1: bytes, 
     filename_1: str,
     file_content_2: bytes,
-    filename_2: str
+    filename_2: str,
+    job_service: JobService
 ) -> Dict[str, Any]:
     """Process two documents through OCR and VLM comparison."""
     try:
         # Process first document with OCR
-        _update_job(job_id, "processing", 10, "ocr_document1")
+        job_service.update_job_status(job_id, progress=10, stage="ocr_document1")
         ocr_result_1 = await processor.ocr_service.parse_document(file_content_1)
         
         # Process second document with OCR
-        _update_job(job_id, "processing", 30, "ocr_document2")
+        job_service.update_job_status(job_id, progress=30, stage="ocr_document2")
         ocr_result_2 = await processor.ocr_service.parse_document(file_content_2)
         
         # Run VLM comparison
-        _update_job(job_id, "processing", 50, "vlm_comparison")
+        job_service.update_job_status(job_id, progress=50, stage="vlm_comparison")
         
         try:
             comparison_result = await processor.vlm_service.compare_documents(
@@ -355,7 +380,7 @@ async def _process_document_comparison(
         if not comparison_result:
             raise ValueError("Comparison returned None result")
         
-        _update_job(job_id, "processing", 90, "postprocess")
+        job_service.update_job_status(job_id, progress=90, stage="postprocess")
         
         # Build result in expected format
         return {

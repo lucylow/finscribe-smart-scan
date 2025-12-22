@@ -354,7 +354,8 @@ async def compare_documents(
 @router.post("/compare", response_model=JobResponse)
 async def compare_models(
     background_tasks: BackgroundTasks,
-    file: UploadFile = File(...)
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
 ):
     """
     Compares the fine-tuned model result against a baseline model result.
@@ -411,43 +412,45 @@ async def compare_models(
                 detail=f"File too large: {file_size_mb:.1f}MB. Maximum: {MAX_UPLOAD_MB}MB"
             )
         
-        # Generate job ID
+        # Compute checksum
         try:
-            job_id = str(uuid.uuid4())
             checksum = hashlib.sha256(contents).hexdigest()
         except Exception as e:
-            logger.error(f"Error generating job ID or checksum: {str(e)}")
+            logger.error(f"Error computing checksum: {str(e)}")
             raise HTTPException(
                 status_code=500,
-                detail="Failed to initialize job. Please try again."
+                detail="Failed to process file. Please try again."
             )
         
-        # Initialize job status
+        # Create job in database
+        job_service = JobService(db)
         try:
-            JOB_STATUS[job_id] = {
-                "status": "queued",
-                "progress": 0,
-                "stage": "received",
-                "result": None,
-                "error": None,
-                "checksum": checksum,
-                "filename": file.filename,
-                "file_size": file_size
-            }
+            job = job_service.create_job(
+                filename=file.filename,
+                file_content=contents,
+                file_size=file_size,
+                checksum=checksum,
+                source_type="compare"
+            )
+            job_id = job.id
         except Exception as e:
-            logger.error(f"Error initializing job status: {str(e)}")
+            logger.error(f"Error creating job: {str(e)}", exc_info=True)
             raise HTTPException(
                 status_code=500,
-                detail="Failed to initialize job status. Please try again."
+                detail="Failed to create job. Please try again."
             )
+        
+        # Record metrics
+        metrics.record_job_submitted("compare")
         
         # Queue background processing
         try:
             background_tasks.add_task(process_job, job_id, contents, file.filename, "compare")
         except Exception as e:
             logger.error(f"Error queueing background task: {str(e)}")
-            # Clean up job status
-            JOB_STATUS.pop(job_id, None)
+            # Mark job as failed
+            job_service.update_job_status(job_id, status="failed", error=str(e))
+            metrics.record_job_failed("compare", "queue_error")
             raise HTTPException(
                 status_code=500,
                 detail="Failed to queue processing task. Please try again."
