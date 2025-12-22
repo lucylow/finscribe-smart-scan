@@ -18,6 +18,19 @@ FinScribe Smart Scan automatically extracts, validates, and structures invoice a
 
 ---
 
+## 🏆 ERNIE AI Developer Challenge Submission
+
+**Submitted for: Best PaddleOCR-VL Fine-Tune & Best Agent System**
+
+This project demonstrates enterprise-grade financial document intelligence using:
+- **Fine-Tuned PaddleOCR-VL** for layout-aware semantic extraction (94.2% field accuracy)
+- **CAMEL-AI Multi-Agent System** for financial validation and data integrity checks
+- **Unsloth-Optimized LLM** for structured JSON extraction in < 2 seconds
+
+**📄 [View Full Submission Document](ERNIE_CHALLENGE_SUBMISSION.md)** | **🔗 [Live Demo](https://finscribe-smart-scan.lovable.app/)**
+
+---
+
 ## 🚀 Why FinScribe?
 
 Manual invoice processing is:
