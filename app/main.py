@@ -57,6 +57,24 @@ try:
 except ImportError:
     DEMO_AVAILABLE = False
     logger.warning("Demo endpoints not available")
+try:
+    from .api.v1.etl import router as etl_router
+    ETL_AVAILABLE = True
+except ImportError:
+    ETL_AVAILABLE = False
+    logger.warning("ETL endpoints not available")
+try:
+    from .api.v1.process_invoice import router as process_invoice_router
+    PROCESS_INVOICE_AVAILABLE = True
+except ImportError:
+    PROCESS_INVOICE_AVAILABLE = False
+    logger.warning("Process invoice endpoint not available")
+try:
+    from .api.v1.active_learning import router as active_learning_router
+    ACTIVE_LEARNING_AVAILABLE = True
+except ImportError:
+    ACTIVE_LEARNING_AVAILABLE = False
+    logger.warning("Active learning endpoint not available")
 
 app = FastAPI(
     title="FinScribe AI Backend",
@@ -135,6 +153,12 @@ if DEMO_AVAILABLE:
     app.include_router(demo_router, prefix="/api/v1", tags=["demo"])
 if EXPORTS_AVAILABLE:
     app.include_router(exports_router, prefix="/api/v1", tags=["exports"])
+if ETL_AVAILABLE:
+    app.include_router(etl_router, prefix="/api/v1", tags=["etl"])
+if PROCESS_INVOICE_AVAILABLE:
+    app.include_router(process_invoice_router, prefix="/api/v1", tags=["invoice"])
+if ACTIVE_LEARNING_AVAILABLE:
+    app.include_router(active_learning_router, prefix="/api/v1", tags=["training"])
 
 @app.get("/")
 def read_root():

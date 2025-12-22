@@ -47,6 +47,11 @@ python-dateutil>=2.8.0
 opencv-python>=4.8.0
 numpy>=1.24.0
 pyyaml>=6.0
+# ETL Pipeline dependencies
+dateparser>=2.8.0  # Date normalization
+# Optional: minio>=7.2.0  # For MinIO client (alternative to boto3)
+# Optional: prefect>=2.14.0  # For Prefect orchestration
+# Optional: apache-airflow>=2.7.0  # For Airflow orchestration
 # OCR backend dependencies (optional - install based on OCR_BACKEND choice)
 # For paddle_local backend:
 # paddleocr==2.6.1.0
@@ -60,6 +65,10 @@ pyyaml>=6.0
 # Note: camel-ai requires Python 3.10+. Install manually if needed:
 # pip install "camel-ai[all]>=0.2.5"  # Requires Python 3.10+
 # fastmcp  # Package not found on PyPI - may need to install from source or remove
-# Unsloth integration (install from GitHub: pip install "unsloth @ git+https://github.com/unslothai/unsloth.git")
-# trl>=0.7.0  # For SFTTrainer (uncomment if using Unsloth training)
-# bitsandbytes>=0.41.0  # For QLoRA quantization (uncomment if using QLoRA)
+# Unsloth integration
+# Install Unsloth from GitHub (adjust cu118 to match your CUDA version)
+# pip install "unsloth[cu118] @ git+https://github.com/unslothai/unsloth.git"
+# Or for CPU: pip install "unsloth @ git+https://github.com/unslothai/unsloth.git"
+trl>=0.7.0  # For SFTTrainer (required for Unsloth training)
+bitsandbytes>=0.41.0  # For QLoRA quantization (required for 4-bit training)
+xformers>=0.0.22  # For efficient attention (recommended for Unsloth)
