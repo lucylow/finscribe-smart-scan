@@ -285,7 +285,144 @@ const SaaSDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Charts and Details */}
+      {/* Charts Section */}
+      <div className="space-y-4">
+        <div>
+          <h2 className="text-xl font-semibold mb-2">Performance Analytics</h2>
+          <p className="text-sm text-muted-foreground">Visual insights into model performance and automation</p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {/* Model Accuracy Over Time - Line Chart */}
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle>Model Accuracy Over Time</CardTitle>
+              <CardDescription>Demonstrates effectiveness of active learning loop</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ChartContainer
+                config={{
+                  accuracy: {
+                    label: "Accuracy",
+                    color: "hsl(var(--primary))",
+                  },
+                }}
+                className="h-[300px]"
+              >
+                <LineChart data={dashboardData.accuracyOverTime}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis 
+                    dataKey="version" 
+                    className="text-xs"
+                    tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                  />
+                  <YAxis 
+                    domain={[85, 100]}
+                    className="text-xs"
+                    tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                    label={{ value: 'Accuracy (%)', angle: -90, position: 'insideLeft' }}
+                  />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Line 
+                    type="monotone" 
+                    dataKey="accuracy" 
+                    stroke="hsl(var(--primary))" 
+                    strokeWidth={2}
+                    dot={{ fill: 'hsl(var(--primary))', r: 4 }}
+                    activeDot={{ r: 6 }}
+                  />
+                </LineChart>
+              </ChartContainer>
+            </CardContent>
+          </Card>
+
+          {/* Automation Efficiency - Donut Chart */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Automation Efficiency</CardTitle>
+              <CardDescription>Human-in-the-loop vs Fully Automated</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ChartContainer
+                config={{
+                  automated: {
+                    label: "Fully Automated",
+                    color: "hsl(var(--success))",
+                  },
+                  manual: {
+                    label: "Human-in-the-Loop",
+                    color: "hsl(var(--warning))",
+                  },
+                }}
+                className="h-[300px]"
+              >
+                <PieChart>
+                  <Pie
+                    data={[
+                      { name: 'Fully Automated', value: dashboardData.automationMetrics.fullyAutomated },
+                      { name: 'Human-in-the-Loop', value: dashboardData.automationMetrics.humanInTheLoop },
+                    ]}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                    outerRadius={80}
+                    fill="#8884d8"
+                    dataKey="value"
+                  >
+                    <Cell fill="hsl(var(--success))" />
+                    <Cell fill="hsl(var(--warning))" />
+                  </Pie>
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                </PieChart>
+              </ChartContainer>
+            </CardContent>
+          </Card>
+
+          {/* Error Distribution by Field Type - Bar Chart */}
+          <Card className="lg:col-span-3">
+            <CardHeader>
+              <CardTitle>Error Distribution by Field Type</CardTitle>
+              <CardDescription>Highlights which fields require the most human correction</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ChartContainer
+                config={{
+                  errors: {
+                    label: "Error Count",
+                    color: "hsl(var(--destructive))",
+                  },
+                }}
+                className="h-[300px]"
+              >
+                <BarChart data={dashboardData.errorDistribution}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis 
+                    dataKey="fieldType" 
+                    className="text-xs"
+                    tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                    angle={-45}
+                    textAnchor="end"
+                    height={80}
+                  />
+                  <YAxis 
+                    className="text-xs"
+                    tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                    label={{ value: 'Error Count', angle: -90, position: 'insideLeft' }}
+                  />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Bar 
+                    dataKey="errorCount" 
+                    fill="hsl(var(--destructive))" 
+                    radius={[4, 4, 0, 0]}
+                  />
+                </BarChart>
+              </ChartContainer>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* Additional Metrics */}
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
