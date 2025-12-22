@@ -12,9 +12,9 @@ export const createMockInvoice = (overrides?: Partial<MockInvoiceData>): MockInv
     vendor_tax_id: faker.string.alphanumeric(9),
     vendor_contact: faker.internet.email(),
     invoice_number: faker.string.alphanumeric(8).toUpperCase(),
-    invoice_date: faker.date.recent({ days: 30 }).toISOString().split('T')[0],
+    invoice_date: faker.date.recent().toISOString().split('T')[0],
     po_number: faker.string.alphanumeric(6).toUpperCase(),
-    due_date: faker.date.future({ days: 30 }).toISOString().split('T')[0],
+    due_date: faker.date.future({ years: 1 }).toISOString().split('T')[0],
     line_items: Array.from({ length: faker.number.int({ min: 3, max: 8 }) }, () => ({
       description: faker.commerce.productName(),
       quantity: faker.number.int({ min: 1, max: 10 }),

@@ -110,8 +110,8 @@ export async function downloadFile(bucket: string, path: string) {
  */
 export function subscribeToTable<T>(
   table: string,
-  filter?: string,
-  callback: (payload: { eventType: 'INSERT' | 'UPDATE' | 'DELETE'; new?: T; old?: T }) => void
+  callback: (payload: { eventType: 'INSERT' | 'UPDATE' | 'DELETE'; new?: T; old?: T }) => void,
+  filter?: string
 ) {
   const channel = supabase
     .channel(`${table}-changes`)
@@ -143,12 +143,13 @@ export function subscribeToTable<T>(
  */
 export async function batchInsert<T>(
   table: string,
-  rows: unknown[],
+  rows: Record<string, unknown>[],
   options?: { returning?: 'minimal' | 'representation' }
 ) {
-  const { data, error } = await supabase
-    .from(table)
-    .insert(rows)
+  // Use type assertion for dynamic table queries
+  const query = supabase.from(table as 'profiles');
+  const { data, error } = await query
+    .insert(rows as never[])
     .select(options?.returning === 'minimal' ? undefined : '*');
 
   if (error) throw error;
@@ -164,10 +165,11 @@ export async function batchUpdate<T>(
   filter: string,
   filterValue: unknown
 ) {
-  const { data, error } = await supabase
-    .from(table)
-    .update(updates)
-    .eq(filter, filterValue)
+  // Use type assertion for dynamic table queries
+  const query = supabase.from(table as 'profiles');
+  const { data, error } = await query
+    .update(updates as never)
+    .eq(filter as never, filterValue as never)
     .select();
 
   if (error) throw error;
@@ -178,7 +180,9 @@ export async function batchUpdate<T>(
  * Batch delete helper
  */
 export async function batchDelete(table: string, filter: string, filterValue: unknown) {
-  const { data, error } = await supabase.from(table).delete().eq(filter, filterValue).select();
+  // Use type assertion for dynamic table queries
+  const query = supabase.from(table as 'profiles');
+  const { data, error } = await query.delete().eq(filter as never, filterValue as never).select();
   if (error) throw error;
   return data;
 }

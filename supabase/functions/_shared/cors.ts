@@ -33,7 +33,7 @@ export function handleCors(request: Request): Response | null {
       request.headers.get("access-control-request-headers") || undefined,
       request.headers.get("access-control-request-method") || undefined
     );
-    return new Response(null, { status: 204, headers });
+    return new Response(null, { status: 204, headers: headers as unknown as HeadersInit });
   }
   return null;
 }
@@ -51,7 +51,7 @@ export function corsResponse(
   
   return new Response(
     JSON.stringify(data),
-    { status, headers }
+    { status, headers: headers as unknown as HeadersInit }
   );
 }
 

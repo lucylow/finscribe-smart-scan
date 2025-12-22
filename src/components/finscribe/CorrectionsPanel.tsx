@@ -214,11 +214,12 @@ function CorrectionsPanel({
           if (!current[path[i]]) {
             current[path[i]] = {};
           }
-          current = current[path[i]] as Record<string, unknown>;
-        }
-        
-        const fieldName = path[path.length - 1];
-        const originalValue = current[fieldName]?.originalValue ?? current[fieldName]?.value;
+        current = current[path[i]] as Record<string, unknown>;
+      }
+      
+      const fieldName = path[path.length - 1];
+      const fieldData = current[fieldName] as { originalValue?: unknown; value?: unknown } | undefined;
+      const originalValue = fieldData?.originalValue ?? fieldData?.value;
         
         // Parse value based on type
         let parsedValue: string | number | null = value;
@@ -256,8 +257,9 @@ function CorrectionsPanel({
             current = current[path[i]] as Record<string, unknown>;
           }
           const fieldName = path[path.length - 1];
-          if (current[fieldName]) {
-            current[fieldName].isSaving = true;
+          const field = current[fieldName] as { isSaving?: boolean } | undefined;
+          if (field) {
+            field.isSaving = true;
           }
           return newData;
         });
@@ -271,8 +273,9 @@ function CorrectionsPanel({
               current = current[path[i]] as Record<string, unknown>;
             }
             const fieldName = path[path.length - 1];
-            if (current[fieldName]) {
-              current[fieldName].isSaving = false;
+            const field = current[fieldName] as { isSaving?: boolean } | undefined;
+            if (field) {
+              field.isSaving = false;
             }
             return newData;
           });

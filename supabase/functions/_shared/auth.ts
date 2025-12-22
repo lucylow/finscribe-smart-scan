@@ -41,7 +41,7 @@ export async function getAuthenticatedUser(
       return null;
     }
 
-    return user as AuthenticatedUser;
+    return { id: user.id, email: user.email } as AuthenticatedUser;
   } catch (error) {
     console.error("Error authenticating user:", error);
     return null;

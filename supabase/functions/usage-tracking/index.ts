@@ -32,7 +32,8 @@ interface UsageResponse {
 // Get current usage for user in current billing cycle
 async function getCurrentUsage(
   userId: string,
-  supabaseClient: ReturnType<typeof createClient>
+  // deno-lint-ignore no-explicit-any
+  supabaseClient: any
 ): Promise<{ docsUsed: number; quota: number | null; plan: string }> {
   // Get user plan
   const { data: profile, error: profileError } = await supabaseClient
@@ -84,7 +85,8 @@ async function getCurrentUsage(
 async function recordUsage(
   userId: string,
   event: UsageEvent,
-  supabaseClient: ReturnType<typeof createClient>
+  // deno-lint-ignore no-explicit-any
+  supabaseClient: any
 ): Promise<void> {
   const usageData = {
     user_id: userId,
@@ -111,7 +113,8 @@ async function recordUsage(
 async function updateBillingCycle(
   userId: string,
   docsUsed: number,
-  supabaseClient: ReturnType<typeof createClient>
+  // deno-lint-ignore no-explicit-any
+  supabaseClient: any
 ): Promise<void> {
   const now = new Date();
   const periodStart = new Date(now.getFullYear(), now.getMonth(), 1)

@@ -47,7 +47,8 @@ async function resizeImage(
 // Download file from Supabase Storage
 async function downloadFile(
   filePath: string,
-  supabaseClient: ReturnType<typeof createClient>
+  // deno-lint-ignore no-explicit-any
+  supabaseClient: any
 ): Promise<Uint8Array> {
   const { data, error } = await supabaseClient.storage
     .from("documents")
@@ -73,13 +74,14 @@ async function uploadProcessedFile(
   originalPath: string,
   processedData: Uint8Array,
   format: string,
-  supabaseClient: ReturnType<typeof createClient>
+  // deno-lint-ignore no-explicit-any
+  supabaseClient: any
 ): Promise<string> {
   const pathParts = originalPath.split(".");
   const basePath = pathParts.slice(0, -1).join(".");
   const newPath = `${basePath}_processed.${format}`;
 
-  const blob = new Blob([processedData]);
+  const blob = new Blob([processedData.slice().buffer]);
   const { data, error } = await supabaseClient.storage
     .from("documents")
     .upload(newPath, blob, {

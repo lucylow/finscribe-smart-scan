@@ -442,11 +442,11 @@ function SmartDropzone({
       </AnimatePresence>
 
       <motion.div
-        {...dropzoneProps}
         aria-label="Document upload area"
         aria-describedby="upload-instructions"
         whileHover={disabled ? {} : { scale: 1.01 }}
         whileTap={disabled ? {} : { scale: 0.99 }}
+        {...(dropzoneProps as Omit<typeof dropzoneProps, 'onAnimationStart'>)}
         className={cn(
           "relative p-12 text-center cursor-pointer rounded-xl transition-all duration-300 overflow-hidden group",
           "border-2 border-dashed focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-2",

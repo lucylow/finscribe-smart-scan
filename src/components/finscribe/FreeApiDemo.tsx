@@ -175,7 +175,7 @@ function CurrencyDemo() {
   const [amount, setAmount] = useState('100');
   const [from, setFrom] = useState('USD');
   const [to, setTo] = useState('EUR');
-  const [conversion, setConversion] = useState<{ amount: number; from: string; to: string; result: number; rate: number } | null>(null);
+  const [conversion, setConversion] = useState<{ amount: number; from: string; to: string; result?: number; converted?: number; rate: number } | null>(null);
   const [converting, setConverting] = useState(false);
 
   const handleConvert = async () => {
@@ -264,7 +264,7 @@ function CurrencyDemo() {
               <div className="p-4 bg-muted rounded-md">
                 <p className="text-2xl font-bold">
                   {conversion.from} {conversion.amount} = {conversion.to}{' '}
-                  {conversion.converted}
+                  {conversion.converted ?? conversion.result}
                 </p>
                 <p className="text-sm text-muted-foreground mt-1">
                   Rate: 1 {conversion.from} = {conversion.rate} {conversion.to}
