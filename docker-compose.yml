@@ -83,6 +83,34 @@ services:
     networks:
       - finscribe-network
 
+  # Unsloth LLM Training Service (optional, for fine-tuning)
+  llm:
+    build:
+      context: .
+      dockerfile: Dockerfile.llm
+    container_name: finscribe_llm
+    volumes:
+      - ./:/app
+      - ./models:/app/models
+      - ./data:/app/data
+    environment:
+      - PYTHONUNBUFFERED=1
+      - HF_TOKEN=${HF_TOKEN:-}
+      - UNSLOTH_MODEL_NAME=${UNSLOTH_MODEL_NAME:-unsloth/llama-3.1-8b-unsloth-bnb-4bit}
+      - UNSLOTH_MODEL_DIR=${UNSLOTH_MODEL_DIR:-./models/unsloth-finscribe}
+      - NVIDIA_VISIBLE_DEVICES=all
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    networks:
+      - finscribe-network
+    # Note: This service is typically run manually for training:
+    # docker-compose run --rm llm python3 unsloth/train_unsloth_fast.py --train_data data/unsloth_train.jsonl
+
   # PostgreSQL Database
   postgres:
     image: postgres:15-alpine

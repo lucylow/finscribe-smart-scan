@@ -321,6 +321,56 @@
     text-rendering: optimizeLegibility;
   }
 
+  /* Slide-safe layout: 48px safe margins for horizontal presentation */
+  .slide-safe {
+    padding-left: 48px;
+    padding-right: 48px;
+    box-sizing: border-box;
+  }
+
+  .viewer-wrap {
+    display: flex;
+    gap: 24px;
+    align-items: flex-start;
+    justify-content: space-between;
+    padding: 0 48px;
+    box-sizing: border-box;
+  }
+
+  .viewer-container {
+    width: 65%;
+    min-width: 720px;
+    max-width: 1600px;
+    position: relative;
+    background: hsl(var(--card));
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: var(--shadow-lg);
+  }
+
+  .sidepanel-container {
+    width: 32%;
+    min-width: 320px;
+    max-width: 520px;
+    background: hsl(var(--card));
+    border-radius: 8px;
+    padding: 16px;
+    box-shadow: var(--shadow-md);
+  }
+
+  @media (max-width: 1280px) {
+    .viewer-wrap {
+      flex-direction: column;
+      padding: 0 24px;
+    }
+    .viewer-container,
+    .sidepanel-container {
+      width: 100%;
+      min-width: unset;
+      max-width: unset;
+    }
+  }
+
   /* Enhanced button hover effects */
   .btn-hover-lift {
     @apply transition-all duration-200 hover:scale-105 hover:shadow-lg active:scale-95;

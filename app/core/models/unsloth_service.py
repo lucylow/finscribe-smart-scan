@@ -3,15 +3,26 @@ Unsloth Inference Service
 
 Provides a wrapper around Unsloth fine-tuned models for structured JSON extraction
 from OCR text. This service acts as the reasoning/finalizer stage in the FinScribe pipeline.
+
+Uses FastLanguageModel from Unsloth for efficient inference with 4-bit quantization.
 """
 import os
 import json
 import logging
 from typing import Dict, Any, Optional
 import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM, GenerationConfig
+from transformers import GenerationConfig
 
 logger = logging.getLogger(__name__)
+
+# Try to import Unsloth, fall back to standard transformers if not available
+try:
+    from unsloth import FastLanguageModel
+    UNSLOTH_AVAILABLE = True
+except ImportError:
+    logger.warning("Unsloth not available, falling back to standard transformers")
+    from transformers import AutoTokenizer, AutoModelForCausalLM
+    UNSLOTH_AVAILABLE = False
 
 
 class UnslothService:
@@ -23,9 +34,12 @@ class UnslothService:
     def __init__(
         self,
         model_dir: Optional[str] = None,
+        model_name: Optional[str] = None,
         device: Optional[str] = None,
         max_new_tokens: int = 512,
         temperature: float = 0.0,
+        max_seq_length: int = 2048,
+        load_in_4bit: bool = True,
     ):
         """
         Initialize Unsloth service.
@@ -33,44 +47,76 @@ class UnslothService:
         Args:
             model_dir: Path to fine-tuned Unsloth model directory. 
                        Defaults to environment variable UNSLOTH_MODEL_DIR or ./models/unsloth-finscribe
+            model_name: Pre-trained model name (e.g., "unsloth/llama-3.1-8b-unsloth-bnb-4bit")
+                       Used if model_dir doesn't exist. Defaults to env UNSLOTH_MODEL_NAME
             device: Device to run inference on ('cuda' or 'cpu'). Auto-detects if None.
             max_new_tokens: Maximum tokens to generate
             temperature: Sampling temperature (0.0 = deterministic)
+            max_seq_length: Maximum sequence length for context
+            load_in_4bit: Whether to use 4-bit quantization (recommended for efficiency)
         """
         self.model_dir = model_dir or os.getenv(
             "UNSLOTH_MODEL_DIR", "./models/unsloth-finscribe"
         )
+        self.model_name = model_name or os.getenv(
+            "UNSLOTH_MODEL_NAME", "unsloth/llama-3.1-8b-unsloth-bnb-4bit"
+        )
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.max_new_tokens = max_new_tokens
         self.temperature = temperature
+        self.max_seq_length = max_seq_length
+        self.load_in_4bit = load_in_4bit and self.device == "cuda"  # 4-bit only on CUDA
+        self.use_unsloth = UNSLOTH_AVAILABLE
 
         self.tokenizer = None
         self.model = None
         self._load_model()
 
     def _load_model(self):
-        """Load tokenizer and model from disk."""
+        """Load tokenizer and model using Unsloth FastLanguageModel or fallback."""
         try:
-            logger.info(f"Loading Unsloth model from {self.model_dir}")
-            
-            # Load tokenizer
-            self.tokenizer = AutoTokenizer.from_pretrained(
-                self.model_dir, use_fast=True, trust_remote_code=True
-            )
-            
-            # Load model with appropriate dtype
-            dtype = torch.float16 if self.device == "cuda" else torch.float32
-            self.model = AutoModelForCausalLM.from_pretrained(
-                self.model_dir,
-                torch_dtype=dtype,
-                trust_remote_code=True,
-            ).to(self.device)
-            
-            self.model.eval()  # Set to evaluation mode
-            logger.info(f"Unsloth model loaded successfully on {self.device}")
+            if self.use_unsloth:
+                # Try to load from fine-tuned directory first
+                if os.path.exists(self.model_dir) and os.path.isdir(self.model_dir):
+                    logger.info(f"Loading fine-tuned Unsloth model from {self.model_dir}")
+                    self.model, self.tokenizer = FastLanguageModel.from_pretrained(
+                        model_name=self.model_dir,
+                        max_seq_length=self.max_seq_length,
+                        dtype=None,
+                        load_in_4bit=self.load_in_4bit,
+                    )
+                else:
+                    # Load pre-trained model
+                    logger.info(f"Loading pre-trained Unsloth model: {self.model_name}")
+                    self.model, self.tokenizer = FastLanguageModel.from_pretrained(
+                        model_name=self.model_name,
+                        max_seq_length=self.max_seq_length,
+                        dtype=None,
+                        load_in_4bit=self.load_in_4bit,
+                    )
+                
+                # Enable inference optimizations
+                FastLanguageModel.for_inference(self.model)
+                logger.info(f"Unsloth model loaded successfully on {self.device}")
+            else:
+                # Fallback to standard transformers
+                logger.info(f"Loading model using standard transformers from {self.model_dir}")
+                self.tokenizer = AutoTokenizer.from_pretrained(
+                    self.model_dir, use_fast=True, trust_remote_code=True
+                )
+                
+                dtype = torch.float16 if self.device == "cuda" else torch.float32
+                self.model = AutoModelForCausalLM.from_pretrained(
+                    self.model_dir,
+                    torch_dtype=dtype,
+                    trust_remote_code=True,
+                ).to(self.device)
+                
+                self.model.eval()
+                logger.info(f"Model loaded successfully on {self.device}")
             
         except Exception as e:
-            logger.error(f"Failed to load Unsloth model: {str(e)}", exc_info=True)
+            logger.error(f"Failed to load model: {str(e)}", exc_info=True)
             # Create a mock model for development/testing
             logger.warning("Falling back to mock mode")
             self.tokenizer = None

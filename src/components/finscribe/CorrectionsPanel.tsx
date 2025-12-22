@@ -30,7 +30,7 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { submitCorrections } from '@/services/api';
+import { submitCorrections, acceptAndQueue } from '@/services/api';
 
 export interface FieldValue {
   value: string | number | null;
@@ -308,7 +308,7 @@ function CorrectionsPanel({
     return traverse(localData as Record<string, unknown>);
   }, [localData]);
 
-  // Export to active learning
+  // Export to active learning with optimistic updates
   const handleExport = useCallback(async () => {
     if (!resultId) {
       toast.error('No result ID available', {
@@ -318,41 +318,61 @@ function CorrectionsPanel({
     }
 
     setIsExporting(true);
-    try {
-      // Prepare corrections payload
-      const corrections: Record<string, unknown> = {};
-      
-      const extractValues = (obj: Record<string, unknown>, prefix: string = '') => {
-        for (const key in obj) {
-          const field = obj[key];
-          if (field && typeof field === 'object' && 'value' in field) {
-            corrections[prefix ? `${prefix}.${key}` : key] = (field as FieldValue).value;
-          } else if (field && typeof field === 'object' && field !== null) {
-            extractValues(field as Record<string, unknown>, prefix ? `${prefix}.${key}` : key);
-          }
+    
+    // Prepare corrections payload
+    const corrections: Record<string, unknown> = {};
+    
+    const extractValues = (obj: Record<string, unknown>, prefix: string = '') => {
+      for (const key in obj) {
+        const field = obj[key];
+        if (field && typeof field === 'object' && 'value' in field) {
+          corrections[prefix ? `${prefix}.${key}` : key] = (field as FieldValue).value;
+        } else if (field && typeof field === 'object' && field !== null) {
+          extractValues(field as Record<string, unknown>, prefix ? `${prefix}.${key}` : key);
         }
-      };
-      
-      extractValues(localData as Record<string, unknown>);
+      }
+    };
+    
+    extractValues(localData as Record<string, unknown>);
 
-      await submitCorrections(resultId, corrections);
+    // Optimistic update: increment queue count immediately
+    const optimisticCount = queuedCount + 1;
+    setQueuedCount(optimisticCount);
+    setShowExportDialog(false);
+
+    try {
+      // Use acceptAndQueue endpoint for better demo flow integration
+      await acceptAndQueue(resultId, corrections, {
+        timestamp: new Date().toISOString(),
+        source: 'corrections_panel',
+      });
       
-      setQueuedCount((prev) => prev + 1);
-      setShowExportDialog(false);
-      
-      toast.success('Exported to training queue', {
+      toast.success('Queued for training', {
         description: 'Your corrections have been added to the active learning queue.',
         duration: 3000,
       });
     } catch (error) {
-      toast.error('Export failed', {
-        description: error instanceof Error ? error.message : 'Failed to export corrections.',
-        duration: 4000,
-      });
+      // Rollback optimistic update on error
+      setQueuedCount(queuedCount);
+      
+      // Try fallback to submitCorrections if acceptAndQueue fails
+      try {
+        await submitCorrections(resultId, corrections);
+        setQueuedCount(optimisticCount);
+        toast.success('Queued for training (fallback)', {
+          description: 'Your corrections have been added to the active learning queue.',
+          duration: 3000,
+        });
+      } catch (fallbackError) {
+        toast.error('Export failed', {
+          description: error instanceof Error ? error.message : 'Failed to export corrections.',
+          duration: 4000,
+        });
+      }
     } finally {
       setIsExporting(false);
     }
-  }, [resultId, localData]);
+  }, [resultId, localData, queuedCount]);
 
   // Render field input
   const renderField = (

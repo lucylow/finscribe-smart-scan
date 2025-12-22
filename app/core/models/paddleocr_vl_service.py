@@ -1,3 +1,17 @@
+"""
+FinScribe OCR Service - PaddleOCR-VL Integration
+
+This module:
+1. Provides OCR client abstraction for multiple backends (mock, local, Hugging Face)
+2. Integrates PaddleOCR-VL for layout-aware text extraction
+3. Applies semantic layout analysis to identify document regions
+4. Returns structured OCR output with bounding boxes and confidence scores
+
+Pipeline:
+  Image → OCR Backend (PaddleOCR-VL) → Semantic Layout Analysis → Structured OCR Result
+
+Used by: app/core/document_processor.py, app/api/v1/endpoints.py
+"""
 import aiohttp
 import base64
 import json

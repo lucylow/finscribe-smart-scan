@@ -8,7 +8,10 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -66,7 +69,11 @@
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
     "vaul": "^0.9.9",
-    "zod": "^3.25.76"
+    "zod": "^3.25.76",
+    "axios": "^1.4.0",
+    "react-konva": "^18.1.5",
+    "konva": "^9.2.0",
+    "uuid": "^9.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
@@ -85,6 +92,13 @@
     "tailwindcss": "^3.4.17",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.38.0",
-    "vite": "^5.4.19"
+    "vite": "^5.4.19",
+    "@testing-library/react": "^14.0.0",
+    "@testing-library/jest-dom": "^6.0.0",
+    "@testing-library/user-event": "^14.5.1",
+    "@vitest/ui": "^1.0.0",
+    "vitest": "^1.0.0",
+    "@types/uuid": "^9.0.0",
+    "jsdom": "^23.0.0"
   }
 }
