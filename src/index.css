@@ -47,6 +47,55 @@
 
     --radius: 0.5rem;
 
+    /* Design System: Typography Scale */
+    --font-size-xs: 0.75rem;      /* 12px */
+    --font-size-sm: 0.875rem;     /* 14px */
+    --font-size-base: 1rem;       /* 16px */
+    --font-size-lg: 1.125rem;     /* 18px */
+    --font-size-xl: 1.25rem;      /* 20px */
+    --font-size-2xl: 1.5rem;      /* 24px */
+    --font-size-3xl: 1.875rem;    /* 30px */
+    --font-size-4xl: 2.25rem;     /* 36px */
+
+    --font-weight-normal: 400;
+    --font-weight-medium: 500;
+    --font-weight-semibold: 600;
+    --font-weight-bold: 700;
+    --font-weight-extrabold: 800;
+
+    --line-height-tight: 1.25;
+    --line-height-normal: 1.5;
+    --line-height-relaxed: 1.75;
+
+    /* Design System: Spacing Scale (8-point grid) */
+    --space-1: 0.25rem;   /* 4px */
+    --space-2: 0.5rem;    /* 8px */
+    --space-3: 0.75rem;   /* 12px */
+    --space-4: 1rem;      /* 16px */
+    --space-5: 1.25rem;   /* 20px */
+    --space-6: 1.5rem;    /* 24px */
+    --space-8: 2rem;      /* 32px */
+    --space-10: 2.5rem;   /* 40px */
+    --space-12: 3rem;     /* 48px */
+    --space-16: 4rem;     /* 64px */
+    --space-20: 5rem;     /* 80px */
+    --space-24: 6rem;     /* 96px */
+
+    /* Design System: Shadows & Elevation */
+    --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    --shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+
+    /* Interactive Element Shadows */
+    --shadow-interactive: 0 4px 12px rgba(0, 0, 0, 0.15);
+    --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.08);
+    --shadow-card-hover: 0 8px 24px rgba(0, 0, 0, 0.12);
+    --shadow-modal: 0 20px 60px rgba(0, 0, 0, 0.3);
+    --shadow-sidebar: 4px 0 24px rgba(0, 0, 0, 0.12);
+
     /* FinScribe Gradients */
     --gradient-primary: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary-dark)) 100%);
     --gradient-secondary: linear-gradient(135deg, hsl(var(--secondary)) 0%, hsl(var(--secondary-glow)) 100%);
@@ -56,13 +105,12 @@
                      radial-gradient(at 80% 0%, hsl(166 80% 92%) 0px, transparent 50%),
                      radial-gradient(at 0% 50%, hsl(210 50% 95%) 0px, transparent 50%);
 
-    /* Shadows */
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
-    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
-    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.08);
-    --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.12);
+    /* Semantic Shadows (kept for backward compatibility) */
     --shadow-primary: 0 4px 20px hsl(166 100% 42% / 0.25);
     --shadow-secondary: 0 4px 20px hsl(0 100% 71% / 0.2);
+    --shadow-success: 0 4px 20px hsl(142 76% 36% / 0.2);
+    --shadow-warning: 0 4px 20px hsl(38 92% 50% / 0.2);
+    --shadow-error: 0 4px 20px hsl(0 84% 60% / 0.2);
   }
 
   .dark {
@@ -222,6 +270,43 @@
   .font-mono {
     font-family: 'JetBrains Mono', monospace;
   }
+
+  /* Typography Scale Utilities */
+  .text-xs { font-size: var(--font-size-xs); line-height: var(--line-height-normal); }
+  .text-sm { font-size: var(--font-size-sm); line-height: var(--line-height-normal); }
+  .text-base { font-size: var(--font-size-base); line-height: var(--line-height-normal); }
+  .text-lg { font-size: var(--font-size-lg); line-height: var(--line-height-normal); }
+  .text-xl { font-size: var(--font-size-xl); line-height: var(--line-height-tight); }
+  .text-2xl { font-size: var(--font-size-2xl); line-height: var(--line-height-tight); }
+  .text-3xl { font-size: var(--font-size-3xl); line-height: var(--line-height-tight); }
+  .text-4xl { font-size: var(--font-size-4xl); line-height: var(--line-height-tight); }
+
+  /* Financial Data Display - Monospaced for alignment */
+  .financial-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: var(--font-weight-semibold);
+    letter-spacing: 0.025em;
+  }
+
+  .financial-large {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: var(--font-size-2xl);
+    font-weight: var(--font-weight-bold);
+    letter-spacing: 0.025em;
+  }
+
+  /* Semantic Spacing Utilities */
+  .space-stack-xs { margin-bottom: var(--space-1); }
+  .space-stack-sm { margin-bottom: var(--space-2); }
+  .space-stack-md { margin-bottom: var(--space-4); }
+  .space-stack-lg { margin-bottom: var(--space-6); }
+  .space-stack-xl { margin-bottom: var(--space-8); }
+
+  .space-inline-xs { margin-right: var(--space-1); }
+  .space-inline-sm { margin-right: var(--space-2); }
+  .space-inline-md { margin-right: var(--space-4); }
+  .space-inline-lg { margin-right: var(--space-6); }
+  .space-inline-xl { margin-right: var(--space-8); }
 
   @keyframes float {
     0%, 100% { transform: translateY(0px); }

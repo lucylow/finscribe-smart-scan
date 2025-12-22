@@ -428,6 +428,8 @@ const FinScribe = () => {
                     imageUrl={imageUrl}
                     boundingBoxes={boundingBoxes}
                     selectedBoxId={selectedBoxId}
+                    highlightedFieldId={highlightedFieldId}
+                    onFieldHighlight={setHighlightedFieldId}
                     onBoxClick={(box) => {
                       setSelectedBoxId(box.id);
                       if (box.fieldId) {

@@ -19,6 +19,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { ValidationStatus } from '@/components/ui/validation-status';
 import {
   Dialog,
   DialogContent,
@@ -164,6 +165,40 @@ function CorrectionsPanel({
       }
     }
   }, [highlightedFieldId, onFieldHighlight]);
+
+  // Focus first error field on validation error
+  useEffect(() => {
+    const firstErrorField = findFirstErrorField(localData);
+    if (firstErrorField) {
+      const fieldRef = fieldRefsRef.current.get(firstErrorField);
+      if (fieldRef) {
+        // Small delay to ensure DOM is ready
+        setTimeout(() => {
+          fieldRef?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          fieldRef?.focus();
+        }, 100);
+      }
+    }
+  }, [localData]);
+
+  // Helper to find first error field
+  const findFirstErrorField = (data: CorrectionsData): string | null => {
+    const traverse = (obj: Record<string, unknown>, prefix: string = ''): string | null => {
+      for (const key in obj) {
+        const field = obj[key];
+        if (field && typeof field === 'object' && 'isValid' in field) {
+          if (!(field as FieldValue).isValid) {
+            return prefix ? `${prefix}.${key}` : key;
+          }
+        } else if (field && typeof field === 'object' && field !== null) {
+          const result = traverse(field as Record<string, unknown>, prefix ? `${prefix}.${key}` : key);
+          if (result) return result;
+        }
+      }
+      return null;
+    };
+    return traverse(data as Record<string, unknown>);
+  };
 
   // Update field value with validation
   const updateField = useCallback(
@@ -374,7 +409,15 @@ function CorrectionsPanel({
     }
   }, [resultId, localData, queuedCount]);
 
-  // Render field input
+  // Determine validation status from field state
+  const getValidationStatus = (field: FieldValue | undefined): 'success' | 'warning' | 'error' => {
+    if (!field) return 'success';
+    if (!field.isValid) return 'error';
+    if (field.isDirty && field.value !== field.originalValue) return 'success';
+    return 'success';
+  };
+
+  // Render field input with validation status
   const renderField = (
     label: string,
     path: string[],
@@ -387,6 +430,14 @@ function CorrectionsPanel({
     const Icon = icon;
     const value = field?.value ?? '';
     const displayValue = type === 'currency' && value ? formatCurrency(value as number) : String(value);
+    const validationStatus = getValidationStatus(field);
+    const isHighlighted = highlightedFieldId === fieldId;
+    
+    // For currency and number fields, use monospaced font for better alignment
+    const inputClassName = cn(
+      type === 'currency' || type === 'number' ? 'font-mono' : '',
+      isHighlighted && 'ring-2 ring-primary ring-offset-2'
+    );
     
     return (
       <div className="space-y-1.5">
@@ -394,63 +445,85 @@ function CorrectionsPanel({
           {Icon && <Icon className="w-4 h-4 text-muted-foreground" />}
           {label}
         </label>
-        <div className="relative">
-          <Input
-            id={fieldId}
-            ref={(el) => {
-              if (el) {
-                fieldRefsRef.current.set(fieldId, el);
-              } else {
-                fieldRefsRef.current.delete(fieldId);
-              }
-            }}
-            type={type === 'date' ? 'date' : type === 'number' ? 'number' : 'text'}
-            value={displayValue}
-            onChange={(e) => {
-              const validator =
-                type === 'currency'
-                  ? validators.currency
-                  : type === 'number'
-                    ? validators.number
-                    : type === 'date'
-                      ? validators.date
-                      : validators.text;
-              updateField(path, e.target.value, validator);
-            }}
-            onBlur={() => {
-              // Trigger save on blur
-              const timeout = saveTimeoutsRef.current.get(fieldId);
-              if (timeout) {
-                clearTimeout(timeout);
-                saveTimeoutsRef.current.delete(fieldId);
-                // Trigger save immediately
-                const field = field;
-                if (field?.isDirty) {
-                  // Save logic here
+        <ValidationStatus
+          status={validationStatus}
+          message={field?.error}
+          variant="subtle"
+          showIcon={!field?.isValid || field?.isDirty}
+          className={cn(
+            field?.isDirty && !field?.error && 'border-l-2 border-primary pl-2',
+            !field?.isValid && 'border-l-2 border-destructive pl-2'
+          )}
+        >
+          <div className="relative">
+            <Input
+              id={fieldId}
+              ref={(el) => {
+                if (el) {
+                  fieldRefsRef.current.set(fieldId, el);
+                } else {
+                  fieldRefsRef.current.delete(fieldId);
                 }
-              }
-            }}
-            placeholder={placeholder}
-            className={cn(
-              field?.isDirty && 'border-primary',
-              !field?.isValid && 'border-destructive',
-              field?.isSaving && 'opacity-70'
+              }}
+              type={type === 'date' ? 'date' : type === 'number' ? 'number' : 'text'}
+              value={displayValue}
+              onChange={(e) => {
+                const validator =
+                  type === 'currency'
+                    ? validators.currency
+                    : type === 'number'
+                      ? validators.number
+                      : type === 'date'
+                        ? validators.date
+                        : validators.text;
+                updateField(path, e.target.value, validator);
+              }}
+              onKeyDown={(e) => {
+                // Enhanced keyboard navigation
+                if (e.key === 'Enter' && type !== 'date') {
+                  e.preventDefault();
+                  // Move to next field
+                  const fields = Array.from(fieldRefsRef.current.keys());
+                  const currentIndex = fields.indexOf(fieldId);
+                  const nextField = fields[currentIndex + 1];
+                  if (nextField) {
+                    const nextInput = fieldRefsRef.current.get(nextField);
+                    nextInput?.focus();
+                  }
+                }
+                // Tab navigation is handled by browser, but we ensure logical order
+              }}
+              onBlur={() => {
+                // Trigger save on blur
+                const timeout = saveTimeoutsRef.current.get(fieldId);
+                if (timeout) {
+                  clearTimeout(timeout);
+                  saveTimeoutsRef.current.delete(fieldId);
+                }
+              }}
+              placeholder={placeholder}
+              className={cn(
+                inputClassName,
+                field?.isDirty && !field?.error && 'border-primary/50',
+                !field?.isValid && 'border-destructive',
+                field?.isSaving && 'opacity-70'
+              )}
+              aria-label={label}
+              aria-invalid={!field?.isValid}
+              aria-describedby={field?.error ? `${fieldId}-error` : undefined}
+            />
+            {field?.isSaving && (
+              <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+              </div>
             )}
-            aria-label={label}
-            aria-invalid={!field?.isValid}
-            aria-describedby={field?.error ? `${fieldId}-error` : undefined}
-          />
-          {field?.isSaving && (
-            <div className="absolute right-2 top-1/2 -translate-y-1/2">
-              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-            </div>
-          )}
-          {field?.isDirty && !field?.isSaving && (
-            <div className="absolute right-2 top-1/2 -translate-y-1/2">
-              <CheckCircle2 className="w-4 h-4 text-success" />
-            </div>
-          )}
-        </div>
+            {field?.isDirty && !field?.isSaving && field?.isValid && (
+              <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                <CheckCircle2 className="w-4 h-4 text-success" />
+              </div>
+            )}
+          </div>
+        </ValidationStatus>
         {field?.error && (
           <p id={`${fieldId}-error`} className="text-xs text-destructive flex items-center gap-1">
             <AlertCircle className="w-3 h-3" />

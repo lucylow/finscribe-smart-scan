@@ -11,16 +11,23 @@ Used by: Docker containers, local development, production deployments
 """
 import uvicorn
 import logging
+import uuid
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.middleware.base import BaseHTTPMiddleware
+import os
 from .api.v1.endpoints import router as api_router
 from .api.v1.metrics import router as metrics_router
+from .core.logging_config import setup_logging, set_request_id, get_logger
 
-# Initialize logger before use
-logger = logging.getLogger(__name__)
+# Set up structured logging
+setup_logging(level=os.getenv("LOG_LEVEL", "INFO"), json_format=True)
+
+# Initialize logger
+logger = get_logger(__name__)
 
 try:
     from .api.v1.endpoints_enhanced import router as enhanced_router
@@ -81,6 +88,21 @@ app = FastAPI(
     description="Backend API for Financial Document Analyzer",
     version="1.0.0",
 )
+
+
+# Request ID middleware for tracing
+class RequestIDMiddleware(BaseHTTPMiddleware):
+    """Middleware to add request ID for tracing."""
+    
+    async def dispatch(self, request: Request, call_next):
+        request_id = str(uuid.uuid4())
+        set_request_id(request_id)
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+        return response
+
+
+app.add_middleware(RequestIDMiddleware)
 
 # CORS Middleware for frontend communication
 origins = [

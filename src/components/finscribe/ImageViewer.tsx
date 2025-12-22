@@ -24,6 +24,9 @@ interface ImageViewerProps {
   boundingBoxes?: BoundingBox[];
   onBoxClick?: (box: BoundingBox) => void;
   selectedBoxId?: string | null;
+  highlightedFieldId?: string | null; // Field ID to highlight on hover
+  onFieldHighlight?: (fieldId: string | null) => void;
+  isCorrectionMode?: boolean; // When user is actively drawing a new ROI
   className?: string;
 }
 
@@ -40,6 +43,9 @@ function ImageViewer({
   boundingBoxes = [],
   onBoxClick,
   selectedBoxId,
+  highlightedFieldId,
+  onFieldHighlight,
+  isCorrectionMode = false,
   className,
 }: ImageViewerProps) {
   const [showOverlay, setShowOverlay] = useState(true);
@@ -52,6 +58,7 @@ function ImageViewer({
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
   const [currentBoxIndex, setCurrentBoxIndex] = useState<number | null>(null);
+  const [hoveredBoxId, setHoveredBoxId] = useState<string | null>(null);
   
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
@@ -288,12 +295,18 @@ function ImageViewer({
       {/* Image Container */}
       <div
         ref={containerRef}
-        className="relative w-full h-full min-h-[400px] overflow-auto cursor-move"
+        className={cn(
+          "relative w-full h-full min-h-[400px] overflow-auto",
+          isCorrectionMode ? "cursor-crosshair" : "cursor-move"
+        )}
         onWheel={handleWheel}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
+        onMouseLeave={() => {
+          handleMouseUp();
+          setHoveredBoxId(null);
+        }}
       >
         <div
           className="relative inline-block"
@@ -336,8 +349,32 @@ function ImageViewer({
                     {boundingBoxes.map((box) => {
                       const isSelected = selectedBoxId === box.id || 
                         (currentBoxIndex !== null && boundingBoxes[currentBoxIndex]?.id === box.id);
+                      const isHovered = hoveredBoxId === box.id || 
+                        (box.fieldId && highlightedFieldId === box.fieldId);
+                      const isHighlighted = isHovered && !isSelected;
+                      
                       const color = BOX_COLORS[box.fieldType || 'other'] || BOX_COLORS.other;
-                      const strokeWidth = isSelected ? 3 : 2;
+                      
+                      // Visual states: Correction mode (dashed), Active (solid thick), Hover (semi-transparent thick)
+                      let strokeWidth = 2;
+                      let strokeDasharray = '4 4';
+                      let fillOpacity = 0;
+                      
+                      if (isCorrectionMode) {
+                        // Correction mode: dashed border
+                        strokeWidth = 2;
+                        strokeDasharray = '6 4';
+                      } else if (isSelected) {
+                        // Active state: solid thick border with fill
+                        strokeWidth = 3;
+                        strokeDasharray = '0';
+                        fillOpacity = 0.15;
+                      } else if (isHovered || isHighlighted) {
+                        // Hover state: semi-transparent thick border
+                        strokeWidth = 3;
+                        strokeDasharray = '0';
+                        fillOpacity = 0.08;
+                      }
 
                       return (
                         <g key={box.id}>
@@ -346,32 +383,48 @@ function ImageViewer({
                             y={`${box.y * 100}%`}
                             width={`${box.width * 100}%`}
                             height={`${box.height * 100}%`}
-                            fill="none"
+                            fill={color}
+                            fillOpacity={fillOpacity}
                             stroke={color}
                             strokeWidth={strokeWidth}
-                            strokeDasharray={isSelected ? '0' : '4 4'}
-                            className="pointer-events-auto cursor-pointer"
+                            strokeDasharray={strokeDasharray}
+                            className={cn(
+                              "pointer-events-auto transition-all duration-200",
+                              isCorrectionMode ? "cursor-crosshair" : "cursor-pointer"
+                            )}
                             onClick={() => {
-                              if (onBoxClick) {
+                              if (onBoxClick && !isCorrectionMode) {
                                 onBoxClick(box);
                               }
                             }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.strokeWidth = '3';
+                            onMouseEnter={() => {
+                              setHoveredBoxId(box.id);
+                              if (box.fieldId && onFieldHighlight) {
+                                onFieldHighlight(box.fieldId);
+                              }
                             }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.strokeWidth = isSelected ? '3' : '2';
+                            onMouseLeave={() => {
+                              setHoveredBoxId(null);
+                              if (box.fieldId && highlightedFieldId === box.fieldId && onFieldHighlight) {
+                                onFieldHighlight(null);
+                              }
                             }}
                           />
-                          {isSelected && (
-                            <rect
-                              x={`${box.x * 100}%`}
-                              y={`${box.y * 100}%`}
-                              width={`${box.width * 100}%`}
-                              height={`${box.height * 100}%`}
+                          {/* Active label */}
+                          {isSelected && !isCorrectionMode && (
+                            <text
+                              x={`${(box.x + box.width / 2) * 100}%`}
+                              y={`${Math.max(box.y * 100 - 4, 12)}%`}
+                              textAnchor="middle"
+                              className="text-xs font-semibold fill-current"
                               fill={color}
-                              fillOpacity={0.1}
-                            />
+                              style={{
+                                filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.3))',
+                                pointerEvents: 'none',
+                              }}
+                            >
+                              Editing: {box.label}
+                            </text>
                           )}
                         </g>
                       );

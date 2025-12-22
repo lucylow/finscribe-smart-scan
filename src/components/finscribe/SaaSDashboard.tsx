@@ -13,12 +13,24 @@ import {
   AlertCircle,
   CheckCircle,
   Clock,
-  Zap
+  Zap,
+  Timer,
+  Target,
+  Brain
 } from "lucide-react";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/components/ui/chart";
+import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer } from "recharts";
 
 interface DashboardData {
   overview: {
     documentsProcessed: number;
+    averageProcessingTime: number; // seconds
+    estimatedCostSavings: number; // dollars
+    overallAccuracyScore: number; // percentage
     mrr: number;
     activeUsers: number;
     accuracy: number;
@@ -30,6 +42,19 @@ interface DashboardData {
     documents: number;
     apiCalls: number;
   }>;
+  accuracyOverTime: Array<{
+    version: string;
+    date: string;
+    accuracy: number;
+  }>;
+  errorDistribution: Array<{
+    fieldType: string;
+    errorCount: number;
+  }>;
+  automationMetrics: {
+    humanInTheLoop: number; // percentage
+    fullyAutomated: number; // percentage
+  };
   subscription: {
     tier: string;
     billingCycle: string;
@@ -72,11 +97,33 @@ const SaaSDashboard: React.FC = () => {
       const mockData: DashboardData = {
         overview: {
           documentsProcessed: 1247,
+          averageProcessingTime: 1.8,
+          estimatedCostSavings: 24900,
+          overallAccuracyScore: 94.2,
           mrr: 199,
           activeUsers: 8,
           accuracy: 98.5,
           documentsRemaining: 3753,
           quota: 5000,
+        },
+        accuracyOverTime: [
+          { version: 'v1.0', date: '2024-01', accuracy: 87.5 },
+          { version: 'v1.1', date: '2024-02', accuracy: 89.2 },
+          { version: 'v1.2', date: '2024-03', accuracy: 91.8 },
+          { version: 'v1.3', date: '2024-04', accuracy: 93.1 },
+          { version: 'v2.0', date: '2024-05', accuracy: 94.2 },
+        ],
+        errorDistribution: [
+          { fieldType: 'Date', errorCount: 45 },
+          { fieldType: 'Line Item Total', errorCount: 32 },
+          { fieldType: 'Vendor Name', errorCount: 18 },
+          { fieldType: 'Tax Amount', errorCount: 15 },
+          { fieldType: 'Invoice Number', errorCount: 12 },
+          { fieldType: 'Subtotal', errorCount: 8 },
+        ],
+        automationMetrics: {
+          humanInTheLoop: 15,
+          fullyAutomated: 85,
         },
         usage: [
           { month: "Jan", documents: 800, apiCalls: 1200 },
@@ -167,66 +214,75 @@ const SaaSDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* Overview Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Documents Processed</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{dashboardData.overview.documentsProcessed.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {dashboardData.overview.documentsRemaining.toLocaleString()} remaining this month
-            </p>
-            <Progress value={usagePercent} className="mt-2" />
-            <p className="text-xs text-muted-foreground mt-1">
-              {usagePercent.toFixed(1)}% of quota used
-            </p>
-          </CardContent>
-        </Card>
+      {/* KPI Cards Section */}
+      <div className="space-y-4">
+        <div>
+          <h2 className="text-xl font-semibold mb-2">Key Performance Indicators</h2>
+          <p className="text-sm text-muted-foreground">Real-time metrics and performance tracking</p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {/* Total Documents Processed */}
+          <Card className="card-elevated">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Documents Processed</CardTitle>
+              <FileText className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold financial-large">{dashboardData.overview.documentsProcessed.toLocaleString()}</div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {dashboardData.overview.documentsRemaining.toLocaleString()} remaining this month
+              </p>
+              <Progress value={usagePercent} className="mt-2" />
+              <p className="text-xs text-muted-foreground mt-1">
+                {usagePercent.toFixed(1)}% of quota used
+              </p>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Current MRR</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${dashboardData.overview.mrr.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-              <TrendingUp className="h-3 w-3 text-green-500" />
-              +8% from last month
-            </p>
-          </CardContent>
-        </Card>
+          {/* Average Processing Time */}
+          <Card className="card-elevated">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Average Processing Time</CardTitle>
+              <Timer className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold financial-large">{dashboardData.overview.averageProcessingTime.toFixed(1)}s</div>
+              <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                <Zap className="h-3 w-3 text-success" />
+                {((dashboardData.overview.averageProcessingTime / 5) * 100).toFixed(0)}% faster than manual
+              </p>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Users</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{dashboardData.overview.activeUsers}</div>
-            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-              <TrendingUp className="h-3 w-3 text-green-500" />
-              +3 this week
-            </p>
-          </CardContent>
-        </Card>
+          {/* Estimated Cost Savings */}
+          <Card className="card-elevated bg-gradient-to-br from-success/5 to-success/10 border-success/20">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Estimated Cost Savings</CardTitle>
+              <DollarSign className="h-4 w-4 text-success" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold financial-large text-success">${dashboardData.overview.estimatedCostSavings.toLocaleString()}</div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Based on $20/doc manual processing cost
+              </p>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Processing Accuracy</CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{dashboardData.overview.accuracy}%</div>
-            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-              <TrendingUp className="h-3 w-3 text-green-500" />
-              +2% improvement
-            </p>
-          </CardContent>
-        </Card>
+          {/* Overall Accuracy Score */}
+          <Card className="card-elevated bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Overall Accuracy Score</CardTitle>
+              <Target className="h-4 w-4 text-primary" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold financial-large text-primary">{dashboardData.overview.overallAccuracyScore}%</div>
+              <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                <TrendingUp className="h-3 w-3 text-success" />
+                +{(dashboardData.overview.overallAccuracyScore - 90).toFixed(1)}% vs baseline
+              </p>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       {/* Charts and Details */}

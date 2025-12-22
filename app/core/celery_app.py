@@ -10,7 +10,7 @@ celery_app = Celery(
     "finscribe",
     broker=REDIS_URL,
     backend=REDIS_URL,
-    include=["app.core.tasks"]
+    include=["app.core.tasks", "app.core.etl.pipeline"]
 )
 
 # Celery configuration

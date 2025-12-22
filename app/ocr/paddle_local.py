@@ -70,6 +70,28 @@ class PaddleLocalBackend(OCRBackend):
         start_time = time.time()
         
         try:
+            # Apply image pre-processing for enhanced OCR accuracy
+            try:
+                import sys
+                import os
+                # Add ocr_service to path if needed
+                ocr_service_path = os.path.join(os.path.dirname(__file__), '..', '..', 'ocr_service')
+                if os.path.exists(ocr_service_path) and ocr_service_path not in sys.path:
+                    sys.path.insert(0, ocr_service_path)
+                
+                from ocr_service.image_processor import preprocess_for_ocr
+                image_bytes = preprocess_for_ocr(
+                    image_bytes,
+                    enable_deskew=True,
+                    enable_adaptive_threshold=True,
+                    enable_contrast_enhancement=True
+                )
+                logger.debug("Applied image pre-processing for OCR")
+            except ImportError:
+                logger.debug("Image pre-processing not available, using original image")
+            except Exception as e:
+                logger.warning(f"Image pre-processing failed: {e}, using original image")
+            
             # Convert bytes to PIL Image, then to numpy array
             im = Image.open(io.BytesIO(image_bytes)).convert('RGB')
             im_array = np.array(im)

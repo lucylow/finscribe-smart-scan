@@ -1,0 +1,230 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "FinScribe Invoice Extraction Schema v1",
+  "description": "Versioned schema for extracted financial document data",
+  "type": "object",
+  "version": "1.0.0",
+  "properties": {
+    "document_type": {
+      "type": "string",
+      "enum": ["invoice", "receipt", "statement"],
+      "description": "Type of financial document"
+    },
+    "schema_version": {
+      "type": "string",
+      "const": "v1",
+      "description": "Schema version identifier"
+    },
+    "vendor": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Vendor name"
+        },
+        "address": {
+          "type": "object",
+          "properties": {
+            "street": {"type": "string"},
+            "city": {"type": "string"},
+            "state": {"type": "string"},
+            "zip": {"type": "string"},
+            "country": {"type": "string"}
+          }
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Confidence score (0.0-1.0)"
+        },
+        "source_region": {
+          "type": "array",
+          "items": {"type": "integer"},
+          "minItems": 4,
+          "maxItems": 4,
+          "description": "Bounding box coordinates [x1, y1, x2, y2]"
+        }
+      },
+      "required": ["name"]
+    },
+    "client": {
+      "type": "object",
+      "properties": {
+        "invoice_number": {
+          "type": "string",
+          "description": "Invoice number"
+        },
+        "invoice_date": {
+          "type": "string",
+          "format": "date",
+          "description": "Invoice date (ISO 8601)"
+        },
+        "due_date": {
+          "type": "string",
+          "format": "date",
+          "description": "Due date (ISO 8601)"
+        },
+        "client_name": {
+          "type": "string",
+          "description": "Client/customer name"
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "source_region": {
+          "type": "array",
+          "items": {"type": "integer"},
+          "minItems": 4,
+          "maxItems": 4
+        }
+      }
+    },
+    "line_items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string",
+            "description": "Line item description"
+          },
+          "quantity": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Quantity"
+          },
+          "unit_price": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Unit price"
+          },
+          "line_total": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Line total (quantity × unit_price)"
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "source_region": {
+            "type": "array",
+            "items": {"type": "integer"},
+            "minItems": 4,
+            "maxItems": 4
+          }
+        },
+        "required": ["description", "quantity", "unit_price", "line_total"]
+      }
+    },
+    "financial_summary": {
+      "type": "object",
+      "properties": {
+        "subtotal": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Subtotal before tax"
+        },
+        "tax_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Tax rate (0.0-1.0)"
+        },
+        "tax_amount": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Tax amount"
+        },
+        "discount": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Discount amount"
+        },
+        "grand_total": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Grand total"
+        },
+        "currency": {
+          "type": "string",
+          "description": "Currency code (ISO 4217)"
+        }
+      },
+      "required": ["subtotal", "grand_total", "currency"]
+    },
+    "validation": {
+      "type": "object",
+      "properties": {
+        "is_valid": {
+          "type": "boolean",
+          "description": "Whether validation passed"
+        },
+        "math_ok": {
+          "type": "boolean",
+          "description": "Whether arithmetic checks passed"
+        },
+        "dates_ok": {
+          "type": "boolean",
+          "description": "Whether date logic checks passed"
+        },
+        "issues": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "field": {"type": "string"},
+              "issue_type": {"type": "string"},
+              "message": {"type": "string"},
+              "severity": {
+                "type": "string",
+                "enum": ["error", "warning"]
+              }
+            }
+          }
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "needs_review": {
+          "type": "boolean",
+          "description": "Whether human review is needed"
+        }
+      },
+      "required": ["is_valid"]
+    },
+    "models_used": {
+      "type": "object",
+      "properties": {
+        "ocr": {
+          "type": "string",
+          "description": "OCR model version"
+        },
+        "vlm": {
+          "type": "string",
+          "description": "VLM/LLM model version"
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "source_file": {"type": "string"},
+        "processing_timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "processing_time_ms": {"type": "number"},
+        "document_type": {"type": "string"}
+      }
+    }
+  },
+  "required": ["document_type", "schema_version", "financial_summary"]
+}
+
