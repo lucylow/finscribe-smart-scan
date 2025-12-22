@@ -84,7 +84,16 @@ export async function extractFromImage(
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ error: response.statusText }));
-      throw new Error(errorData.error || `OCR failed: ${response.status}`);
+      
+      // Create a more specific error for credit exhaustion
+      if (response.status === 402 || errorData.error_code === 'CREDITS_EXHAUSTED') {
+        const creditError = new Error(errorData.message || errorData.error || 'AI credits exhausted');
+        (creditError as any).code = 'CREDITS_EXHAUSTED';
+        (creditError as any).status = 402;
+        throw creditError;
+      }
+      
+      throw new Error(errorData.error || errorData.message || `OCR failed: ${response.status}`);
     }
 
     return await response.json();
@@ -115,7 +124,16 @@ export async function extractFromUrl(
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ error: response.statusText }));
-      throw new Error(errorData.error || `OCR failed: ${response.status}`);
+      
+      // Create a more specific error for credit exhaustion
+      if (response.status === 402 || errorData.error_code === 'CREDITS_EXHAUSTED') {
+        const creditError = new Error(errorData.message || errorData.error || 'AI credits exhausted');
+        (creditError as any).code = 'CREDITS_EXHAUSTED';
+        (creditError as any).status = 402;
+        throw creditError;
+      }
+      
+      throw new Error(errorData.error || errorData.message || `OCR failed: ${response.status}`);
     }
 
     return await response.json();
@@ -148,7 +166,16 @@ export async function enhanceExtractedData(
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ error: response.statusText }));
-      throw new Error(errorData.error || `Enhancement failed: ${response.status}`);
+      
+      // Create a more specific error for credit exhaustion
+      if (response.status === 402 || errorData.error_code === 'CREDITS_EXHAUSTED') {
+        const creditError = new Error(errorData.message || errorData.error || 'AI credits exhausted');
+        (creditError as any).code = 'CREDITS_EXHAUSTED';
+        (creditError as any).status = 402;
+        throw creditError;
+      }
+      
+      throw new Error(errorData.error || errorData.message || `Enhancement failed: ${response.status}`);
     }
 
     return await response.json();

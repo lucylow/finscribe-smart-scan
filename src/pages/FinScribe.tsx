@@ -263,14 +263,24 @@ const FinScribe = () => {
         clearInterval(progressInterval);
       }
       
-      // Show user-friendly error
+      // Check for credit exhaustion error
+      const isCreditError = err instanceof Error && (err as any).code === 'CREDITS_EXHAUSTED';
       const errorMessage = err instanceof Error ? err.message : 'Analysis failed';
-      setError(errorMessage);
       
-      toast.error('Analysis failed', {
-        description: errorMessage,
-        duration: 5000,
-      });
+      if (isCreditError) {
+        const creditMessage = 'AI credits have been exhausted. Please add credits to your account to continue using AI features.';
+        setError(creditMessage);
+        toast.error('AI Credits Exhausted', {
+          description: creditMessage,
+          duration: 7000,
+        });
+      } else {
+        setError(errorMessage);
+        toast.error('Analysis failed', {
+          description: errorMessage,
+          duration: 5000,
+        });
+      }
       
       setUploadProgress(0);
     } finally {
@@ -357,12 +367,24 @@ const FinScribe = () => {
         clearInterval(progressInterval);
       }
       
+      // Check for credit exhaustion error
+      const isCreditError = err instanceof Error && (err as any).code === 'CREDITS_EXHAUSTED';
       const errorMessage = err instanceof Error ? err.message : 'Comparison failed';
-      setError(errorMessage);
       
-      toast.error('Comparison failed', {
-        description: errorMessage,
-      });
+      if (isCreditError) {
+        const creditMessage = 'AI credits have been exhausted. Please add credits to your account to continue using AI features.';
+        setError(creditMessage);
+        toast.error('AI Credits Exhausted', {
+          description: creditMessage,
+          duration: 7000,
+        });
+      } else {
+        setError(errorMessage);
+        toast.error('Comparison failed', {
+          description: errorMessage,
+          duration: 5000,
+        });
+      }
       
       setUploadProgress(0);
     } finally {

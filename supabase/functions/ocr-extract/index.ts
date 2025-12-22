@@ -542,7 +542,10 @@ async function callLovableAI(imageBase64: string, imageUrl: string | undefined, 
     }
     
     if (response.status === 402) {
-      throw new Error("AI credits exhausted. Please add credits to continue.");
+      const creditError = new Error("AI credits exhausted. Please add credits to continue.");
+      (creditError as any).status = 402;
+      (creditError as any).code = 'CREDITS_EXHAUSTED';
+      throw creditError;
     }
     
     throw new Error(`Lovable AI service error: ${response.status}`);
@@ -645,8 +648,21 @@ serve(async (req) => {
           usedModel = 'lovable-gemini';
           console.log('Lovable AI extraction successful');
         } catch (lovableError) {
+          // If it's a credit exhaustion error, return 402 immediately
+          if ((lovableError as any)?.code === 'CREDITS_EXHAUSTED' || (lovableError as any)?.status === 402) {
+            console.error('AI credits exhausted');
+            return new Response(
+              JSON.stringify({ 
+                error: "AI credits exhausted.",
+                error_code: "CREDITS_EXHAUSTED",
+                message: "AI credits have been exhausted. Please add credits to your account to continue using AI features.",
+                success: false
+              }),
+              { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
           console.error(`Lovable AI fallback failed: ${lovableError instanceof Error ? lovableError.message : 'Unknown error'}`);
-          // Continue to final fallback
+          // Continue to final fallback for other errors
         }
       } else {
         console.log('LOVABLE_API_KEY not configured, skipping Lovable AI fallback');

@@ -140,7 +140,12 @@ serve(async (req) => {
       }
       if (response.status === 402) {
         return new Response(
-          JSON.stringify({ error: "AI credits exhausted." }),
+          JSON.stringify({ 
+            error: "AI credits exhausted.",
+            error_code: "CREDITS_EXHAUSTED",
+            message: "AI credits have been exhausted. Please add credits to your account to continue using AI features.",
+            success: false
+          }),
           { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
