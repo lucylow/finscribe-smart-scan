@@ -227,17 +227,17 @@ const FinScribe = () => {
       }
       setUploadProgress(100);
       
-      setResults(response);
+      setResults(response as unknown as AnalysisResult);
       
       // Extract bounding boxes from OCR results
       if (response.raw_ocr_output) {
-        const boxes = extractBoundingBoxes(response.raw_ocr_output);
+        const boxes = extractBoundingBoxes(response.raw_ocr_output as Record<string, unknown>);
         setBoundingBoxes(boxes);
       }
       
       // Convert data to corrections format
       if (response.data) {
-        const corrections = dataToCorrections(response.data);
+        const corrections = dataToCorrections(response.data as Record<string, unknown>);
         setCorrectionsData(corrections);
       }
       
@@ -456,7 +456,7 @@ const FinScribe = () => {
             ) : null}
             
             {/* Original Results Display */}
-            <ResultsDisplay results={results} />
+            <ResultsDisplay results={results as any} />
           </motion.div>
         );
       } else {
@@ -645,7 +645,7 @@ const FinScribe = () => {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
           >
-            <ComparisonView data={comparisonResults} />
+            <ComparisonView data={comparisonResults as unknown as Record<string, unknown>} />
           </motion.div>
         ) : (
           <div className="text-center py-12">

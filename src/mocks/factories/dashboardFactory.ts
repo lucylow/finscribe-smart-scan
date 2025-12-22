@@ -73,7 +73,7 @@ export const createMockDashboardMetrics = (): MockDashboardMetrics => {
     subscription: {
       tier: faker.helpers.arrayElement(['Starter', 'Growth', 'Enterprise']),
       billingCycle: faker.helpers.arrayElement(['monthly', 'yearly']),
-      nextBillingDate: faker.date.future({ days: 30 }).toISOString().split('T')[0],
+      nextBillingDate: faker.date.future({ years: 1 }).toISOString().split('T')[0],
       monthlyPrice: faker.number.int({ min: 99, max: 299 }),
       status: 'active',
     },

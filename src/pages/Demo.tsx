@@ -106,7 +106,7 @@ const Demo = () => {
       setBoundingBoxes(boxes);
 
       // Convert OCR result to corrections data format
-      const corrections = dataToCorrections(result);
+      const corrections = dataToCorrections(result as unknown as Record<string, unknown>);
       setCorrectionsData(corrections);
 
       toast.success('OCR completed', {

@@ -98,8 +98,8 @@ export function extractBoundingBoxes(
       const confidence = typeof token === 'object' && token !== null
         ? (token.confidence as number) || 0.9
         : 0.9;
-      const regionType = typeof bboxData === 'object' && bboxData !== null
-        ? (bboxData.region_type as string) || 'other'
+      const regionType = typeof bboxData === 'object' && bboxData !== null && !Array.isArray(bboxData)
+        ? ((bboxData as Record<string, unknown>).region_type as string) || 'other'
         : 'other';
 
       // Map region type to field type
@@ -265,22 +265,22 @@ export function dataToCorrections(
     const vendor = (data.vendor || data.vendor_block) as Record<string, unknown>;
     corrections.vendor = {
       name: {
-        value: vendor.name || vendor.company_name || null,
+        value: (vendor.name || vendor.company_name || null) as string | number | null,
         isValid: true,
         isDirty: false,
       },
       address: {
-        value: vendor.address || null,
+        value: (vendor.address || null) as string | number | null,
         isValid: true,
         isDirty: false,
       },
       taxId: {
-        value: vendor.tax_id || vendor.taxId || null,
+        value: (vendor.tax_id || vendor.taxId || null) as string | number | null,
         isValid: true,
         isDirty: false,
       },
       contact: {
-        value: vendor.contact || vendor.email || vendor.phone || null,
+        value: (vendor.contact || vendor.email || vendor.phone || null) as string | number | null,
         isValid: true,
         isDirty: false,
       },
@@ -289,24 +289,25 @@ export function dataToCorrections(
 
   // Invoice information
   if (data.invoice_info || data.invoice_number || data.date) {
+    const invoiceInfo = data.invoice_info as Record<string, unknown> | undefined;
     corrections.invoice_info = {
       invoiceNumber: {
-        value: data.invoice_number || data.invoice_info?.invoice_number || null,
+        value: (data.invoice_number || invoiceInfo?.invoice_number || null) as string | number | null,
         isValid: true,
         isDirty: false,
       },
       date: {
-        value: data.date || data.invoice_info?.date || null,
+        value: (data.date || invoiceInfo?.date || null) as string | number | null,
         isValid: true,
         isDirty: false,
       },
       poNumber: {
-        value: data.po_number || data.invoice_info?.po_number || null,
+        value: (data.po_number || invoiceInfo?.po_number || null) as string | number | null,
         isValid: true,
         isDirty: false,
       },
       dueDate: {
-        value: data.due_date || data.invoice_info?.due_date || null,
+        value: (data.due_date || invoiceInfo?.due_date || null) as string | number | null,
         isValid: true,
         isDirty: false,
       },
@@ -317,22 +318,22 @@ export function dataToCorrections(
   if (data.line_items && Array.isArray(data.line_items)) {
     corrections.line_items = data.line_items.map((item: Record<string, unknown>) => ({
       description: {
-        value: item.description || null,
+        value: (item.description || null) as string | number | null,
         isValid: true,
         isDirty: false,
       },
       quantity: {
-        value: item.quantity || null,
+        value: (item.quantity || null) as string | number | null,
         isValid: true,
         isDirty: false,
       },
       unitPrice: {
-        value: item.unit_price || item.unitPrice || null,
+        value: (item.unit_price || item.unitPrice || null) as string | number | null,
         isValid: true,
         isDirty: false,
       },
       lineTotal: {
-        value: item.line_total || item.lineTotal || null,
+        value: (item.line_total || item.lineTotal || null) as string | number | null,
         isValid: true,
         isDirty: false,
       },
@@ -344,22 +345,22 @@ export function dataToCorrections(
     const totals = (data.totals || data.financial_summary || {}) as Record<string, unknown>;
     corrections.totals = {
       subtotal: {
-        value: totals.subtotal || data.subtotal || null,
+        value: (totals.subtotal || data.subtotal || null) as string | number | null,
         isValid: true,
         isDirty: false,
       },
       tax: {
-        value: totals.tax || data.tax || null,
+        value: (totals.tax || data.tax || null) as string | number | null,
         isValid: true,
         isDirty: false,
       },
       discount: {
-        value: totals.discount || data.discount || null,
+        value: (totals.discount || data.discount || null) as string | number | null,
         isValid: true,
         isDirty: false,
       },
       total: {
-        value: data.total || totals.total || null,
+        value: (data.total || totals.total || null) as string | number | null,
         isValid: true,
         isDirty: false,
       },

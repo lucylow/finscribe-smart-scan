@@ -66,7 +66,8 @@ async function verifyStripeSignature(
 // Process Stripe webhook events
 async function processWebhookEvent(
   event: StripeWebhookEvent,
-  supabaseClient: ReturnType<typeof createClient>
+  // deno-lint-ignore no-explicit-any
+  supabaseClient: any
 ) {
   const { type, data } = event;
   const object = data.object;

@@ -51,7 +51,8 @@ async function uploadToStorage(
   file: File,
   userId: string,
   filename: string,
-  supabaseClient: ReturnType<typeof createClient>
+  // deno-lint-ignore no-explicit-any
+  supabaseClient: any
 ): Promise<string> {
   const fileExt = filename.split(".").pop();
   const filePath = `${userId}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
@@ -82,7 +83,8 @@ async function recordDocument(
   fileSize: number,
   mimeType: string,
   metadata: Record<string, unknown> | undefined,
-  supabaseClient: ReturnType<typeof createClient>
+  // deno-lint-ignore no-explicit-any
+  supabaseClient: any
 ): Promise<string> {
   // If you have a documents table, insert here
   // For now, we'll just return the file path
