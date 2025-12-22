@@ -54,9 +54,13 @@ dateparser>=2.8.0  # Date normalization
 # Optional: apache-airflow>=2.7.0  # For Airflow orchestration
 # OCR backend dependencies (optional - install based on OCR_BACKEND choice)
 # For paddle_local backend:
-# paddleocr==2.6.1.0
-# paddlepaddle==2.5.0  # CPU version, or paddlepaddle-gpu for GPU
+# Note: paddlepaddle wheel depends on CPU/GPU. Install separately:
+# CPU: pip install paddlepaddle==2.5.0 -f https://www.paddlepaddle.org.cn/whl/linux/mkl/avx/stable.html
+# GPU: pip install paddlepaddle-gpu==2.5.0
+paddleocr==2.6.1.0
 # For paddle_hf backend: requests is already included above
+# MinIO client for direct MinIO access (optional, boto3 also works)
+minio>=7.2.0
 # Optional: for quantization
 # optimum[onnxruntime]>=1.14.0
 # Optional: for TEDS evaluation

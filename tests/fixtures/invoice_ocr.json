@@ -1,0 +1,92 @@
+{
+  "job_id": "test-job-001",
+  "source_key": "test/invoice_sample.png",
+  "regions": [
+    {
+      "text": "ACME CORPORATION",
+      "bbox": [10, 10, 200, 20],
+      "confidence": 0.98
+    },
+    {
+      "text": "Invoice #INV-1234",
+      "bbox": [300, 15, 180, 18],
+      "confidence": 0.97
+    },
+    {
+      "text": "Date: 2024-01-15",
+      "bbox": [300, 40, 150, 18],
+      "confidence": 0.96
+    },
+    {
+      "text": "Description",
+      "bbox": [10, 100, 100, 20],
+      "confidence": 0.99
+    },
+    {
+      "text": "Quantity",
+      "bbox": [150, 100, 80, 20],
+      "confidence": 0.99
+    },
+    {
+      "text": "Price",
+      "bbox": [250, 100, 80, 20],
+      "confidence": 0.99
+    },
+    {
+      "text": "Total",
+      "bbox": [350, 100, 80, 20],
+      "confidence": 0.99
+    },
+    {
+      "text": "Widget A",
+      "bbox": [10, 130, 120, 18],
+      "confidence": 0.95
+    },
+    {
+      "text": "5",
+      "bbox": [150, 130, 30, 18],
+      "confidence": 0.98
+    },
+    {
+      "text": "$10.00",
+      "bbox": [250, 130, 60, 18],
+      "confidence": 0.97
+    },
+    {
+      "text": "$50.00",
+      "bbox": [350, 130, 60, 18],
+      "confidence": 0.97
+    },
+    {
+      "text": "Subtotal",
+      "bbox": [300, 200, 80, 20],
+      "confidence": 0.99
+    },
+    {
+      "text": "$50.00",
+      "bbox": [400, 200, 60, 20],
+      "confidence": 0.98
+    },
+    {
+      "text": "Tax",
+      "bbox": [300, 230, 80, 20],
+      "confidence": 0.99
+    },
+    {
+      "text": "$5.00",
+      "bbox": [400, 230, 60, 20],
+      "confidence": 0.98
+    },
+    {
+      "text": "Total $108.00",
+      "bbox": [300, 260, 150, 25],
+      "confidence": 0.96
+    },
+    {
+      "text": "USD",
+      "bbox": [460, 260, 40, 20],
+      "confidence": 0.99
+    }
+  ]
+}
+

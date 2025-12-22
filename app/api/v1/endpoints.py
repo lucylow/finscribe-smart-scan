@@ -19,13 +19,19 @@ import os
 import json
 import hashlib
 import logging
-from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks, Query
+from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks, Query, Depends
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
 import uuid
 
+from ...db import get_db
+from ...core.job_service import JobService
+from ...metrics.metrics import get_metrics_collector
+from sqlalchemy.orm import Session
+
 logger = logging.getLogger(__name__)
 router = APIRouter()
+metrics = get_metrics_collector()
 
 # --- Pydantic Models for API Contract ---
 
@@ -69,8 +75,8 @@ class ResultResponse(BaseModel):
     markdown_output: Optional[str] = None  # Human-readable Markdown format
     output_formats: Optional[List[str]] = None  # Available output formats
 
-# --- In-memory job store (would be Redis/DB in production) ---
-from ...core.worker import JOB_STATUS, process_job, process_compare_documents_job
+# --- Background workers ---
+from ...core.worker import process_job, process_compare_documents_job
 
 # --- Configuration ---
 MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "50"))
@@ -92,7 +98,8 @@ async def get_health_status():
 @router.post("/analyze", response_model=JobResponse)
 async def analyze_document(
     background_tasks: BackgroundTasks,
-    file: UploadFile = File(...)
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
 ):
     """
     Analyzes an uploaded document using the AI pipeline (OCR + Semantic Parsing).
@@ -149,43 +156,45 @@ async def analyze_document(
                 detail=f"File too large: {file_size_mb:.1f}MB. Maximum: {MAX_UPLOAD_MB}MB"
             )
         
-        # Generate job ID and compute checksum
+        # Compute checksum
         try:
-            job_id = str(uuid.uuid4())
             checksum = hashlib.sha256(contents).hexdigest()
         except Exception as e:
-            logger.error(f"Error generating job ID or checksum: {str(e)}")
+            logger.error(f"Error computing checksum: {str(e)}")
             raise HTTPException(
                 status_code=500,
-                detail="Failed to initialize job. Please try again."
+                detail="Failed to process file. Please try again."
             )
         
-        # Initialize job status
+        # Create job in database
+        job_service = JobService(db)
         try:
-            JOB_STATUS[job_id] = {
-                "status": "queued",
-                "progress": 0,
-                "stage": "received",
-                "result": None,
-                "error": None,
-                "checksum": checksum,
-                "filename": file.filename,
-                "file_size": file_size
-            }
+            job = job_service.create_job(
+                filename=file.filename,
+                file_content=contents,
+                file_size=file_size,
+                checksum=checksum,
+                source_type="upload"
+            )
+            job_id = job.id
         except Exception as e:
-            logger.error(f"Error initializing job status: {str(e)}")
+            logger.error(f"Error creating job: {str(e)}", exc_info=True)
             raise HTTPException(
                 status_code=500,
-                detail="Failed to initialize job status. Please try again."
+                detail="Failed to create job. Please try again."
             )
+        
+        # Record metrics
+        metrics.record_job_submitted("analyze")
         
         # Queue background processing
         try:
             background_tasks.add_task(process_job, job_id, contents, file.filename, "analyze")
         except Exception as e:
             logger.error(f"Error queueing background task: {str(e)}")
-            # Clean up job status
-            JOB_STATUS.pop(job_id, None)
+            # Mark job as failed
+            job_service.update_job_status(job_id, status="failed", error=str(e))
+            metrics.record_job_failed("analyze", "queue_error")
             raise HTTPException(
                 status_code=500,
                 detail="Failed to queue processing task. Please try again."
@@ -459,7 +468,7 @@ async def compare_models(
         )
 
 @router.get("/jobs/{job_id}", response_model=JobStatus)
-async def get_job_status_endpoint(job_id: str):
+async def get_job_status_endpoint(job_id: str, db: Session = Depends(get_db)):
     """Retrieves the current status and result of a background job."""
     try:
         # Validate job_id format (basic UUID validation)
@@ -471,21 +480,34 @@ async def get_job_status_endpoint(job_id: str):
                 detail=f"Invalid job ID format: {job_id}"
             )
         
-        if job_id not in JOB_STATUS:
+        # Get job from database
+        job_service = JobService(db)
+        job = job_service.get_job(job_id)
+        
+        if not job:
             raise HTTPException(
                 status_code=404,
                 detail=f"Job with ID {job_id} not found. It may have expired or never existed."
             )
         
-        job_data = JOB_STATUS[job_id]
+        # Get result if job is completed
+        result = None
+        if job.status == "completed":
+            result_obj = job_service.get_result_by_job_id(job_id)
+            if result_obj:
+                result = {
+                    "result_id": result_obj.id,
+                    "data": result_obj.data,
+                    "validation": result_obj.validation or {}
+                }
         
         return JobStatus(
-            job_id=job_id,
-            status=job_data.get("status", "unknown"),
-            progress=job_data.get("progress", 0),
-            stage=job_data.get("stage"),
-            result=job_data.get("result"),
-            error=job_data.get("error")
+            job_id=job.id,
+            status=job.status,
+            progress=int(job.progress or "0"),
+            stage=job.stage,
+            result=result,
+            error=job.error
         )
     except HTTPException:
         raise
@@ -497,7 +519,7 @@ async def get_job_status_endpoint(job_id: str):
         )
 
 @router.get("/results/{result_id}", response_model=ResultResponse)
-async def get_result(result_id: str):
+async def get_result(result_id: str, db: Session = Depends(get_db)):
     """Retrieves the final result of a completed job."""
     try:
         # Validate result_id format (basic UUID validation)
@@ -509,28 +531,40 @@ async def get_result(result_id: str):
                 detail=f"Invalid result ID format: {result_id}"
             )
         
-        # In production, this would fetch from database
-        # For now, we check if any job has this result_id
-        for job_id, job_data in JOB_STATUS.items():
-            try:
-                result = job_data.get("result")
-                if result and result.get("document_id") == result_id:
-                    return ResultResponse(
-                        result_id=result_id,
-                        job_id=job_id,
-                        data=result.get("data", {}),
-                        validation=result.get("validation", {"is_valid": True}),
-                        metadata=result.get("metadata", {}),
-                        markdown_output=result.get("markdown_output"),
-                        output_formats=result.get("metadata", {}).get("output_formats", ["json"])
-                    )
-            except Exception as e:
-                logger.warning(f"Error processing job {job_id} for result {result_id}: {str(e)}")
-                continue
+        # Get result from database
+        job_service = JobService(db)
+        result_obj = job_service.get_result(result_id)
         
-        raise HTTPException(
-            status_code=404,
-            detail=f"Result with ID {result_id} not found. It may have expired or the job may not be completed."
+        if not result_obj:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Result with ID {result_id} not found. It may have expired or the job may not be completed."
+            )
+        
+        # Build metadata from result
+        metadata = {
+            "schema_version": result_obj.schema_version,
+            "models_used": result_obj.models_used or [],
+            "created_at": result_obj.created_at.isoformat() if result_obj.created_at else None
+        }
+        
+        # Extract markdown_output if available in data
+        markdown_output = None
+        output_formats = ["json"]
+        if isinstance(result_obj.data, dict):
+            markdown_output = result_obj.data.get("markdown_output")
+            if markdown_output:
+                output_formats.append("markdown")
+            metadata.update(result_obj.data.get("metadata", {}))
+        
+        return ResultResponse(
+            result_id=result_obj.id,
+            job_id=result_obj.job_id,
+            data=result_obj.data,
+            validation=result_obj.validation or {"is_valid": True},
+            metadata=metadata,
+            markdown_output=markdown_output,
+            output_formats=output_formats
         )
     except HTTPException:
         raise

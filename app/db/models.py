@@ -23,12 +23,15 @@ class Job(Base):
     
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     status = Column(String, nullable=False, default=JobStatus.QUEUED.value)  # Store as string for SQLite compatibility
+    progress = Column(String, default="0")  # Progress percentage (0-100)
+    stage = Column(String, nullable=True)  # Current stage (received, staging, ocr, parse, etc.)
     source_type = Column(String, nullable=True)  # upload, api, batch
     filename = Column(String, nullable=True)
-    file_size = Column(JSON, nullable=True)  # Store as bytes
+    file_size = Column(String, nullable=True)  # Store as integer string for SQLite compatibility
     checksum = Column(String, nullable=True)  # SHA256 hash
     job_metadata = Column(JSON, nullable=True)  # Additional job metadata (renamed from 'metadata' to avoid SQLAlchemy reserved name)
     error = Column(Text, nullable=True)  # Error message if failed
+    attempts = Column(String, default="0")  # Number of retry attempts
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     

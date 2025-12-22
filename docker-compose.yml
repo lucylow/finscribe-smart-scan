@@ -147,6 +147,38 @@ services:
       timeout: 5s
       retries: 5
 
+  # Celery Worker (for OCR tasks)
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: finscribe_worker
+    command: celery -A finscribe.celery_app.celery_app worker --loglevel=info -Q ocr --hostname=worker@%h
+    volumes:
+      - ./:/app
+      - ./data:/app/data
+      - ./storage:/app/storage
+    environment:
+      - DATABASE_URL=postgresql://finscribe:finscribe_pass@postgres:5432/finscribe
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - STORAGE_BUCKET=finscribe
+      - STORAGE_BASE=./storage
+      - OCR_MODE=${OCR_MODE:-mock}
+      - OCR_USE_GPU=${OCR_USE_GPU:-0}
+      - MODEL_MODE=${MODEL_MODE:-mock}
+      - DATA_DIR=/app/data
+    depends_on:
+      - postgres
+      - redis
+      - minio
+    networks:
+      - finscribe-network
+
   # MinIO (S3-compatible storage)
   minio:
     image: minio/minio:latest

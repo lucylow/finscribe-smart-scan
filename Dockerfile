@@ -1,11 +1,18 @@
 # Use a lightweight Python image
 FROM python:3.11-slim
 
-# Install system dependencies for pdf2image and python-magic
+# Install system dependencies for pdf2image, python-magic, and PaddleOCR
 RUN apt-get update && apt-get install -y \
     poppler-utils \
     libmagic1 \
     curl \
+    libglib2.0-0 \
+    libsm6 \
+    libxrender1 \
+    libxext6 \
+    libpng-dev \
+    pkg-config \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
 # Set environment variables

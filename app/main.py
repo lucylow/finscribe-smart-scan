@@ -82,6 +82,12 @@ try:
 except ImportError:
     ACTIVE_LEARNING_AVAILABLE = False
     logger.warning("Active learning endpoint not available")
+try:
+    from .api.v1.ocr_endpoints import router as ocr_router
+    OCR_ENDPOINTS_AVAILABLE = True
+except ImportError:
+    OCR_ENDPOINTS_AVAILABLE = False
+    logger.warning("OCR endpoints not available")
 
 app = FastAPI(
     title="FinScribe AI Backend",
@@ -181,6 +187,8 @@ if PROCESS_INVOICE_AVAILABLE:
     app.include_router(process_invoice_router, prefix="/api/v1", tags=["invoice"])
 if ACTIVE_LEARNING_AVAILABLE:
     app.include_router(active_learning_router, prefix="/api/v1", tags=["training"])
+if OCR_ENDPOINTS_AVAILABLE:
+    app.include_router(ocr_router, prefix="/api/v1", tags=["ocr"])
 
 @app.get("/")
 def read_root():
