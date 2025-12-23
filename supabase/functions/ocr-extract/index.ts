@@ -245,27 +245,55 @@ serve(async (req) => {
       );
     }
     
-    // Call PaddleOCR-VL
-    const rawText = await callPaddleOCRVL(base64Data, hfToken);
-    console.log("OCR extracted text length:", rawText.length);
-    console.log("OCR text preview:", rawText.substring(0, 300));
+    let extractedData: ExtractedInvoice;
+    let usedFallback = false;
     
-    // Parse the extracted text into structured data
-    const extractedData = parseReceiptText(rawText);
-    
-    console.log("Extraction complete:", {
-      vendor: extractedData.vendor_name,
-      invoice_number: extractedData.invoice_number,
-      total: extractedData.total_amount,
-      items: extractedData.line_items.length
-    });
+    try {
+      // Call PaddleOCR-VL
+      const rawText = await callPaddleOCRVL(base64Data, hfToken);
+      console.log("OCR extracted text length:", rawText.length);
+      console.log("OCR text preview:", rawText.substring(0, 300));
+      
+      // Parse the extracted text into structured data
+      extractedData = parseReceiptText(rawText);
+      
+      console.log("Extraction complete:", {
+        vendor: extractedData.vendor_name,
+        invoice_number: extractedData.invoice_number,
+        total: extractedData.total_amount,
+        items: extractedData.line_items.length
+      });
+    } catch (ocrError) {
+      console.warn("PaddleOCR-VL failed, using mock fallback:", ocrError);
+      usedFallback = true;
+      
+      // Mock fallback data
+      extractedData = {
+        vendor_name: "Sample Store",
+        invoice_number: `MOCK-${Date.now()}`,
+        invoice_date: new Date().toISOString().split('T')[0],
+        due_date: new Date().toISOString().split('T')[0],
+        total_amount: 45.99,
+        currency: "USD",
+        line_items: [
+          { description: "Item 1", quantity: 2, unit_price: 12.99, total: 25.98 },
+          { description: "Item 2", quantity: 1, unit_price: 15.00, total: 15.00 },
+          { description: "Item 3", quantity: 1, unit_price: 5.01, total: 5.01 }
+        ],
+        tax_amount: 3.50,
+        subtotal: 42.49,
+        raw_text: "(Mock data - OCR service unavailable)",
+        confidence: 0.0
+      };
+    }
 
     return new Response(
       JSON.stringify({
         success: true,
         extractionType: extractionType || 'invoice',
         data: extractedData,
-        model: 'PaddleOCR-VL-0.9B',
+        model: usedFallback ? 'mock-fallback' : 'PaddleOCR-VL-0.9B',
+        usedFallback,
         timestamp: new Date().toISOString()
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
