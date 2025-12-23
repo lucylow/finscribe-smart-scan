@@ -31,87 +31,75 @@ interface ExtractedInvoice {
 }
 
 // Demo templates for variety
-const demoInvoices = [
-  {
-    vendor: "TechFlow Solutions Inc.",
-    address: "1234 Innovation Drive, Suite 500, San Francisco, CA 94105",
-    items: [
-      { description: "Professional Services - Q4 2024", quantity: 40, unit_price: 150.00 },
-      { description: "Software License (Annual)", quantity: 1, unit_price: 2400.00 },
-      { description: "Cloud Infrastructure", quantity: 1, unit_price: 850.00 },
-    ]
-  },
-  {
-    vendor: "CloudSoft Technologies",
-    address: "5678 Tech Boulevard, Austin, TX 78701",
-    items: [
-      { description: "SaaS Platform Subscription", quantity: 12, unit_price: 299.00 },
-      { description: "API Integration Services", quantity: 1, unit_price: 1500.00 },
-      { description: "Premium Support Plan", quantity: 1, unit_price: 500.00 },
-    ]
-  },
-  {
-    vendor: "Digital Dynamics LLC",
-    address: "900 Startup Way, Seattle, WA 98101",
-    items: [
-      { description: "Web Development Services", quantity: 80, unit_price: 125.00 },
-      { description: "UI/UX Design Package", quantity: 1, unit_price: 3500.00 },
-      { description: "Hosting & Maintenance", quantity: 6, unit_price: 150.00 },
-    ]
-  }
-];
-
-function generateDemoExtraction(): ExtractedInvoice {
-  const template = demoInvoices[Math.floor(Math.random() * demoInvoices.length)];
-  const invoiceNum = `INV-${Math.floor(10000 + Math.random() * 90000)}`;
+// Walmart Receipt Mock Data - for hackathon demo
+function generateWalmartReceiptExtraction(): ExtractedInvoice {
   const today = new Date();
-  const dueDate = new Date(today);
-  dueDate.setDate(dueDate.getDate() + 30);
+  const receiptTime = "04:32 PM";
   
-  const lineItems = template.items.map(item => ({
-    description: item.description,
-    quantity: item.quantity,
-    unit_price: item.unit_price,
-    total: item.quantity * item.unit_price,
-  }));
+  const lineItems = [
+    { description: "GV 2% MILK GAL", quantity: 1, unit_price: 3.48, total: 3.48 },
+    { description: "BANANAS LB", quantity: 1, unit_price: 1.67, total: 1.67 },
+    { description: "GV WHITE BREAD", quantity: 1, unit_price: 1.28, total: 1.28 },
+    { description: "EGGS LARGE 12CT", quantity: 1, unit_price: 2.97, total: 2.97 },
+    { description: "CHICKEN BREAST", quantity: 2.34, unit_price: 3.47, total: 8.12 },
+    { description: "ROMA TOMATOES", quantity: 1, unit_price: 1.24, total: 1.24 },
+    { description: "YELLOW ONION 3LB", quantity: 1, unit_price: 2.98, total: 2.98 },
+    { description: "GV BUTTER SALTED", quantity: 1, unit_price: 3.64, total: 3.64 },
+  ];
   
   const subtotal = lineItems.reduce((sum, item) => sum + item.total, 0);
   const taxAmount = Math.round(subtotal * 0.0825 * 100) / 100;
-  const total = subtotal + taxAmount;
+  const total = Math.round((subtotal + taxAmount) * 100) / 100;
 
-  const rawText = `INVOICE
-${invoiceNum}
-Date: ${today.toISOString().split('T')[0]}
-Due: ${dueDate.toISOString().split('T')[0]}
+  const rawText = `WALMART SUPERCENTER
+Store #4528
+2501 SE SIMPLE SAVINGS BLVD
+BENTONVILLE, AR 72712
+(479) 273-4567
 
-From: ${template.vendor}
-${template.address}
+ST# 4528  OP# 004832  TE# 12  TR# 8847
 
-To: Acme Corporation
-789 Business Park
-Los Angeles, CA 90210
+GV 2% MILK GAL           3.48
+BANANAS LB               1.67
+GV WHITE BREAD           1.28
+EGGS LARGE 12CT          2.97
+CHICKEN BREAST  2.34 lb @ 3.47/lb    8.12
+ROMA TOMATOES            1.24
+YELLOW ONION 3LB         2.98
+GV BUTTER SALTED         3.64
 
-Items:
-${lineItems.map(item => `- ${item.description}: $${item.total.toFixed(2)}`).join('\n')}
+        SUBTOTAL        ${subtotal.toFixed(2)}
+        TAX 8.25%        ${taxAmount.toFixed(2)}
+        TOTAL           ${total.toFixed(2)}
 
-Subtotal: $${subtotal.toFixed(2)}
-Tax (8.25%): $${taxAmount.toFixed(2)}
-Total: $${total.toFixed(2)}
+VISA DEBIT TEND          ${total.toFixed(2)}
+        CHANGE DUE        0.00
 
-Payment Terms: Net 30`;
+CARD # ************4892
+APPROVAL # 847291
+
+${today.toLocaleDateString('en-US')}  ${receiptTime}
+
+# ITEMS SOLD 8
+
+         THANK YOU FOR SHOPPING
+            AT WALMART
+       SAVE MONEY. LIVE BETTER.
+
+        TC# 7291 8847 3829 4721`;
 
   return {
-    vendor_name: template.vendor,
-    invoice_number: invoiceNum,
+    vendor_name: "Walmart Supercenter #4528",
+    invoice_number: "TR# 8847",
     invoice_date: today.toISOString().split('T')[0],
-    due_date: dueDate.toISOString().split('T')[0],
+    due_date: today.toISOString().split('T')[0],
     total_amount: total,
     currency: "USD",
     line_items: lineItems,
     tax_amount: taxAmount,
     subtotal: subtotal,
     raw_text: rawText,
-    confidence: 0.92 + Math.random() * 0.07,
+    confidence: 0.96,
   };
 }
 
@@ -128,16 +116,16 @@ serve(async (req) => {
     
     console.log(`Processing file: ${filename}`);
     
-    // Simulate processing time for realism
-    await new Promise(resolve => setTimeout(resolve, 800 + Math.random() * 700));
+    // Simulate OCR processing time
+    await new Promise(resolve => setTimeout(resolve, 600 + Math.random() * 400));
     
-    const extractedData = generateDemoExtraction();
+    const extractedData = generateWalmartReceiptExtraction();
     
-    console.log("Demo extraction complete:", {
+    console.log("Walmart receipt OCR complete:", {
       invoice_number: extractedData.invoice_number,
       vendor: extractedData.vendor_name,
       total: extractedData.total_amount,
-      confidence: extractedData.confidence.toFixed(2)
+      items: extractedData.line_items.length
     });
 
     return new Response(
