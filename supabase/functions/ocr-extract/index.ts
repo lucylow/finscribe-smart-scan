@@ -37,8 +37,8 @@ interface ExtractedInvoice {
 async function callPaddleOCRVL(imageBase64: string, hfToken: string): Promise<string> {
   console.log("Calling PaddleOCR-VL model via Hugging Face...");
   
-  // PaddleOCR-VL model endpoint
-  const modelEndpoint = "https://api-inference.huggingface.co/models/PaddlePaddle/PaddleOCR-VL-0.9B";
+  // PaddleOCR-VL model endpoint - using new router.huggingface.co URL
+  const modelEndpoint = "https://router.huggingface.co/hf-inference/models/PaddlePaddle/PaddleOCR-VL-0.9B";
   
   const response = await fetch(modelEndpoint, {
     method: "POST",
