@@ -24,8 +24,8 @@ BACKEND_URL = st.secrets.get("BACKEND_URL", "http://backend:8000")  # docker com
 if "BACKEND_URL" not in st.secrets:
     BACKEND_URL = st.sidebar.text_input("Backend URL", value="http://localhost:8000", key="backend_url_override")
 
-PROCESS_ENDPOINT = f"{BACKEND_URL}/process_invoice"
-ACTIVE_LEARNING_ENDPOINT = f"{BACKEND_URL}/active_learning"
+PROCESS_ENDPOINT = f"{BACKEND_URL}/api/process_invoice"
+ACTIVE_LEARNING_ENDPOINT = f"{BACKEND_URL}/api/active_learning"
 
 st.set_page_config(
     page_title="FinScribe Demo",
@@ -93,8 +93,9 @@ except Exception as e:
 
 # Extract content
 structured = o.get("structured_invoice", {})
-ocr_raw = o.get("ocr_raw", o.get("raw_text", ""))
-ocr_words = o.get("ocr_words", o.get("words", []))  # fallback
+paddle_data = o.get("paddle", {})
+ocr_raw = paddle_data.get("raw_text", o.get("raw_text", ""))
+ocr_words = paddle_data.get("words", o.get("words", []))  # fallback
 
 # Normalize structured for UI
 editable = editable_from_structured(structured)

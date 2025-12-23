@@ -1,61 +1,40 @@
 # backend/parsers/simple_parser.py
-"""Simple parser adapter that wraps existing parsing logic"""
+import re
+from decimal import Decimal
 from typing import Dict, Any
-import logging
 
-LOG = logging.getLogger("simple_parser")
+_money_re = re.compile(r"([\$]?)([0-9]+(?:[.,][0-9]{1,2})?)")
 
-def parse_basic(ocr_result: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Parse OCR result into structured invoice dict.
-    
-    This is a simple adapter that tries to use existing parsers.
-    If the OCR looks like Walmart receipt, use walmart_parser.
-    Otherwise, use the invoice_pipeline parser.
-    """
-    raw_text = ocr_result.get("raw_text", "")
-    words = ocr_result.get("words", [])
-    
-    # Check if it's a Walmart receipt
-    if "WALMART" in raw_text.upper() or "WAL-MART" in raw_text.upper():
-        try:
-            from backend.parsers.walmart_parser import parse_walmart_from_ocr
-            return parse_walmart_from_ocr(ocr_result)
-        except Exception as e:
-            LOG.warning(f"Walmart parser failed: {e}, falling back to generic")
-    
-    # Use generic invoice pipeline parser
+def _parse_money(s):
+    if not s: return None
+    m = _money_re.search(s)
+    if not m: return None
+    token = m.group(2).replace(",", "")
     try:
-        from backend.pipeline.invoice_pipeline import parse_regions
-        from uuid import uuid4
-        structured = parse_regions(ocr_result, uuid4().hex)
-        # Convert StructuredInvoice model to dict if needed
-        if hasattr(structured, 'dict'):
-            return structured.dict()
-        elif hasattr(structured, 'model_dump'):
-            return structured.model_dump()
-        return structured
-    except Exception as e:
-        LOG.warning(f"Invoice pipeline parser failed: {e}, using minimal parser")
-        return _minimal_parse(ocr_result)
+        return float(token)
+    except Exception:
+        return None
 
-def _minimal_parse(ocr_result: Dict[str, Any]) -> Dict[str, Any]:
-    """Minimal fallback parser"""
-    raw_text = ocr_result.get("raw_text", "")
-    words = ocr_result.get("words", [])
-    
-    return {
-        "vendor": {"name": "Unknown Vendor"},
-        "invoice_date": None,
-        "invoice_number": None,
-        "line_items": [],
-        "financial_summary": {
-            "subtotal": None,
-            "tax": None,
-            "total": None,
-            "currency": "USD"
-        },
-        "raw_text": raw_text,
-        "raw_words": words
-    }
+def parse_basic(ocr_json: Dict[str,Any]) -> Dict[str,Any]:
+    raw = ocr_json.get("raw_text","")
+    lines = [l.strip() for l in raw.splitlines() if l.strip()]
+    vendor = lines[0] if lines else "Unknown Vendor"
+    subtotal = tax = total = None
+    for ln in reversed(lines[-30:]):
+        low = ln.lower()
+        if "subtotal" in low and subtotal is None:
+            subtotal = _parse_money(ln)
+        if "tax" in low and tax is None:
+            tax = _parse_money(ln)
+        if ("total" in low or "amount due" in low) and total is None:
+            total = _parse_money(ln)
+    items = []
+    # crude detection: lines with price at end
+    for ln in lines:
+        m = re.search(r"^(.*?)[\s]{2,}[\$]?([0-9]+(?:[.,][0-9]{1,2})?)$", ln)
+        if m:
+            desc = m.group(1).strip()
+            price = _parse_money(m.group(2))
+            items.append({"description": desc, "quantity": 1, "unit_price": price, "line_total": price})
+    return {"vendor": {"name": vendor}, "line_items": items, "financial_summary": {"subtotal": subtotal, "tax": tax, "grand_total": total}, "raw_text": raw}
 

@@ -101,7 +101,11 @@ demo-logs:
 
 test:
 	@echo "Running tests..."
-	pytest tests/ -v
+	pytest -q
+
+demo-pipeline:
+	@echo "Running demo OCR pipeline..."
+	python scripts/demo_ocr_pipeline.py
 
 lint:
 	@echo "Running linter..."

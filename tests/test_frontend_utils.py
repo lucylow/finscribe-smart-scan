@@ -2,7 +2,7 @@
 Unit tests for frontend utility functions.
 """
 import pytest
-from frontend.utils import editable_from_structured, json_to_csv, draw_bboxes_on_image
+from frontend.utils import editable_from_structured, json_to_csv, draw_bboxes_on_image, struct_to_csv, pretty_json
 from PIL import Image
 
 
@@ -133,4 +133,17 @@ def test_draw_bboxes_out_of_bounds():
     ]
     out = draw_bboxes_on_image(img, words)
     assert out.size == img.size
+
+def test_struct_to_csv_empty():
+    csv = struct_to_csv({})
+    assert "description" in csv
+
+def test_pretty_json():
+    s = pretty_json({"a":1})
+    assert '"a": 1' in s
+
+def test_draw_bboxes():
+    img = Image.new("RGB", (200,200), color=(255,255,255))
+    out = draw_bboxes_on_image(img, [{"text":"foo","bbox":[10,10,80,30],"conf":0.9}])
+    assert out.size == (200,200)
 
