@@ -81,119 +81,108 @@ Manual invoice processing is:
 
 ---
 
-## ⚡ Quick Start (Judges)
+## ⚡ Quick Start (Judges) - Demo Environment
 
-### 1. Clone
-```bash
-git clone https://github.com/lucylow/finscribe-smart-scan.git
-cd finscribe-smart-scan
-```
-
-### 2. Install Dependencies
-
-For local PaddleOCR (recommended):
-```bash
-# Install PaddlePaddle CPU version (for development)
-pip install paddlepaddle==2.5.0 -f https://www.paddlepaddle.org.cn/whl/linux/mkl/avx/stable.html
-
-# Install other dependencies
-pip install -r requirements.txt
-```
-
-### 3. Set Environment Variables
-
-Create a `.env` file:
-```bash
-# OCR Configuration
-OCR_MODE=paddle          # Use local PaddleOCR (or "mock" for testing)
-OCR_LANG=en              # Language code
-OCR_USE_GPU=0            # Set to 1 for GPU acceleration
-
-# Storage
-STORAGE_BASE=./data/storage    # Local storage path
-
-# Database
-DATABASE_URL=sqlite:///./finscribe.db  # SQLite for local dev
-
-# Celery
-CELERY_BROKER_URL=redis://localhost:6379/0
-CELERY_RESULT_BACKEND=redis://localhost:6379/1
-```
-
-### 4. Run Everything with Docker Compose
+### One-Command Demo
 
 ```bash
-docker-compose up --build
+make dev
 ```
 
-This starts:
-- **FastAPI Backend** (port 8000)
-- **PostgreSQL Database** (port 5432)
-- **Redis** (port 6379)
-- **Celery Worker** (for OCR processing)
-- **MinIO** (optional, for object storage)
+This starts the complete demo stack:
+- **Backend API** (FastAPI) at http://localhost:8000
+- **Frontend** (Streamlit) at http://localhost:8501
+- **OCR Service** (Mock) at http://localhost:8001
 
-### 5. Test the OCR Pipeline
+### Demo Checklist for Judges
 
-#### Upload a Document via API:
-```bash
-# Upload an invoice
-curl -F "file=@examples/sample_invoice_1.png" http://localhost:8000/v1/analyze
+1. **Start the demo:**
+   ```bash
+   make dev
+   ```
 
-# Response:
-# {
-#   "job_id": "job-abc123",
-#   "status": "pending",
-#   "message": "Job received and queued for processing",
-#   "poll_url": "/v1/jobs/job-abc123"
-# }
-```
+2. **Access the UI:**
+   - Open http://localhost:8501 in your browser
+   - Upload a sample invoice from `examples/sample_invoice_*.png`
 
-#### Check Job Status:
-```bash
-curl http://localhost:8000/v1/jobs/job-abc123
+3. **Test the API:**
+   ```bash
+   curl -X POST "http://localhost:8000/process_invoice" \
+     -F "file=@examples/sample_invoice_1.png"
+   ```
 
-# Response:
-# {
-#   "job_id": "job-abc123",
-#   "status": "completed",
-#   ...
-# }
-```
+4. **Verify response includes:**
+   - `invoice_id`
+   - `structured_invoice` (vendor, line_items, financial_summary)
+   - `validation` (is_valid, errors, field_confidences)
+   - `confidence`
+   - `latency_ms`
+   - `fallback_used`
 
-#### Get Results:
-```bash
-curl http://localhost:8000/v1/results/job-abc123
+5. **Test active learning:**
+   - Edit fields in Streamlit UI
+   - Click "Accept & Send to Training"
+   - Verify entry in `data/active_learning_queue.jsonl`
 
-# Response contains structured JSON with:
-# - invoice_no, invoice_date, vendor
-# - line_items (description, qty, unit_price, line_total)
-# - financial_summary (subtotal, tax, total)
-# - confidence_score
-```
+### Alternative: Manual Setup
 
-### 6. Run Locally (Without Docker)
+#### 1. Install Dependencies
 
 ```bash
-# Terminal 1: Start Redis
-redis-server
-
-# Terminal 2: Start Celery Worker
-celery -A finscribe.celery_app worker --loglevel=info
-
-# Terminal 3: Start FastAPI
-uvicorn finscribe.api.endpoints:app --reload --port 8000
+pip install -r requirements-demo.txt
 ```
 
-### 7. Open the Demo
-- **Frontend**: http://localhost:5173
-- **Backend API**: http://localhost:8000
-- **API Docs**: http://localhost:8000/docs
-- **Health Check**: http://localhost:8000/health
+#### 2. Run Backend
 
-Upload one of the sample invoices in `/examples/`.
+```bash
+uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
+```
 
-⏱️ **Typical end-to-end latency: ~1.5–2.0s**
+#### 3. Run Frontend (separate terminal)
+
+```bash
+streamlit run frontend/app.py --server.port 8501
+```
+
+#### 4. Test with Sample Invoice
+
+```bash
+./scripts/demo_process.sh examples/sample_invoice_1.png
+```
+
+### Environment Variables (Optional)
+
+For production/real services:
+```bash
+export PADDLE_MODE=service          # or 'local' or 'mock' (default)
+export PADDLE_SERVICE_URL=http://ocr-service:8001/predict
+export ERNIE_URL=http://ernie-service:8000/validate  # Optional
+```
+
+### API Example
+
+```bash
+curl -X POST "http://localhost:8000/process_invoice" \
+  -F "file=@examples/sample_invoice_1.png"
+```
+
+**Response:**
+```json
+{
+  "invoice_id": "uuid-here",
+  "structured_invoice": {
+    "vendor": {"name": "TechCorp Inc."},
+    "line_items": [...],
+    "financial_summary": {"subtotal": 175.0, "tax_amount": 17.5, "grand_total": 192.5}
+  },
+  "validation": {"is_valid": true, "errors": []},
+  "confidence": 0.95,
+  "latency_ms": {"total": 250},
+  "fallback_used": false
+}
+```
+
+⏱️ **Typical end-to-end latency: ~200-500ms (mock mode)**
 
 ---
 
