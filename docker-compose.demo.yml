@@ -46,33 +46,12 @@ services:
     image: python:3.10-slim
     container_name: finscribe-ocr-service
     working_dir: /app
+    volumes:
+      - ./ocr_service_mock.py:/app/ocr_service_mock.py
     command: >
       sh -c "
-      pip install fastapi uvicorn requests &&
-      python -c \"
-from fastapi import FastAPI, File, UploadFile
-from fastapi.responses import JSONResponse
-import json
-
-app = FastAPI()
-
-@app.post('/predict')
-async def predict(file: UploadFile = File(...)):
-    # Return mock OCR result
-    return JSONResponse({
-        'raw_text': 'INVOICE\\nInvoice #: INV-2024-001\\nDate: 2024-01-15\\nVendor: TechCorp Inc.\\nSubtotal: $175.00\\nTax: $17.50\\nGrand Total: $192.50',
-        'words': [
-            {'text': 'INVOICE', 'bbox': [100, 50, 300, 80], 'confidence': 0.95},
-            {'text': 'INV-2024-001', 'bbox': [250, 100, 400, 130], 'confidence': 0.98},
-            {'text': 'TechCorp', 'bbox': [100, 200, 250, 230], 'confidence': 0.95},
-            {'text': '$192.50', 'bbox': [770, 700, 870, 730], 'confidence': 0.98}
-        ],
-        'latency_ms': 150
-    })
-
-import uvicorn
-uvicorn.run(app, host='0.0.0.0', port=8001)
-      \"
+      pip install fastapi uvicorn python-multipart &&
+      python ocr_service_mock.py
       "
     ports:
       - "8001:8001"

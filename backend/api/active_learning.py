@@ -2,6 +2,7 @@
 import json
 import os
 from pathlib import Path
+from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from typing import Dict, Any
 import logging
@@ -32,7 +33,7 @@ async def accept_correction(correction: Dict[str, Any]) -> Dict[str, Any]:
             "invoice": correction.get("invoice", {}),
             "corrections": correction.get("corrections", {}),
             "metadata": correction.get("metadata", {}),
-            "timestamp": str(Path(__file__).stat().st_mtime)  # Simple timestamp
+            "timestamp": datetime.utcnow().isoformat()
         }
         
         # Append to JSONL file
