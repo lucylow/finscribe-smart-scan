@@ -1,0 +1,53 @@
+{
+  "invoice_id": "50da883d-3bb5-46f2-8b8f-915b86d847c1",
+  "stage": "parsed",
+  "timestamp": "2025-12-23T00:26:16.028643",
+  "data": {
+    "vendor": {
+      "name": "WALMART SUPERCENTER",
+      "store_number": null
+    },
+    "invoice_date": "2023-11-15",
+    "invoice_time": "04:32 PM",
+    "line_items": [
+      {
+        "description": "Item A",
+        "quantity": 1,
+        "unit_price": "4.99",
+        "line_total": "4.99"
+      },
+      {
+        "description": "Item B",
+        "quantity": 1,
+        "unit_price": "2.50",
+        "line_total": "2.50"
+      },
+      {
+        "description": "Visa ****",
+        "quantity": 1,
+        "unit_price": "1234",
+        "line_total": "1234"
+      }
+    ],
+    "financial_summary": {
+      "subtotal": "7.49",
+      "tax": "0.45",
+      "total": "7.94"
+    },
+    "payment": {
+      "method": "VISA",
+      "last4": "1234"
+    },
+    "raw_lines": [
+      "WALMART SUPERCENTER",
+      "1234 Sample St",
+      "Date 11/15/2023  04:32 PM",
+      "Item A 4.99",
+      "Item B 2.50",
+      "Subtotal 7.49",
+      "Tax 0.45",
+      "Total 7.94",
+      "Visa **** 1234"
+    ]
+  }
+}

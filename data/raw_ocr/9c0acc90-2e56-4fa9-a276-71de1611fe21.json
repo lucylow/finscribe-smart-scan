@@ -1,0 +1,10 @@
+{
+  "invoice_id": "9c0acc90-2e56-4fa9-a276-71de1611fe21",
+  "stage": "raw_ocr",
+  "timestamp": "2025-12-23T00:25:55.048458",
+  "data": {
+    "raw_text": "WALMART SUPERCENTER\n1234 Sample St\nDate 11/15/2023  04:32 PM\nItem A 4.99\nItem B 2.50\nSubtotal 7.49\nTax 0.45\nTotal 7.94\nVisa **** 1234",
+    "words": [],
+    "latency_ms": 18
+  }
+}

@@ -1,314 +1,242 @@
 """
-FinScribe Smart Scan - Streamlit Frontend
-
-A hackathon-grade frontend that demonstrates:
-- Real OCR + AI reasoning
-- Multi-agent verification (CAMEL)
-- Structured invoice understanding (Unsloth/LLaMA)
-- Active learning from corrections
+Streamlit demo for FinScribe Smart Scan
+Features:
+ - Upload invoice image / select demo sample
+ - Call backend /process_invoice
+ - Show OCR raw text and structured JSON
+ - Display overlay with bounding boxes (PIL draw)
+ - Inline edit for extracted fields
+ - Accept & Send to Training (POST /active_learning)
+ - ROI calculator
 """
 import streamlit as st
 import requests
 import json
-from typing import Dict, Any, Optional
+from io import BytesIO
+from PIL import Image
+from pathlib import Path
+from frontend.utils import draw_bboxes_on_image, json_to_csv, normalize_structured, editable_from_structured
+from frontend.components import show_roi_calculator, show_demo_controls, show_progress_status
 
 # Configuration
-API_BASE = "http://localhost:8000"
-PROCESS_ENDPOINT = f"{API_BASE}/process_invoice"
-ACTIVE_LEARNING_ENDPOINT = f"{API_BASE}/active_learning"
+BACKEND_URL = st.secrets.get("BACKEND_URL", "http://backend:8000")  # docker compose service name
+# For local dev, allow override via env or sidebar
+if "BACKEND_URL" not in st.secrets:
+    BACKEND_URL = st.sidebar.text_input("Backend URL", value="http://localhost:8000", key="backend_url_override")
 
-# Page config
+PROCESS_ENDPOINT = f"{BACKEND_URL}/process_invoice"
+ACTIVE_LEARNING_ENDPOINT = f"{BACKEND_URL}/active_learning"
+
 st.set_page_config(
-    page_title="FinScribe Smart Scan",
-    page_icon="📄",
-    layout="wide"
+    page_title="FinScribe Demo",
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# Title
-st.title("📄 FinScribe Smart Scan")
-st.markdown("**AI-Powered Invoice Processing with Multi-Agent Verification**")
+st.title("FinScribe AI — Demo")
+st.markdown("Upload an invoice or choose a demo sample. Edit fields, validate, and send corrections to training.")
 
-# Sidebar
+# Sidebar: Demo mode and sample selector
 with st.sidebar:
-    st.header("⚙️ Configuration")
-    api_base = st.text_input("API Base URL", value=API_BASE)
-    process_endpoint = f"{api_base}/process_invoice"
-    active_learning_endpoint = f"{api_base}/active_learning"
-    
+    demo_mode, sample_choice = show_demo_controls()
     st.markdown("---")
-    st.markdown("### 📊 Pipeline")
-    st.markdown("""
-    1. **OCR** → PaddleOCR-VL
-    2. **Extraction** → Unsloth Fine-Tuned LLaMA
-    3. **Validation** → CAMEL Multi-Agent System
-    4. **Active Learning** → Corrections feed training
-    """)
+    show_roi_calculator()
 
-# Main content
-uploaded_file = st.file_uploader(
-    "Upload Invoice",
-    type=["png", "jpg", "jpeg", "pdf"],
-    help="Upload an invoice image or PDF to process"
+# Main area: two columns
+col_left, col_right = st.columns([1, 1])
+
+# Upload / sample
+uploaded_file = None
+if sample_choice != "Upload your own":
+    sample_path = Path("examples") / sample_choice
+    if sample_path.exists():
+        uploaded_file = sample_path.open("rb").read()
+    else:
+        st.sidebar.warning("Sample not found, upload your own file.")
+else:
+    uf = st.file_uploader("Upload invoice (jpg/png/pdf)", type=['jpg', 'jpeg', 'png', 'pdf'])
+    if uf:
+        uploaded_file = uf.read()
+
+if not uploaded_file:
+    st.info("Upload a file or select a demo sample to begin.")
+    st.stop()
+
+# Send to backend
+show_progress_status("processing", "Sending to OCR backend...")
+try:
+    files = {"file": ("invoice.jpg", uploaded_file)}
+    headers = {}
+    if demo_mode:
+        # propagate demo mode to backend via header (backend should inspect env)
+        headers["X-DEMO-MODE"] = "1"
+    
+    with st.spinner("Processing invoice..."):
+        resp = requests.post(PROCESS_ENDPOINT, files=files, headers=headers, timeout=60)
+        resp.raise_for_status()
+        o = resp.json()
+    
+    show_progress_status("done", "Processing complete!")
+except requests.exceptions.RequestException as e:
+    show_progress_status("error", f"Backend request failed: {e}")
+    st.error(f"Processing failed: {e}")
+    if hasattr(e, 'response') and e.response is not None:
+        try:
+            st.json(e.response.json())
+        except:
+            st.text(e.response.text)
+    st.stop()
+except Exception as e:
+    show_progress_status("error", f"Unexpected error: {e}")
+    st.error(f"Processing failed: {e}")
+    st.stop()
+
+# Extract content
+structured = o.get("structured_invoice", {})
+ocr_raw = o.get("ocr_raw", o.get("raw_text", ""))
+ocr_words = o.get("ocr_words", o.get("words", []))  # fallback
+
+# Normalize structured for UI
+editable = editable_from_structured(structured)
+
+# Image display with overlay
+try:
+    image = Image.open(BytesIO(uploaded_file)).convert("RGB")
+    overlay_img = draw_bboxes_on_image(image.copy(), ocr_words)  # returns PIL.Image
+except Exception as e:
+    st.error(f"Failed to load image: {e}")
+    st.stop()
+
+col_left.header("Document + Overlay")
+col_left.image(overlay_img, use_column_width=True)
+if st.checkbox("Toggle raw image", key="rawimg"):
+    col_left.image(image, caption="Original Image", use_column_width=True)
+
+# OCR raw text (collapsible)
+with col_left.expander("OCR Raw Text", expanded=False):
+    st.code(ocr_raw[:10000] if ocr_raw else "No OCR text available")
+
+# Structured JSON + inline editing
+col_right.header("Structured Output (editable)")
+
+# Show a simple JSON editor for debugging (monospace)
+st_json = json.dumps(editable, indent=2, ensure_ascii=False)
+edited_json = st.text_area(
+    "Edit JSON directly (or use the UI below):",
+    st_json,
+    height=240,
+    key="json_editor"
 )
 
-if uploaded_file:
-    # Process invoice
-    with st.spinner("🔄 Running OCR + AI agents…"):
-        try:
-            files = {"file": (uploaded_file.name, uploaded_file.read(), uploaded_file.type)}
-            response = requests.post(process_endpoint, files=files, timeout=120)
-            response.raise_for_status()
-            result = response.json()
-            
-            # Store in session state
-            st.session_state["result"] = result
-            st.session_state["invoice"] = result.get("structured_invoice", {})
-            
-        except requests.exceptions.RequestException as e:
-            st.error(f"❌ API Error: {str(e)}")
-            st.stop()
-        except Exception as e:
-            st.error(f"❌ Error: {str(e)}")
-            st.stop()
-    
-    # Display results in two columns
-    col1, col2 = st.columns(2)
-    
-    # ========================================================================
-    # LEFT COLUMN: OCR Preview + Validation
-    # ========================================================================
-    with col1:
-        st.subheader("🔍 OCR Preview")
-        # Get OCR text from stored stage if available, or show placeholder
-        ocr_preview = "OCR text would be displayed here. Check data/ocr/ for stored OCR results."
-        st.info("OCR text is stored in pipeline stages. Check data/ocr/ directory.")
-        
-        st.markdown("---")
-        
-        # Validation Results
-        st.subheader("✅ Validation Results")
-        validation = result.get("validation", {})
-        confidence = result.get("confidence", 0.0)
-        
-        # Confidence metric
-        st.metric("Overall Confidence", f"{confidence*100:.1f}%")
-        
-        # Validation status
-        is_valid = validation.get("is_valid", validation.get("ok", False))
-        if is_valid:
-            st.success("✅ Validation passed")
-        else:
-            st.error("❌ Validation failed")
-        
-        # Errors
-        errors = validation.get("errors", [])
-        if errors:
-            st.warning("⚠️ Issues detected")
-            for error in errors:
-                st.write(f"- {error}")
-        
-        # Field confidences
-        field_confidences = validation.get("field_confidences", {})
-        if field_confidences:
-            st.write("**Field Confidences:**")
-            for field, conf in field_confidences.items():
-                st.write(f"- {field}: {conf*100:.1f}%")
-        
-        # Latency metrics
-        st.markdown("---")
-        st.subheader("⏱️ Performance")
-        latency = result.get("latency_ms", {})
-        col_l1, col_l2, col_l3 = st.columns(3)
-        with col_l1:
-            st.metric("Preprocess", f"{latency.get('preprocess', 0)}ms")
-        with col_l2:
-            st.metric("OCR", f"{latency.get('ocr', 0)}ms")
-        with col_l3:
-            st.metric("Parse", f"{latency.get('parse', 0)}ms")
-        
-        if latency.get("validation"):
-            st.metric("Validation", f"{latency.get('validation', 0)}ms")
-        
-        if latency.get("total"):
-            st.metric("Total", f"{latency.get('total', 0)}ms")
-        
-        # Fallback indicator
-        if result.get("fallback_used"):
-            st.warning("⚠️ Fallback mode used (ERNIE unavailable)")
-    
-    # ========================================================================
-    # RIGHT COLUMN: Editable Structured Invoice
-    # ========================================================================
-    with col2:
-        st.subheader("🧾 Structured Invoice")
-        
-        invoice = st.session_state.get("invoice", {})
-        
-        # Vendor section
-        st.markdown("### Vendor")
-        vendor = invoice.get("vendor", {})
-        vendor_name = st.text_input(
-            "Vendor Name",
-            value=vendor.get("name", ""),
-            key="vendor_name"
+# Provide simple form-driven inline edits (vendor fields + line items)
+vendor_name = st.text_input(
+    "Vendor Name",
+    value=editable.get("vendor", {}).get("name", ""),
+    key="vendor_name"
+)
+invoice_date = st.text_input(
+    "Invoice Date",
+    value=editable.get("invoice_date", ""),
+    key="invoice_date"
+)
+
+# Line items editor (allow add/remove)
+st.write("Line items:")
+line_items = editable.get("line_items", []) or []
+new_line_items = []
+
+for i, li in enumerate(line_items):
+    with st.container():
+        cols = st.columns([3, 1, 1, 1, 1])
+        desc = cols[0].text_input(
+            f"Item {i+1} description",
+            value=li.get("description", ""),
+            key=f"desc_{i}"
         )
-        vendor_address = st.text_area(
-            "Address",
-            value=vendor.get("address", ""),
-            key="vendor_address",
-            height=60
+        qty = cols[1].number_input(
+            f"qty_{i}",
+            min_value=1,
+            value=int(li.get("quantity", 1)),
+            key=f"qty_{i}"
         )
-        
-        # Invoice metadata
-        st.markdown("### Invoice Details")
-        col_i1, col_i2 = st.columns(2)
-        with col_i1:
-            invoice_number = st.text_input(
-                "Invoice Number",
-                value=invoice.get("invoice_number", ""),
-                key="invoice_number"
-            )
-        with col_i2:
-            invoice_date = st.text_input(
-                "Invoice Date",
-                value=invoice.get("invoice_date", ""),
-                key="invoice_date"
-            )
-        
-        # Line items
-        st.markdown("### Line Items")
-        line_items = invoice.get("line_items", [])
-        
-        if not line_items:
-            st.info("No line items found")
-        else:
-            for i, item in enumerate(line_items):
-                with st.expander(f"Line Item {i+1}", expanded=(i < 3)):
-                    item["description"] = st.text_input(
-                        "Description",
-                        value=item.get("description", item.get("desc", "")),
-                        key=f"desc_{i}"
-                    )
-                    
-                    col_q1, col_q2, col_q3 = st.columns(3)
-                    with col_q1:
-                        qty_val = float(item.get("quantity", item.get("qty", 1.0)))
-                        item["quantity"] = st.number_input(
-                            "Quantity",
-                            value=qty_val,
-                            key=f"qty_{i}",
-                            min_value=0.0,
-                            step=0.1
-                        )
-                    with col_q2:
-                        unit_price_val = float(item.get("unit_price", 0.0))
-                        item["unit_price"] = st.number_input(
-                            "Unit Price",
-                            value=unit_price_val,
-                            key=f"price_{i}",
-                            min_value=0.0,
-                            step=0.01,
-                            format="%.2f"
-                        )
-                    with col_q3:
-                        line_total = float(item.get("line_total", item["quantity"] * item["unit_price"]))
-                        item["line_total"] = line_total
-                        st.metric(
-                            "Line Total",
-                            f"${line_total:.2f}"
-                        )
-        
-        # Financial summary
-        st.markdown("### Financial Summary")
-        financial = invoice.get("financial_summary", {})
-        
-        col_f1, col_f2 = st.columns(2)
-        with col_f1:
-            subtotal = st.number_input(
-                "Subtotal",
-                value=float(financial.get("subtotal", 0.0)),
-                key="subtotal",
-                min_value=0.0,
-                step=0.01,
-                format="%.2f"
-            )
-            tax_rate = st.number_input(
-                "Tax Rate (%)",
-                value=float(financial.get("tax_rate", 0.0)),
-                key="tax_rate",
-                min_value=0.0,
-                step=0.1,
-                format="%.2f"
-            )
-        with col_f2:
-            tax_amount = st.number_input(
-                "Tax Amount",
-                value=float(financial.get("tax_amount", 0.0)),
-                key="tax_amount",
-                min_value=0.0,
-                step=0.01,
-                format="%.2f"
-            )
-            grand_total = st.number_input(
-                "Grand Total",
-                value=float(financial.get("grand_total", 0.0)),
-                key="grand_total",
-                min_value=0.0,
-                step=0.01,
-                format="%.2f"
-            )
-        
-        # Update invoice in session state
-        invoice["vendor"]["name"] = vendor_name
-        invoice["vendor"]["address"] = vendor_address
-        invoice["invoice_number"] = invoice_number
-        invoice["invoice_date"] = invoice_date
-        invoice["financial_summary"]["subtotal"] = subtotal
-        invoice["financial_summary"]["tax_rate"] = tax_rate
-        invoice["financial_summary"]["tax_amount"] = tax_amount
-        invoice["financial_summary"]["grand_total"] = grand_total
-        
-        # Accept & Send to Training button
-        st.markdown("---")
-        if st.button("✅ Accept & Send to Training", type="primary", use_container_width=True):
+        unit = cols[2].text_input(
+            f"unit_{i}",
+            value=str(li.get("unit_price", "")),
+            key=f"unit_{i}"
+        )
+        line_total = cols[3].text_input(
+            f"line_total_{i}",
+            value=str(li.get("line_total", "")),
+            key=f"lt_{i}"
+        )
+        remove = cols[4].checkbox("Remove", key=f"remove_{i}")
+        if not remove:
+            new_line_items.append({
+                "description": desc,
+                "quantity": qty,
+                "unit_price": unit,
+                "line_total": line_total
+            })
+
+if st.button("Add line item", key="add_item"):
+    new_line_items.append({
+        "description": "New item",
+        "quantity": 1,
+        "unit_price": "0.00",
+        "line_total": "0.00"
+    })
+    st.rerun()
+
+# Update editable structure
+editable["vendor"] = {"name": vendor_name}
+editable["invoice_date"] = invoice_date
+editable["line_items"] = new_line_items
+
+# Show updated JSON preview and export actions
+col_right.subheader("Preview / Export")
+st.code(json.dumps(editable, indent=2, ensure_ascii=False))
+
+# Download buttons
+col_dl1, col_dl2 = st.columns(2)
+with col_dl1:
+    st.download_button(
+        "Download JSON",
+        data=json.dumps(editable, indent=2, ensure_ascii=False),
+        file_name="invoice.json",
+        mime="application/json",
+        key="dl_json"
+    )
+with col_dl2:
+    csv_bytes = json_to_csv(editable).encode("utf-8")
+    st.download_button(
+        "Download CSV",
+        data=csv_bytes,
+        file_name="invoice.csv",
+        mime="text/csv",
+        key="dl_csv"
+    )
+
+# Accept & send to training
+st.markdown("---")
+if st.button("Accept & Send to Training", key="accept_send", type="primary", use_container_width=True):
+    try:
+        with st.spinner("Sending to training queue..."):
+            r = requests.post(ACTIVE_LEARNING_ENDPOINT, json=editable, timeout=15)
+            r.raise_for_status()
+        st.success("✅ Saved to active learning queue!")
+        if r.json():
+            result = r.json()
+            st.info(f"Entry count: {result.get('entry_count', 'N/A')}")
+    except requests.exceptions.RequestException as e:
+        st.error(f"Failed to save to training queue: {e}")
+        if hasattr(e, 'response') and e.response is not None:
             try:
-                # Prepare active learning request
-                al_request = {
-                    "invoice": invoice,
-                    "corrections": {
-                        "vendor_name": vendor_name != vendor.get("name", ""),
-                        "invoice_number": invoice_number != invoice.get("invoice_number", ""),
-                        "line_items_edited": len(line_items) > 0
-                    },
-                    "metadata": {
-                        "ocr_text": "See data/ocr/ for OCR results",
-                        "invoice_id": result.get("invoice_id", ""),
-                        "confidence": confidence
-                    }
-                }
-                
-                response = requests.post(active_learning_endpoint, json=al_request, timeout=30)
-                response.raise_for_status()
-                al_result = response.json()
-                
-                st.success(f"✅ Saved to training queue! ({al_result.get('entry_count', 0)} total entries)")
-                
-            except requests.exceptions.RequestException as e:
-                st.error(f"❌ Failed to save: {str(e)}")
-            except Exception as e:
-                st.error(f"❌ Error: {str(e)}")
-        
-        # Download JSON button
-        if st.button("📥 Download JSON", use_container_width=True):
-            json_str = json.dumps(invoice, indent=2)
-            st.download_button(
-                label="Download Invoice JSON",
-                data=json_str,
-                file_name=f"invoice_{result.get('invoice_id', 'unknown')}.json",
-                mime="application/json"
-            )
+                st.json(e.response.json())
+            except:
+                st.text(e.response.text)
+    except Exception as e:
+        st.error(f"Unexpected error: {e}")
 
 # Footer
 st.markdown("---")
 st.caption("FinScribe Smart Scan - Powered by PaddleOCR, ERNIE, and FastAPI")
-

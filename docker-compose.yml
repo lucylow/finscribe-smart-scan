@@ -1,210 +1,28 @@
 version: '3.8'
 services:
-  # Backend API (FastAPI) - Demo endpoint
   backend:
     build:
       context: .
-      dockerfile: Dockerfile
-    container_name: finscribe-backend
-    depends_on:
-      - redis
-      - minio
-      - postgres
-    environment:
-      - STORAGE_BASE=/data/storage
-      - MODEL_MODE=${MODEL_MODE:-mock}
-      - OCR_MODE=${OCR_MODE:-paddle}
-      - OCR_LANG=${OCR_LANG:-en}
-      - OCR_USE_GPU=${OCR_USE_GPU:-0}
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/1
-      - MINIO_ENDPOINT=minio:9000
-      - MINIO_ACCESS_KEY=minioadmin
-      - MINIO_SECRET_KEY=minioadmin
-      - MINIO_BUCKET=finscribe
-      - DATABASE_URL=postgresql://finscribe:finscribe@postgres:5432/finscribe
-      - HF_TOKEN=${HF_TOKEN:-}
+      dockerfile: Dockerfile.backend
     ports:
       - "8000:8000"
+    environment:
+      - PADDLE_MODE=mock
     volumes:
-      - ./data:/data
-    command: ["uvicorn", "finscribe.api.endpoints:app", "--host", "0.0.0.0", "--port", "8000"]
-    networks:
-      - finscribe-network
-
-  # Frontend (React/Vite)
+      - ./data:/app/data
+      - ./examples:/app/examples
   frontend:
     build:
       context: .
-      dockerfile: Dockerfile.frontend
-    container_name: finscribe_frontend
-    command: npm run dev -- --host 0.0.0.0 --port 5173
-    volumes:
-      - ./:/app
-      - /app/node_modules
+      dockerfile: frontend/Dockerfile
+    container_name: finscribe_streamlit
     ports:
-      - "5173:5173"
+      - "8501:8501"
     environment:
-      - VITE_API_URL=http://localhost:8000
+      - BACKEND_URL=http://backend:8000
+      - STREAMLIT_SERVER_HEADLESS=true
     depends_on:
       - backend
-    networks:
-      - finscribe-network
-
-  # OCR Service (optional)
-  ocr_service:
-    build: ./ocr_service
-    container_name: finscribe_ocr
-    ports:
-      - "8002:8000"
     volumes:
-      - ./data:/data
-    networks:
-      - finscribe-network
-
-  # LLaMA Factory (optional, for training)
-  llamafactory:
-    build: ./llamafactory-docker
-    container_name: finscribe_llamafactory
-    ports:
-      - "8001:8000"
-    environment:
-      - HF_TOKEN=${HF_TOKEN:-}
-      - NVIDIA_VISIBLE_DEVICES=all
-    volumes:
-      - ./llamafactory-data:/home/app/LLaMA-Factory/data
-      - ./llamafactory-saves:/home/app/LLaMA-Factory/saves
-      - ./llamafactory-exports:/home/app/LLaMA-Factory/exports
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-    networks:
-      - finscribe-network
-
-  # Unsloth LLM Training Service (optional, for fine-tuning)
-  llm:
-    build:
-      context: .
-      dockerfile: Dockerfile.llm
-    container_name: finscribe_llm
-    volumes:
-      - ./:/app
-      - ./models:/app/models
+      - ./examples:/app/examples
       - ./data:/app/data
-    environment:
-      - PYTHONUNBUFFERED=1
-      - HF_TOKEN=${HF_TOKEN:-}
-      - UNSLOTH_MODEL_NAME=${UNSLOTH_MODEL_NAME:-unsloth/llama-3.1-8b-unsloth-bnb-4bit}
-      - UNSLOTH_MODEL_DIR=${UNSLOTH_MODEL_DIR:-./models/unsloth-finscribe}
-      - NVIDIA_VISIBLE_DEVICES=all
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-    networks:
-      - finscribe-network
-    # Note: This service is typically run manually for training:
-    # docker-compose run --rm llm python3 unsloth/train_unsloth_fast.py --train_data data/unsloth_train.jsonl
-
-  # PostgreSQL Database
-  postgres:
-    image: postgres:14-alpine
-    container_name: finscribe_postgres
-    environment:
-      POSTGRES_USER: finscribe
-      POSTGRES_PASSWORD: finscribe
-      POSTGRES_DB: finscribe
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-    networks:
-      - finscribe-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U finscribe"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # Redis (for Celery task queue)
-  redis:
-    image: redis:6-alpine
-    container_name: finscribe_redis
-    restart: unless-stopped
-    ports:
-      - "6379:6379"
-    volumes:
-      - redisdata:/data
-    networks:
-      - finscribe-network
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # Celery Worker (for OCR tasks)
-  worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: finscribe-worker
-    depends_on:
-      - redis
-      - backend
-    environment:
-      - STORAGE_BASE=/data/storage
-      - MODEL_MODE=${MODEL_MODE:-mock}
-      - OCR_MODE=${OCR_MODE:-paddle}
-      - OCR_LANG=${OCR_LANG:-en}
-      - OCR_USE_GPU=${OCR_USE_GPU:-0}
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/1
-      - MINIO_ENDPOINT=minio:9000
-      - MINIO_ACCESS_KEY=minioadmin
-      - MINIO_SECRET_KEY=minioadmin
-      - MINIO_BUCKET=finscribe
-      - DATABASE_URL=postgresql://finscribe:finscribe@postgres:5432/finscribe
-    volumes:
-      - ./data:/data
-    command: ["celery", "-A", "finscribe.celery_app", "worker", "--loglevel=info", "-Q", "default"]
-    networks:
-      - finscribe-network
-
-  # MinIO (S3-compatible storage)
-  minio:
-    image: minio/minio:RELEASE.2025-01-01T00-00-00Z
-    container_name: finscribe_minio
-    command: server /data
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
-      MINIO_BUCKET: finscribe
-    volumes:
-      - miniodata:/data
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    networks:
-      - finscribe-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 30s
-      timeout: 20s
-      retries: 3
-
-volumes:
-  pgdata:
-  miniodata:
-  redisdata:
-
-networks:
-  finscribe-network:
-    driver: bridge

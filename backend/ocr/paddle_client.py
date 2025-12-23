@@ -96,60 +96,26 @@ def _run_local_mode(image_path: str) -> Dict[str, Any]:
 
 def _run_mock_mode(image_path: str) -> Dict[str, Any]:
     """Return deterministic mock OCR data"""
-    # Try to load sample from examples if available
-    sample_path = Path("examples") / "sample_invoice.json"
-    if sample_path.exists():
+    start = time.time()
+    
+    # Look for a sample OCR JSON close to the image name
+    sample_json = Path("examples") / (Path(image_path).stem + "_ocr.json")
+    if sample_json.exists():
         try:
-            with open(sample_path, "r") as f:
-                sample = json.load(f)
-                if "ocr" in sample:
-                    return sample["ocr"]
+            with open(sample_json, "r") as f:
+                j = json.load(f)
+                j["latency_ms"] = int((time.time() - start) * 1000)
+                return j
         except Exception:
             pass
 
-    # Default mock data
-    return {
-        "raw_text": """INVOICE
-Invoice #: INV-2024-001
-Date: 2024-01-15
-Due: 2024-02-15
-
-Vendor: TechCorp Inc.
-123 Innovation Blvd, Suite 100
-Cityville, CA 94000
-
-Bill To:
-Client Industries Inc.
-456 Customer Avenue
-New York, NY 10001
-
-Description          Qty    Unit Price    Total
-Widget A x1          1      $50.00        $50.00
-Service B - Package 1  1      $100.00       $100.00
-Support Plan 1 months  1      $25.00        $25.00
-
-Subtotal: $175.00
-Tax (10%): $17.50
-Grand Total: $192.50""",
-        "words": [
-            {"text": "INVOICE", "bbox": [100, 50, 300, 80], "confidence": 0.95},
-            {"text": "Invoice", "bbox": [100, 100, 200, 130], "confidence": 0.92},
-            {"text": "#:", "bbox": [210, 100, 240, 130], "confidence": 0.90},
-            {"text": "INV-2024-001", "bbox": [250, 100, 400, 130], "confidence": 0.98},
-            {"text": "TechCorp", "bbox": [100, 200, 250, 230], "confidence": 0.95},
-            {"text": "Inc.", "bbox": [260, 200, 300, 230], "confidence": 0.93},
-            {"text": "Widget", "bbox": [100, 400, 200, 430], "confidence": 0.94},
-            {"text": "A", "bbox": [210, 400, 230, 430], "confidence": 0.96},
-            {"text": "1", "bbox": [500, 400, 520, 430], "confidence": 0.97},
-            {"text": "$50.00", "bbox": [600, 400, 700, 430], "confidence": 0.98},
-            {"text": "$50.00", "bbox": [800, 400, 900, 430], "confidence": 0.98},
-            {"text": "Subtotal:", "bbox": [600, 600, 700, 630], "confidence": 0.95},
-            {"text": "$175.00", "bbox": [710, 600, 810, 630], "confidence": 0.97},
-            {"text": "Tax", "bbox": [600, 650, 650, 680], "confidence": 0.94},
-            {"text": "(10%):", "bbox": [660, 650, 750, 680], "confidence": 0.92},
-            {"text": "$17.50", "bbox": [760, 650, 860, 680], "confidence": 0.96},
-            {"text": "Grand", "bbox": [600, 700, 680, 730], "confidence": 0.95},
-            {"text": "Total:", "bbox": [690, 700, 760, 730], "confidence": 0.94},
-            {"text": "$192.50", "bbox": [770, 700, 870, 730], "confidence": 0.98},
-        ]
-    }
+    # fallback deterministic mock: attempt simple Tesseract if installed; else return simple text
+    try:
+        import pytesseract
+        from PIL import Image
+        txt = pytesseract.image_to_string(Image.open(image_path))
+        return {"raw_text": txt, "words": [], "latency_ms": int((time.time() - start) * 1000)}
+    except Exception:
+        # final fallback: return a short placeholder
+        placeholder = "WALMART SUPERCENTER\n1234 Sample St\nDate 11/15/2023  04:32 PM\nItem A 4.99\nItem B 2.50\nSubtotal 7.49\nTax 0.45\nTotal 7.94\nVisa **** 1234"
+        return {"raw_text": placeholder, "words": [], "latency_ms": int((time.time() - start) * 1000)}

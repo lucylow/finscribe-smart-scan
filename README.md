@@ -124,6 +124,65 @@ This starts the complete demo stack:
    - Click "Accept & Send to Training"
    - Verify entry in `data/active_learning_queue.jsonl`
 
+### Frontend / Demo Features
+
+The Streamlit frontend (`frontend/app.py`) provides a complete demo-ready UI with:
+
+- **Upload & Process**: Upload invoice images/PDFs or select from 5 demo samples
+- **OCR Overlay**: Visual bounding boxes overlaid on the original document
+- **Inline Editing**: Edit extracted fields (vendor, date, line items) directly in the UI
+- **Real-time Preview**: See structured JSON update as you edit
+- **ROI Calculator**: Calculate monthly savings and payback time
+- **Demo Mode**: Toggle mock OCR for guaranteed results during demos
+- **Export**: Download corrected JSON or CSV
+- **Active Learning**: Send corrections to training queue with one click
+
+#### Running the Frontend
+
+**Option 1: Docker Compose (Recommended)**
+```bash
+make dev
+# or
+docker-compose -f docker-compose.demo.yml up --build
+```
+
+**Option 2: Standalone Streamlit**
+```bash
+cd frontend
+pip install -r requirements-frontend.txt
+streamlit run app.py --server.port 8501
+```
+
+Then open http://localhost:8501
+
+#### Demo Flow
+
+1. **Select Sample or Upload**: Choose from `examples/sample1.jpg` through `sample5.jpg` or upload your own
+2. **View OCR Results**: See raw OCR text and bounding box overlay
+3. **Edit Fields**: Modify vendor name, invoice date, or line items
+4. **Export**: Download JSON or CSV
+5. **Send to Training**: Click "Accept & Send to Training" to save corrections
+
+#### Testing Active Learning
+
+After editing fields and clicking "Accept & Send to Training", verify the correction was saved:
+
+```bash
+# Check active learning queue
+cat data/active_learning_queue.jsonl | tail -1 | python -m json.tool
+```
+
+Or use the API directly:
+```bash
+curl -X POST "http://localhost:8000/active_learning" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "vendor": {"name": "Corrected Vendor"},
+    "invoice_date": "2024-01-15",
+    "line_items": [{"description": "Item", "quantity": 1, "unit_price": "10.00", "line_total": "10.00"}]
+  }'
+```
+
 ### Alternative: Manual Setup
 
 #### 1. Install Dependencies
@@ -1723,6 +1782,27 @@ If you use FinScribe AI in your research or projects:
   note = {Fine-tuned PaddleOCR-VL for semantic financial document parsing}
 }
 ```
+
+---
+
+## Demo: Walmartreceipt.jpeg
+
+Place your Walmart demo image at `examples/Walmartreceipt.jpeg`.
+
+Run the demo locally:
+
+```bash
+# create env and install deps if not using Docker
+pip install -r requirements.txt
+python3 scripts/process_walmart_receipt.py
+```
+
+Or run with the provided shell wrapper:
+```bash
+./scripts/demo_walmart.sh
+```
+
+Output: JSON printed to stdout with structured_invoice and validation.
 
 ---
 

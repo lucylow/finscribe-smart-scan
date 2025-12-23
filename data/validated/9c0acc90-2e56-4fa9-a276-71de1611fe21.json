@@ -1,0 +1,14 @@
+{
+  "invoice_id": "9c0acc90-2e56-4fa9-a276-71de1611fe21",
+  "stage": "validated",
+  "timestamp": "2025-12-23T00:25:55.051743",
+  "data": {
+    "validation": {
+      "ok": false,
+      "errors": [
+        "line_items sum 1241.49 != subtotal 7.49"
+      ],
+      "field_confidences": {}
+    }
+  }
+}

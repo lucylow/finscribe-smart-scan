@@ -28,18 +28,19 @@ services:
   frontend:
     build:
       context: .
-      dockerfile: Dockerfile.frontend
+      dockerfile: frontend/Dockerfile
     container_name: finscribe-frontend-demo
     ports:
       - "8501:8501"
     volumes:
       - ./data:/app/data
+      - ./examples:/app/examples
     depends_on:
       - backend
     networks:
       - finscribe-demo-network
     environment:
-      - API_BASE=http://backend:8000
+      - BACKEND_URL=http://backend:8000
 
   # OCR Service (Mock - optional)
   ocr-service:

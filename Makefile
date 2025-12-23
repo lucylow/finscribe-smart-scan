@@ -79,6 +79,12 @@ dev:
 	@echo ""
 	@echo "Use 'make demo-down' to stop"
 
+frontend:
+	@echo "Starting Streamlit frontend..."
+	docker-compose up --build streamlit-frontend
+	@echo ""
+	@echo "✓ Streamlit frontend started at http://localhost:8501"
+
 demo: dev
 
 demo-up:
