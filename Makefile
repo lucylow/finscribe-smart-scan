@@ -1,12 +1,13 @@
-# Makefile for FinScribe CAMEL-AI integration
+# Makefile for FinScribe Smart Scan
 # Provides convenient commands for building, running, and testing the stack
 
 DOCKER_COMPOSE = docker-compose
+DOCKER_COMPOSE_DEMO = docker-compose -f docker-compose.demo.yml
 SAMPLE_SCRIPT = examples/generate_sample_invoice.py
 SAMPLE_PATH = examples/sample_invoice.jpg
-ACTIVE_QUEUE = active_learning.jsonl
+ACTIVE_QUEUE = data/active_learning_queue.jsonl
 
-.PHONY: all generate-sample build up logs down clean help test-camel demo demo-up demo-down demo-logs
+.PHONY: all generate-sample build up logs down clean help test-camel demo demo-up demo-down demo-logs dev test lint
 
 all: generate-sample build up
 	@echo "✓ Stack started. Use 'make logs' to tail logs, 'make down' to stop."
@@ -65,30 +66,40 @@ health:
 	@echo "\nMock Validator:"
 	@curl -s http://localhost:8100/health | python -m json.tool || echo "✗ Validator not responding"
 
-demo: build
-	@echo "Starting FinScribe demo stack..."
-	@echo "This will start: API (8000), Frontend (5173), Postgres, Redis, MinIO"
-	$(DOCKER_COMPOSE) up -d api frontend postgres redis minio
+dev:
+	@echo "Starting FinScribe demo environment..."
+	@echo "This will start: Backend API (8000), Frontend Streamlit (8501), OCR Service (8001)"
+	$(DOCKER_COMPOSE_DEMO) up --build
 	@echo ""
-	@echo "✓ Demo stack started!"
-	@echo "  Frontend: http://localhost:5173"
+	@echo "✓ Demo environment started!"
+	@echo "  Frontend: http://localhost:8501"
 	@echo "  Backend API: http://localhost:8000"
 	@echo "  API Docs: http://localhost:8000/docs"
-	@echo "  MinIO Console: http://localhost:9001 (minioadmin/minioadmin)"
+	@echo "  Health: http://localhost:8000/health"
 	@echo ""
-	@echo "Use 'make demo-logs' to view logs, 'make demo-down' to stop"
+	@echo "Use 'make demo-down' to stop"
+
+demo: dev
 
 demo-up:
 	@echo "Starting demo services..."
-	$(DOCKER_COMPOSE) up -d api frontend postgres redis minio
+	$(DOCKER_COMPOSE_DEMO) up -d --build
 
 demo-down:
 	@echo "Stopping demo services..."
-	$(DOCKER_COMPOSE) down
+	$(DOCKER_COMPOSE_DEMO) down
 
 demo-logs:
 	@echo "Tailing demo logs (press Ctrl-C to quit)..."
-	$(DOCKER_COMPOSE) logs -f api frontend
+	$(DOCKER_COMPOSE_DEMO) logs -f backend frontend
+
+test:
+	@echo "Running tests..."
+	pytest tests/ -v
+
+lint:
+	@echo "Running linter..."
+	flake8 backend/ tests/ --max-line-length=120 --ignore=E501,W503
 
 help:
 	@echo "FinScribe CAMEL-AI Integration - Makefile targets:"

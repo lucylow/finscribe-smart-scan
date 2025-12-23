@@ -14,8 +14,8 @@ from typing import Dict, Any, Optional
 
 # Configuration
 API_BASE = "http://localhost:8000"
-PROCESS_ENDPOINT = f"{API_BASE}/api/v1/process_invoice"
-ACTIVE_LEARNING_ENDPOINT = f"{API_BASE}/api/v1/active_learning"
+PROCESS_ENDPOINT = f"{API_BASE}/process_invoice"
+ACTIVE_LEARNING_ENDPOINT = f"{API_BASE}/active_learning"
 
 # Page config
 st.set_page_config(
@@ -32,8 +32,8 @@ st.markdown("**AI-Powered Invoice Processing with Multi-Agent Verification**")
 with st.sidebar:
     st.header("⚙️ Configuration")
     api_base = st.text_input("API Base URL", value=API_BASE)
-    process_endpoint = f"{api_base}/api/v1/process_invoice"
-    active_learning_endpoint = f"{api_base}/api/v1/active_learning"
+    process_endpoint = f"{api_base}/process_invoice"
+    active_learning_endpoint = f"{api_base}/active_learning"
     
     st.markdown("---")
     st.markdown("### 📊 Pipeline")
@@ -75,41 +75,44 @@ if uploaded_file:
     col1, col2 = st.columns(2)
     
     # ========================================================================
-    # LEFT COLUMN: OCR Preview + CAMEL Analysis
+    # LEFT COLUMN: OCR Preview + Validation
     # ========================================================================
     with col1:
         st.subheader("🔍 OCR Preview")
-        ocr_preview = result.get("ocr_preview", "")
-        if ocr_preview:
-            st.code(ocr_preview[:3000], language="text")
-            if len(ocr_preview) > 3000:
-                st.caption(f"Showing first 3000 chars of {len(ocr_preview)} total")
-        else:
-            st.info("No OCR text available")
+        # Get OCR text from stored stage if available, or show placeholder
+        ocr_preview = "OCR text would be displayed here. Check data/ocr/ for stored OCR results."
+        st.info("OCR text is stored in pipeline stages. Check data/ocr/ directory.")
         
         st.markdown("---")
         
-        # CAMEL Agent Verdict
-        st.subheader("🤖 CAMEL Agent Verdict")
-        camel_analysis = result.get("camel_analysis", {})
-        confidence = camel_analysis.get("confidence", 0.0)
+        # Validation Results
+        st.subheader("✅ Validation Results")
+        validation = result.get("validation", {})
+        confidence = result.get("confidence", 0.0)
         
         # Confidence metric
-        st.metric("Confidence", f"{confidence*100:.1f}%")
+        st.metric("Overall Confidence", f"{confidence*100:.1f}%")
         
-        # Notes
-        notes = camel_analysis.get("notes", "No notes available")
-        st.write("**Analysis:**")
-        st.info(notes)
-        
-        # Issues
-        issues = camel_analysis.get("issues", [])
-        if issues:
-            st.warning("⚠️ Issues detected")
-            for issue in issues:
-                st.write(f"- {issue}")
+        # Validation status
+        is_valid = validation.get("is_valid", validation.get("ok", False))
+        if is_valid:
+            st.success("✅ Validation passed")
         else:
-            st.success("✅ No issues detected")
+            st.error("❌ Validation failed")
+        
+        # Errors
+        errors = validation.get("errors", [])
+        if errors:
+            st.warning("⚠️ Issues detected")
+            for error in errors:
+                st.write(f"- {error}")
+        
+        # Field confidences
+        field_confidences = validation.get("field_confidences", {})
+        if field_confidences:
+            st.write("**Field Confidences:**")
+            for field, conf in field_confidences.items():
+                st.write(f"- {field}: {conf*100:.1f}%")
         
         # Latency metrics
         st.markdown("---")
@@ -117,11 +120,21 @@ if uploaded_file:
         latency = result.get("latency_ms", {})
         col_l1, col_l2, col_l3 = st.columns(3)
         with col_l1:
-            st.metric("OCR", f"{latency.get('ocr', 0)}ms")
+            st.metric("Preprocess", f"{latency.get('preprocess', 0)}ms")
         with col_l2:
-            st.metric("LLM", f"{latency.get('llm', 0)}ms")
+            st.metric("OCR", f"{latency.get('ocr', 0)}ms")
         with col_l3:
-            st.metric("Agents", f"{latency.get('agents', 0)}ms")
+            st.metric("Parse", f"{latency.get('parse', 0)}ms")
+        
+        if latency.get("validation"):
+            st.metric("Validation", f"{latency.get('validation', 0)}ms")
+        
+        if latency.get("total"):
+            st.metric("Total", f"{latency.get('total', 0)}ms")
+        
+        # Fallback indicator
+        if result.get("fallback_used"):
+            st.warning("⚠️ Fallback mode used (ERNIE unavailable)")
     
     # ========================================================================
     # RIGHT COLUMN: Editable Structured Invoice
@@ -179,36 +192,30 @@ if uploaded_file:
                     
                     col_q1, col_q2, col_q3 = st.columns(3)
                     with col_q1:
+                        qty_val = float(item.get("quantity", item.get("qty", 1.0)))
                         item["quantity"] = st.number_input(
                             "Quantity",
-                            value=float(item.get("quantity", 1.0)),
+                            value=qty_val,
                             key=f"qty_{i}",
                             min_value=0.0,
                             step=0.1
                         )
                     with col_q2:
-                        unit_price = item.get("unit_price", {})
-                        if isinstance(unit_price, dict):
-                            unit_price_val = unit_price.get("value", 0.0)
-                        else:
-                            unit_price_val = float(unit_price) if unit_price else 0.0
-                        
-                        item["unit_price"] = {
-                            "value": st.number_input(
-                                "Unit Price",
-                                value=unit_price_val,
-                                key=f"price_{i}",
-                                min_value=0.0,
-                                step=0.01,
-                                format="%.2f"
-                            ),
-                            "currency": unit_price.get("currency", "USD") if isinstance(unit_price, dict) else "USD"
-                        }
+                        unit_price_val = float(item.get("unit_price", 0.0))
+                        item["unit_price"] = st.number_input(
+                            "Unit Price",
+                            value=unit_price_val,
+                            key=f"price_{i}",
+                            min_value=0.0,
+                            step=0.01,
+                            format="%.2f"
+                        )
                     with col_q3:
-                        line_total = item.get("line_total", 0.0)
+                        line_total = float(item.get("line_total", item["quantity"] * item["unit_price"]))
+                        item["line_total"] = line_total
                         st.metric(
                             "Line Total",
-                            f"${line_total:.2f}" if isinstance(line_total, (int, float)) else line_total
+                            f"${line_total:.2f}"
                         )
         
         # Financial summary
@@ -274,7 +281,7 @@ if uploaded_file:
                         "line_items_edited": len(line_items) > 0
                     },
                     "metadata": {
-                        "ocr_text": ocr_preview,
+                        "ocr_text": "See data/ocr/ for OCR results",
                         "invoice_id": result.get("invoice_id", ""),
                         "confidence": confidence
                     }
@@ -303,5 +310,5 @@ if uploaded_file:
 
 # Footer
 st.markdown("---")
-st.caption("FinScribe Smart Scan - Powered by Unsloth, CAMEL-AI, and LLaMA")
+st.caption("FinScribe Smart Scan - Powered by PaddleOCR, ERNIE, and FastAPI")
 

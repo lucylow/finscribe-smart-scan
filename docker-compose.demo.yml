@@ -1,0 +1,88 @@
+version: '3.8'
+
+services:
+  # Backend API (FastAPI)
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: finscribe-backend-demo
+    environment:
+      - PADDLE_MODE=${PADDLE_MODE:-mock}
+      - PADDLE_SERVICE_URL=${PADDLE_SERVICE_URL:-http://ocr-service:8001/predict}
+      - ERNIE_URL=${ERNIE_URL:-}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./examples:/app/examples
+    networks:
+      - finscribe-demo-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Frontend (Streamlit)
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: finscribe-frontend-demo
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      - backend
+    networks:
+      - finscribe-demo-network
+    environment:
+      - API_BASE=http://backend:8000
+
+  # OCR Service (Mock - optional)
+  ocr-service:
+    image: python:3.10-slim
+    container_name: finscribe-ocr-service
+    working_dir: /app
+    command: >
+      sh -c "
+      pip install fastapi uvicorn requests &&
+      python -c \"
+from fastapi import FastAPI, File, UploadFile
+from fastapi.responses import JSONResponse
+import json
+
+app = FastAPI()
+
+@app.post('/predict')
+async def predict(file: UploadFile = File(...)):
+    # Return mock OCR result
+    return JSONResponse({
+        'raw_text': 'INVOICE\\nInvoice #: INV-2024-001\\nDate: 2024-01-15\\nVendor: TechCorp Inc.\\nSubtotal: $175.00\\nTax: $17.50\\nGrand Total: $192.50',
+        'words': [
+            {'text': 'INVOICE', 'bbox': [100, 50, 300, 80], 'confidence': 0.95},
+            {'text': 'INV-2024-001', 'bbox': [250, 100, 400, 130], 'confidence': 0.98},
+            {'text': 'TechCorp', 'bbox': [100, 200, 250, 230], 'confidence': 0.95},
+            {'text': '$192.50', 'bbox': [770, 700, 870, 730], 'confidence': 0.98}
+        ],
+        'latency_ms': 150
+    })
+
+import uvicorn
+uvicorn.run(app, host='0.0.0.0', port=8001)
+      \"
+      "
+    ports:
+      - "8001:8001"
+    networks:
+      - finscribe-demo-network
+
+networks:
+  finscribe-demo-network:
+    driver: bridge
+
+volumes:
+  data:
+
