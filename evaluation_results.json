@@ -1,0 +1,19 @@
+{
+    "timestamp": "2025-12-22 23:07:29",
+    "models": {
+        "PaddleOCR-VL-0.9B": {
+            "accuracy": 0.92,
+            "latency_ms": 450
+        },
+        "ERNIE-4.5-VL": {
+            "accuracy": 0.96,
+            "latency_ms": 1200
+        },
+        "Unsloth-Llama-3-8B-FT": {
+            "accuracy": 0.94,
+            "latency_ms": 350
+        }
+    },
+    "overall_performance": "Excellent",
+    "recommendation": "Use ERNIE-4.5-VL for high-precision tasks, Unsloth for high-throughput."
+}
