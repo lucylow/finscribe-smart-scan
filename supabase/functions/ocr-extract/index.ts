@@ -1,7 +1,6 @@
 /**
- * OCR Extract Edge Function - DEMO MODE
- * Returns realistic sample invoice data for hackathon demo.
- * No external AI services required.
+ * OCR Extract Edge Function - PaddleOCR-VL via Hugging Face
+ * Uses PaddlePaddle/PaddleOCR-VL model for real OCR extraction
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -11,6 +10,13 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+interface LineItem {
+  description: string;
+  quantity: number;
+  unit_price: number;
+  total: number;
+}
+
 interface ExtractedInvoice {
   vendor_name: string;
   invoice_number: string;
@@ -18,88 +24,175 @@ interface ExtractedInvoice {
   due_date: string;
   total_amount: number;
   currency: string;
-  line_items: Array<{
-    description: string;
-    quantity: number;
-    unit_price: number;
-    total: number;
-  }>;
+  line_items: LineItem[];
   tax_amount: number;
   subtotal: number;
   raw_text: string;
   confidence: number;
 }
 
-// Demo templates for variety
-// Walmart Receipt Mock Data - for hackathon demo
-function generateWalmartReceiptExtraction(): ExtractedInvoice {
-  const today = new Date();
-  const receiptTime = "04:32 PM";
+/**
+ * Call PaddleOCR-VL model via Hugging Face Inference API
+ */
+async function callPaddleOCRVL(imageBase64: string, hfToken: string): Promise<string> {
+  console.log("Calling PaddleOCR-VL model via Hugging Face...");
   
-  const lineItems = [
-    { description: "GV 2% MILK GAL", quantity: 1, unit_price: 3.48, total: 3.48 },
-    { description: "BANANAS LB", quantity: 1, unit_price: 1.67, total: 1.67 },
-    { description: "GV WHITE BREAD", quantity: 1, unit_price: 1.28, total: 1.28 },
-    { description: "EGGS LARGE 12CT", quantity: 1, unit_price: 2.97, total: 2.97 },
-    { description: "CHICKEN BREAST", quantity: 2.34, unit_price: 3.47, total: 8.12 },
-    { description: "ROMA TOMATOES", quantity: 1, unit_price: 1.24, total: 1.24 },
-    { description: "YELLOW ONION 3LB", quantity: 1, unit_price: 2.98, total: 2.98 },
-    { description: "GV BUTTER SALTED", quantity: 1, unit_price: 3.64, total: 3.64 },
-  ];
+  // PaddleOCR-VL model endpoint
+  const modelEndpoint = "https://api-inference.huggingface.co/models/PaddlePaddle/PaddleOCR-VL-0.9B";
   
-  const subtotal = lineItems.reduce((sum, item) => sum + item.total, 0);
-  const taxAmount = Math.round(subtotal * 0.0825 * 100) / 100;
-  const total = Math.round((subtotal + taxAmount) * 100) / 100;
+  const response = await fetch(modelEndpoint, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${hfToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      inputs: {
+        image: imageBase64,
+        text: "Please extract all text from this receipt or invoice image. Include all line items, prices, totals, dates, and vendor information."
+      },
+      parameters: {
+        max_new_tokens: 2048,
+      }
+    }),
+  });
 
-  const rawText = `WALMART SUPERCENTER
-Store #4528
-2501 SE SIMPLE SAVINGS BLVD
-BENTONVILLE, AR 72712
-(479) 273-4567
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("HuggingFace API error:", response.status, errorText);
+    
+    // Check if model is loading
+    if (response.status === 503) {
+      const errorJson = JSON.parse(errorText);
+      if (errorJson.error?.includes("loading")) {
+        throw new Error("Model is loading. Please try again in 20-30 seconds.");
+      }
+    }
+    
+    throw new Error(`HuggingFace API error: ${response.status} - ${errorText}`);
+  }
 
-ST# 4528  OP# 004832  TE# 12  TR# 8847
+  const result = await response.json();
+  console.log("PaddleOCR-VL raw response:", JSON.stringify(result).substring(0, 500));
+  
+  // Handle different response formats
+  if (typeof result === 'string') {
+    return result;
+  } else if (Array.isArray(result) && result.length > 0) {
+    if (typeof result[0] === 'string') {
+      return result[0];
+    } else if (result[0].generated_text) {
+      return result[0].generated_text;
+    }
+  } else if (result.generated_text) {
+    return result.generated_text;
+  } else if (result.text) {
+    return result.text;
+  }
+  
+  return JSON.stringify(result);
+}
 
-GV 2% MILK GAL           3.48
-BANANAS LB               1.67
-GV WHITE BREAD           1.28
-EGGS LARGE 12CT          2.97
-CHICKEN BREAST  2.34 lb @ 3.47/lb    8.12
-ROMA TOMATOES            1.24
-YELLOW ONION 3LB         2.98
-GV BUTTER SALTED         3.64
-
-        SUBTOTAL        ${subtotal.toFixed(2)}
-        TAX 8.25%        ${taxAmount.toFixed(2)}
-        TOTAL           ${total.toFixed(2)}
-
-VISA DEBIT TEND          ${total.toFixed(2)}
-        CHANGE DUE        0.00
-
-CARD # ************4892
-APPROVAL # 847291
-
-${today.toLocaleDateString('en-US')}  ${receiptTime}
-
-# ITEMS SOLD 8
-
-         THANK YOU FOR SHOPPING
-            AT WALMART
-       SAVE MONEY. LIVE BETTER.
-
-        TC# 7291 8847 3829 4721`;
-
+/**
+ * Parse OCR text into structured invoice data
+ */
+function parseReceiptText(rawText: string): ExtractedInvoice {
+  const lines = rawText.split('\n').map(l => l.trim()).filter(l => l);
+  
+  // Extract vendor name (usually first non-empty line)
+  let vendorName = "Unknown Vendor";
+  if (lines.length > 0) {
+    vendorName = lines[0];
+  }
+  
+  // Look for common patterns
+  let invoiceNumber = "";
+  let invoiceDate = new Date().toISOString().split('T')[0];
+  let totalAmount = 0;
+  let taxAmount = 0;
+  let subtotal = 0;
+  const lineItems: LineItem[] = [];
+  
+  // Pattern matching for receipt data
+  const datePattern = /(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/;
+  const pricePattern = /\$?\d+\.\d{2}/g;
+  const invoicePattern = /(?:invoice|receipt|order|tr|tc)[#:\s]*([A-Z0-9\-]+)/i;
+  const totalPattern = /(?:total|amount due|grand total)[:\s]*\$?(\d+\.?\d*)/i;
+  const taxPattern = /(?:tax|vat|gst)[:\s]*\$?(\d+\.?\d*)/i;
+  const subtotalPattern = /(?:subtotal|sub-total)[:\s]*\$?(\d+\.?\d*)/i;
+  
+  for (const line of lines) {
+    // Find invoice/receipt number
+    const invoiceMatch = line.match(invoicePattern);
+    if (invoiceMatch) {
+      invoiceNumber = invoiceMatch[1];
+    }
+    
+    // Find date
+    const dateMatch = line.match(datePattern);
+    if (dateMatch) {
+      invoiceDate = dateMatch[1];
+    }
+    
+    // Find total
+    const totalMatch = line.match(totalPattern);
+    if (totalMatch) {
+      totalAmount = parseFloat(totalMatch[1]);
+    }
+    
+    // Find tax
+    const taxMatch = line.match(taxPattern);
+    if (taxMatch) {
+      taxAmount = parseFloat(taxMatch[1]);
+    }
+    
+    // Find subtotal
+    const subtotalMatch = line.match(subtotalPattern);
+    if (subtotalMatch) {
+      subtotal = parseFloat(subtotalMatch[1]);
+    }
+    
+    // Try to identify line items (lines with prices that aren't totals)
+    const prices = line.match(pricePattern);
+    if (prices && !line.toLowerCase().includes('total') && 
+        !line.toLowerCase().includes('tax') && 
+        !line.toLowerCase().includes('change') &&
+        !line.toLowerCase().includes('tend')) {
+      const description = line.replace(pricePattern, '').trim();
+      if (description.length > 2) {
+        const price = parseFloat(prices[prices.length - 1].replace('$', ''));
+        lineItems.push({
+          description: description.substring(0, 50),
+          quantity: 1,
+          unit_price: price,
+          total: price
+        });
+      }
+    }
+  }
+  
+  // Calculate subtotal if not found
+  if (subtotal === 0 && lineItems.length > 0) {
+    subtotal = lineItems.reduce((sum, item) => sum + item.total, 0);
+  }
+  
+  // Calculate total if not found
+  if (totalAmount === 0) {
+    totalAmount = subtotal + taxAmount;
+  }
+  
   return {
-    vendor_name: "Walmart Supercenter #4528",
-    invoice_number: "TR# 8847",
-    invoice_date: today.toISOString().split('T')[0],
-    due_date: today.toISOString().split('T')[0],
-    total_amount: total,
+    vendor_name: vendorName,
+    invoice_number: invoiceNumber || `OCR-${Date.now()}`,
+    invoice_date: invoiceDate,
+    due_date: invoiceDate,
+    total_amount: totalAmount,
     currency: "USD",
     line_items: lineItems,
     tax_amount: taxAmount,
     subtotal: subtotal,
     raw_text: rawText,
-    confidence: 0.96,
+    confidence: 0.85,
   };
 }
 
@@ -109,21 +202,60 @@ serve(async (req) => {
   }
 
   try {
-    console.log("Processing invoice extraction (Demo Mode - No AI Credits Used)");
+    const hfToken = Deno.env.get('HUGGING_FACE_ACCESS_TOKEN');
+    if (!hfToken) {
+      console.error("HUGGING_FACE_ACCESS_TOKEN not configured");
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "HUGGING_FACE_ACCESS_TOKEN not configured. Please add your Hugging Face token."
+        }),
+        { 
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
     
     const body = await req.json();
-    const filename = body.filename || body.image?.name || 'document';
+    const { imageBase64, imageUrl, extractionType } = body;
     
-    console.log(`Processing file: ${filename}`);
+    console.log(`Processing ${extractionType || 'document'} with PaddleOCR-VL...`);
     
-    // Simulate OCR processing time
-    await new Promise(resolve => setTimeout(resolve, 600 + Math.random() * 400));
+    let base64Data = imageBase64;
     
-    const extractedData = generateWalmartReceiptExtraction();
+    // If URL provided, fetch and convert to base64
+    if (imageUrl && !imageBase64) {
+      console.log("Fetching image from URL:", imageUrl);
+      const imageResponse = await fetch(imageUrl);
+      const imageBuffer = await imageResponse.arrayBuffer();
+      base64Data = btoa(String.fromCharCode(...new Uint8Array(imageBuffer)));
+    }
     
-    console.log("Walmart receipt OCR complete:", {
-      invoice_number: extractedData.invoice_number,
+    if (!base64Data) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "No image provided. Please provide imageBase64 or imageUrl."
+        }),
+        { 
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+    
+    // Call PaddleOCR-VL
+    const rawText = await callPaddleOCRVL(base64Data, hfToken);
+    console.log("OCR extracted text length:", rawText.length);
+    console.log("OCR text preview:", rawText.substring(0, 300));
+    
+    // Parse the extracted text into structured data
+    const extractedData = parseReceiptText(rawText);
+    
+    console.log("Extraction complete:", {
       vendor: extractedData.vendor_name,
+      invoice_number: extractedData.invoice_number,
       total: extractedData.total_amount,
       items: extractedData.line_items.length
     });
@@ -131,9 +263,10 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
+        extractionType: extractionType || 'invoice',
         data: extractedData,
-        mode: 'demo',
-        message: 'Demo mode - realistic sample invoice data'
+        model: 'PaddleOCR-VL-0.9B',
+        timestamp: new Date().toISOString()
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
