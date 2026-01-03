@@ -13,46 +13,28 @@ export default function Doc2Page() {
   const [pageUrl, setPageUrl] = useState<string | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
-  const processDocument = async (file: File) => {
+  const processWithBase64 = async (imageBase64: string, fileName: string, previewUrl?: string) => {
     setIsProcessing(true);
     setGeneratedHtml(null);
     setPageUrl(null);
+    if (previewUrl) setPreviewImage(previewUrl);
 
     try {
-      // Convert file to base64
-      const reader = new FileReader();
-      const base64Promise = new Promise<string>((resolve, reject) => {
-        reader.onload = () => {
-          const result = reader.result as string;
-          const base64 = result.split(',')[1];
-          resolve(base64);
-        };
-        reader.onerror = reject;
-      });
-      reader.readAsDataURL(file);
-      const imageBase64 = await base64Promise;
-
-      // Set preview
-      setPreviewImage(`data:${file.type};base64,${imageBase64}`);
-
-      // Call the edge function
       const { data, error } = await supabase.functions.invoke('doc2page', {
-        body: { imageBase64, fileName: file.name }
+        body: { imageBase64, fileName }
       });
 
       if (error) throw error;
 
       if (data.success && data.html) {
         setGeneratedHtml(data.html);
-        
-        // Create a blob URL for the generated page
         const blob = new Blob([data.html], { type: 'text/html' });
         const url = URL.createObjectURL(blob);
         setPageUrl(url);
 
         toast.success(
           data.usedFallback 
-            ? "Document processed with fallback (HF API unavailable)" 
+            ? "Document processed with fallback (demo mode)" 
             : "Document processed successfully!",
           { description: `Model: ${data.model}` }
         );
@@ -67,6 +49,29 @@ export default function Doc2Page() {
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const processDocument = async (file: File) => {
+    const reader = new FileReader();
+    const base64Promise = new Promise<string>((resolve, reject) => {
+      reader.onload = () => {
+        const result = reader.result as string;
+        const base64 = result.split(',')[1];
+        resolve(base64);
+      };
+      reader.onerror = reject;
+    });
+    reader.readAsDataURL(file);
+    const imageBase64 = await base64Promise;
+    const previewUrl = `data:${file.type};base64,${imageBase64}`;
+    setPreviewImage(previewUrl);
+    await processWithBase64(imageBase64, file.name, previewUrl);
+  };
+
+  const runDemo = async () => {
+    // Use a hardcoded Walmart receipt base64 demo - trigger fallback with mock
+    setPreviewImage("/placeholder.svg");
+    await processWithBase64("DEMO_WALMART_RECEIPT", "WalmartReceipt.jpeg", "/placeholder.svg");
   };
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -146,6 +151,13 @@ export default function Doc2Page() {
                   <p className="text-xs text-muted-foreground">
                     Supports: PNG, JPG, JPEG, WebP, PDF
                   </p>
+                  <Button 
+                    variant="secondary" 
+                    className="mt-4"
+                    onClick={(e) => { e.stopPropagation(); runDemo(); }}
+                  >
+                    🧾 Try Demo (Walmart Receipt)
+                  </Button>
                 </div>
               )}
             </div>
